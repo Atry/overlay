@@ -48,6 +48,29 @@ class Proxy(ABC):
 
         return _evaluate_resource(resource_generator=generate_resource)
 
+    @classmethod
+    def resolve(cls, lexical_scope: "LexicalScope", /, *objects: object) -> Self:
+        """
+        Resolves a Proxy from the given objects using the provided lexical scope.
+        """
+        def parse_object(obj: object) -> "ScopeDefinition":
+            if isinstance(obj, ModuleType):
+                return parse_module(obj)
+            return parse_namespace(obj)
+
+        components = frozenset(
+            compile(lexical_scope, normalize_scope(parse_object(obj)))
+            for obj in objects
+        )
+        return cls(components=components)
+
+    @classmethod
+    def resolve_root(cls, *objects: object) -> Self:
+        """
+        Resolves the root Proxy from the given objects using an empty lexical scope.
+        """
+        return cls.resolve(().__iter__, *objects)
+
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
 class CachedProxy(Proxy):
@@ -610,25 +633,21 @@ def compile(
 
 
 def resolve(lexical_scope: LexicalScope, /, *objects: object) -> Proxy:
-    def parse_object(obj: object) -> ScopeDefinition:
-        if isinstance(obj, ModuleType):
-            return parse_module(obj)
-        return parse_namespace(obj)
+    """
+    Resolves a Proxy from the given objects using the provided lexical scope.
 
-    components = frozenset(
-        compile(lexical_scope, normalize_scope(parse_object(obj)))
-        for obj in objects
-    )
-    return CachedProxy(components=components)
+    This is a backward-compatible wrapper around Proxy.resolve().
+    """
+    return CachedProxy.resolve(lexical_scope, *objects)
 
 
 def resolve_root(*objects: object) -> Proxy:
     """
-    Resolves the root Proxy from the given objects.
+    Resolves the root Proxy from the given objects using an empty lexical scope.
 
-    TODO: 把 resolve 和 resolve_root 移到 Proxy 类内部，变成 classmethod，并使用 `cls(...)` 来创建 Self 类型的返回值。
+    This is a backward-compatible wrapper around Proxy.resolve_root().
     """
-    return resolve(().__iter__, *objects)
+    return CachedProxy.resolve_root(*objects)
 
 
 def simple_component(**kwargs: object) -> Component:
