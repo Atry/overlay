@@ -210,7 +210,12 @@ def _evaluate_resource(
     try:
         factory = next(factories)
     except StopIteration:
-        raise KeyError("No Factory definition provided")
+        try:
+            next(resource_generator())
+        except StopIteration:
+            raise AttributeError("No resource found")
+        else:
+            raise NotImplementedError("No Factory definition provided")
     else:
         try:
             next(factories)
