@@ -1,19 +1,21 @@
 import pytest
 from dataclasses import dataclass
 from typing import Any, Iterator, override
+from typing import Callable
 from mixinject import (
-    Builder,
+    Merger,
     Patcher,
     Proxy,
     CachedProxy,
     WeakCachedScope,
     resource,
+    extern,
     patch,
-    resolve,
-    resolve,
+    mount,
     scope,
     Definition,
     LexicalScope,
+    SymbolTable,
 )
 
 
@@ -60,7 +62,7 @@ class Result:
 
 
 @dataclass(frozen=True)
-class Dual(Patcher[Any], Builder[Any, Any]):
+class Dual(Patcher[Any], Merger[Any, Any]):
     value: Any
     _proxy_class: type[Proxy] | None = None
 
@@ -72,7 +74,7 @@ class Dual(Patcher[Any], Builder[Any, Any]):
     @override
     def create(self, patches: Iterator[Any]) -> Any:
         return Result(
-            f"builder-{self.value}-" + "-".join(sorted(str(p) for p in patches))
+            f"merger-{self.value}-" + "-".join(sorted(str(p) for p in patches))
         )
 
     @override
@@ -81,7 +83,7 @@ class Dual(Patcher[Any], Builder[Any, Any]):
 
 
 @dataclass(frozen=True)
-class PureBuilder(Builder[Any, Any]):
+class PureMerger(Merger[Any, Any]):
     value: Any
     _proxy_class: type[Proxy] | None = None
 
@@ -101,10 +103,11 @@ class PureBuilder(Builder[Any, Any]):
 class DirectDefinition(Definition):
     item: Any
 
-    def bind_lexical_scope(
-        self, outer_lexical_scope: LexicalScope, resource_name: str, /
-    ):
-        return lambda proxy: self.item
+    @override
+    def resolve_symbols(
+        self, symbol_table: SymbolTable, resource_name: str, /
+    ) -> Callable[[LexicalScope], Merger | Patcher]:
+        return lambda lexical_scope: self.item
 
 
 @pytest.mark.parametrize("proxy_class", [CachedProxy, WeakCachedScope])
@@ -126,20 +129,20 @@ class TestNestedLexicalScope:
                     # This depends on 'outer_val' which is in Outer scope.
                     return Result(f"inner-{outer_val.value}")
 
-        root = resolve(Outer, root_proxy_class=proxy_class)
+        root = mount(Outer, root_proxy_class=proxy_class)
         assert root.Inner.inner_val == Result("inner-outer")
 
     def test_evaluate_resource_dual_role_single(self, proxy_class: type[Proxy]) -> None:
-        """Test: Single Dual item -> selected as Builder."""
+        """Test: Single Dual item -> selected as Merger."""
 
         class Namespace:
             target = DirectDefinition(Dual("A"))
 
-        root = resolve(Namespace, root_proxy_class=proxy_class)
-        assert root.target == Result("builder-A-")
+        root = mount(Namespace, root_proxy_class=proxy_class)
+        assert root.target == Result("merger-A-")
 
     def test_evaluate_resource_dual_and_patch(self, proxy_class: type[Proxy]) -> None:
-        """Test: Dual + Dual -> One is Builder, other is Patch."""
+        """Test: Dual + Dual -> One is Merger, other is Patch."""
 
         class N1:
             target = DirectDefinition(Dual("A"))
@@ -147,43 +150,43 @@ class TestNestedLexicalScope:
         class N2:
             target = DirectDefinition(Dual("B"))
 
-        root = resolve(N1, N2, root_proxy_class=proxy_class)
+        root = mount(N1, N2, root_proxy_class=proxy_class)
         val = root.target
-        # Either builder-A-patch-B or builder-B-patch-A
-        assert val == Result("builder-A-patch-B") or val == Result("builder-B-patch-A")
+        # Either merger-A-patch-B or merger-B-patch-A
+        assert val == Result("merger-A-patch-B") or val == Result("merger-B-patch-A")
 
-    def test_evaluate_resource_pure_builder_and_dual(
+    def test_evaluate_resource_pure_merger_and_dual(
         self, proxy_class: type[Proxy]
     ) -> None:
-        """Test: Pure Builder + Dual -> Pure Builder selected, Dual is Patch."""
+        """Test: Pure Merger + Dual -> Pure Merger selected, Dual is Patch."""
 
         class N1:
-            target = DirectDefinition(PureBuilder("P"))
+            target = DirectDefinition(PureMerger("P"))
 
         class N2:
             target = DirectDefinition(Dual("D"))
 
-        root = resolve(N1, N2, root_proxy_class=proxy_class)
-        # Pure P is builder. Dual D is patch.
+        root = mount(N1, N2, root_proxy_class=proxy_class)
+        # Pure P is merger. Dual D is patch.
         assert root.target == Result("pure-P-patch-D")
 
-    def test_evaluate_resource_multiple_pure_builders_error(
+    def test_evaluate_resource_multiple_pure_mergers_error(
         self, proxy_class: type[Proxy]
     ) -> None:
-        """Test: Multiple pure builders -> ValueError."""
+        """Test: Multiple pure mergers -> ValueError."""
 
         class N1:
-            target = DirectDefinition(PureBuilder("A"))
+            target = DirectDefinition(PureMerger("A"))
 
         class N2:
-            target = DirectDefinition(PureBuilder("B"))
+            target = DirectDefinition(PureMerger("B"))
 
-        root = resolve(N1, N2, root_proxy_class=proxy_class)
+        root = mount(N1, N2, root_proxy_class=proxy_class)
         with pytest.raises(ValueError, match="Multiple Factory definitions provided"):
             _ = root.target
 
-    def test_evaluate_resource_no_builder_error(self, proxy_class: type[Proxy]) -> None:
-        """Test: Only patches (no builder) -> NotImplementedError."""
+    def test_evaluate_resource_no_merger_error(self, proxy_class: type[Proxy]) -> None:
+        """Test: Only patches (no merger) -> NotImplementedError."""
 
         @dataclass(frozen=True)
         class PurePatch(Patcher[Any]):
@@ -196,12 +199,16 @@ class TestNestedLexicalScope:
         class N1:
             target = DirectDefinition(PurePatch("A"))
 
-        root = resolve(N1, root_proxy_class=proxy_class)
+        root = mount(N1, root_proxy_class=proxy_class)
         with pytest.raises(NotImplementedError, match="No Factory definition provided"):
             _ = root.target
 
     def test_scope_as_patch(self, proxy_class: type[Proxy]) -> None:
-        """Test: @scope used as a patch for another @scope."""
+        """Test: @scope used as a patch for another @scope.
+
+        When Extension depends on resources from Base, it must declare
+        those dependencies using @extern to make them visible at compile time.
+        """
 
         @scope
         class Base:
@@ -211,6 +218,11 @@ class TestNestedLexicalScope:
 
         @scope
         class Extension:
+            @extern
+            def val() -> Result:
+                """Declare that val is expected to be provided by Base."""
+                ...
+
             @resource
             def extended_val(val: Result) -> Result:
                 return Result(f"{val.value}-extended")
@@ -226,7 +238,7 @@ class TestNestedLexicalScope:
             # Extension is used as a patch for sub_scope
             sub_scope = Extension
 
-        root = resolve(N1, N2, root_proxy_class=proxy_class)
+        root = mount(N1, N2, root_proxy_class=proxy_class)
         assert root.sub_scope.extended_val == Result("base-extended")
         assert root.sub_scope.extra == Result("extra")
 
@@ -254,7 +266,7 @@ class TestNestedLexicalScope:
         class N2:
             sub_scope = Extension
 
-        root = resolve(N1, N2, root_proxy_class=proxy_class)
+        root = mount(N1, N2, root_proxy_class=proxy_class)
         # CustomProxy is a subclass of CachedProxy, so it should be chosen.
         assert isinstance(root.sub_scope, CustomProxy)
         assert not isinstance(root.sub_scope, WeakCachedScope)
@@ -279,6 +291,6 @@ class TestNestedLexicalScope:
         class N2:
             sub_scope = Extension
 
-        root = resolve(N1, N2, root_proxy_class=proxy_class)
+        root = mount(N1, N2, root_proxy_class=proxy_class)
         with pytest.raises(TypeError, match="class conflict"):
             _ = root.sub_scope

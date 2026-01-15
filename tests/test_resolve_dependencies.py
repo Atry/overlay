@@ -1,19 +1,65 @@
 from collections import ChainMap
-from typing import Any, Callable, Iterator
+from inspect import signature
+from typing import Any, Callable, Iterator, ParamSpec, TypeVar
 from unittest.mock import Mock
 
 import pytest
 from mixinject import (
     LexicalScope,
     Proxy,
+    SymbolTable,
     _resolve_dependencies_jit,
-    _resolve_dependencies_kwargs,
 )
+
+P = ParamSpec("P")
+T = TypeVar("T")
+
+
+def _resolve_dependencies_kwargs(
+    symbol_table: SymbolTable,
+    function: Callable[P, T],
+    resource_name: str,
+) -> Callable[[LexicalScope], T]:
+    """
+    Resolve dependencies for a function using standard keyword arguments.
+    (Testing version)
+    """
+    sig = signature(function)
+    params = tuple(sig.parameters.values())
+
+    has_proxy = False
+    if params:
+        p0 = params[0]
+        if (p0.kind == p0.POSITIONAL_ONLY) or (
+            p0.kind == p0.POSITIONAL_OR_KEYWORD and p0.name not in symbol_table
+        ):
+            has_proxy = True
+            kw_params = params[1:]
+        else:
+            kw_params = params
+    else:
+        kw_params = []
+
+    def resolved_function(lexical_scope: LexicalScope) -> T:
+        kwargs = {
+            param.name: (
+                symbol_table.parents[param.name](lexical_scope)
+                if param.name == resource_name
+                else symbol_table[param.name](lexical_scope)
+            )
+            for param in kw_params
+        }
+
+        if has_proxy:
+            return function(lexical_scope[0], **kwargs)  # type: ignore
+        else:
+            return function(**kwargs)  # type: ignore
+
+    return resolved_function
 
 
 def test_resolve_dependencies_consistency():
-    def lexical_scope() -> Iterator[Proxy]:
-        yield from []
+    lexical_scope: LexicalScope = ()
 
     mock_proxy = Mock(spec=Proxy)
 
@@ -58,8 +104,7 @@ def test_resolve_dependencies_consistency():
 
 
 def test_resolve_dependencies_complex_signatures():
-    def lexical_scope() -> Iterator[Proxy]:
-        yield from []
+    lexical_scope: LexicalScope = ()
 
     mock_proxy = Mock(spec=Proxy)
     symbol_table = ChainMap({"a": lambda ls: 10, "b": lambda ls: 20})

@@ -1,26 +1,27 @@
 import sys
 import tempfile
+from collections import ChainMap
 from pathlib import Path
 from typing import Callable, Iterator
 
 from mixinject import (
-    _AggregatorDefinition,
-    Builder,
+    _MergerDefinition,
+    Merger,
     CachedProxy,
+    LexicalScope,
     _KeywordArgumentMixin,
     _PackageDefinition,
     _NamespaceDefinition,
     Proxy,
     _ResourceDefinition,
     _SinglePatchDefinition,
-    aggregator,
-    _BoundMixin,
-    parameter,
+    merge,
+    extern,
     patch,
-    patches,
+    patch_many,
     resource,
-    resolve,
-    resolve,
+    mount,
+    mount,
     scope,
     _parse_package,
     WeakCachedScope,
@@ -38,7 +39,7 @@ class TestSimpleResource:
             def greeting() -> str:
                 return "Hello"
 
-        root = resolve(Namespace)
+        root = mount(Namespace)
         assert root.greeting == "Hello"
 
     def test_resource_with_dependency(self) -> None:
@@ -51,7 +52,7 @@ class TestSimpleResource:
             def greeting(name: str) -> str:
                 return f"Hello, {name}!"
 
-        root = resolve(Namespace)
+        root = mount(Namespace)
         assert root.greeting == "Hello, World!"
 
     def test_multiple_dependencies(self) -> None:
@@ -68,7 +69,7 @@ class TestSimpleResource:
             def combined(first: str, second: str) -> str:
                 return f"{first} and {second}"
 
-        root = resolve(Namespace)
+        root = mount(Namespace)
         assert root.combined == "First and Second"
 
 
@@ -86,7 +87,7 @@ class TestPatch:
             def value() -> Callable[[int], int]:
                 return lambda x: x * 2
 
-        root = resolve(Base, Patcher)
+        root = mount(Base, Patcher)
         assert root.value == 20
 
     def test_multiple_patches(self) -> None:
@@ -105,7 +106,7 @@ class TestPatch:
             def value() -> Callable[[int], int]:
                 return lambda x: x + 3
 
-        root = resolve(Base, Patch1, Patch2)
+        root = mount(Base, Patch1, Patch2)
         assert root.value == 18
 
 
@@ -119,11 +120,11 @@ class TestPatches:
                 return 10
 
         class Patcher:
-            @patches
+            @patch_many
             def value() -> tuple[Callable[[int], int], ...]:
                 return ((lambda x: x + 5), (lambda x: x + 3))
 
-        root = resolve(Base, Patcher)
+        root = mount(Base, Patcher)
         assert root.value == 18
 
 
@@ -142,7 +143,7 @@ class TestLexicalScope:
                 def counter(counter: int) -> int:
                     return counter + 1
 
-        root = resolve(Outer)
+        root = mount(Outer)
         assert root.counter == 0
         assert root.Inner.counter == 1
 
@@ -163,12 +164,12 @@ class TestKeywordArgumentMixin:
         assert proxy.flag is True
 
 
-class TestAggregator:
-    """Test aggregator decorator."""
+class TestMerger:
+    """Test merge decorator."""
 
     def test_custom_aggregation(self) -> None:
         class Base:
-            @aggregator
+            @merge
             def tags() -> type[frozenset]:
                 return frozenset
 
@@ -182,7 +183,7 @@ class TestAggregator:
             def tags() -> str:
                 return "tag2"
 
-        root = resolve(Base, Provider1, Provider2)
+        root = mount(Base, Provider1, Provider2)
         assert root.tags == frozenset({"tag1", "tag2"})
 
 
@@ -200,7 +201,7 @@ class TestUnionMount:
             def bar() -> str:
                 return "bar_value"
 
-        root = resolve(Namespace1, Namespace2)
+        root = mount(Namespace1, Namespace2)
         assert root.foo == "foo_value"
         assert root.bar == "bar_value"
 
@@ -211,11 +212,15 @@ class TestUnionMount:
                 return "base"
 
         class Namespace2:
+            @extern
+            def base_value() -> str:
+                ...
+
             @resource
             def combined(base_value: str) -> str:
                 return f"{base_value}_combined"
 
-        root = resolve(Namespace1, Namespace2)
+        root = mount(Namespace1, Namespace2)
         assert root.combined == "base_combined"
 
     def test_deduplicated_tags_from_docstring(self) -> None:
@@ -223,7 +228,7 @@ class TestUnionMount:
         try:
             from union_mount import branch0, branch1, branch2
 
-            root = resolve(branch0, branch1, branch2)
+            root = mount(branch0, branch1, branch2)
             assert root.deduplicated_tags == frozenset(
                 {"tag1", "tag2_dependency_value"}
             )
@@ -239,7 +244,7 @@ class TestUnionMount:
         try:
             from union_mount import branch0, branch1, branch2
 
-            root = resolve(branch0, branch1, branch2)
+            root = mount(branch0, branch1, branch2)
             assert root.union_mount_point.foo == "foo"
             assert root.union_mount_point.bar == "foo_bar"
         finally:
@@ -262,7 +267,7 @@ class TestProxyAsSymlink:
             def linked() -> Proxy:
                 return inner_proxy
 
-        root = resolve(Namespace)
+        root = mount(Namespace)
         assert root.linked.inner_value == "inner"
 
 
@@ -274,9 +279,8 @@ class TestModuleParsing:
         try:
             import regular_pkg
 
-            scope_def = _parse_package(regular_pkg, get_module_proxy_class=lambda _: CachedProxy)
+            scope_def = _parse_package(regular_pkg, get_module_proxy_class=lambda _: CachedProxy, symbol_table=ChainMap())
             assert isinstance(scope_def, _PackageDefinition)
-            assert "child" in scope_def
         finally:
             sys.path.remove(FIXTURES_DIR)
             sys.modules.pop("regular_pkg", None)
@@ -287,9 +291,9 @@ class TestModuleParsing:
         try:
             import regular_pkg
 
-            scope_def = _parse_package(regular_pkg, get_module_proxy_class=lambda _: CachedProxy)
+            root = mount(regular_pkg)
             assert "regular_pkg.child" not in sys.modules
-            _ = scope_def["child"]
+            _ = root.child
             assert "regular_pkg.child" in sys.modules
         finally:
             sys.path.remove(FIXTURES_DIR)
@@ -301,7 +305,7 @@ class TestModuleParsing:
         try:
             import regular_pkg
 
-            root = resolve(regular_pkg)
+            root = mount(regular_pkg)
             assert root.pkg_value == "from_pkg"
             assert root.child.child_value == "from_child"
         finally:
@@ -314,7 +318,7 @@ class TestModuleParsing:
         try:
             import regular_mod
 
-            scope_def = _parse_package(regular_mod, get_module_proxy_class=lambda _: CachedProxy)
+            scope_def = _parse_package(regular_mod, get_module_proxy_class=lambda _: CachedProxy, symbol_table=ChainMap())
             assert isinstance(scope_def, _NamespaceDefinition)
             assert not isinstance(scope_def, _PackageDefinition)
         finally:
@@ -327,13 +331,12 @@ class TestModuleParsing:
             import ns_pkg
 
             assert hasattr(ns_pkg, "__path__")
-            scope_def = _parse_package(ns_pkg, get_module_proxy_class=lambda _: CachedProxy)
+            scope_def = _parse_package(ns_pkg, get_module_proxy_class=lambda _: CachedProxy, symbol_table=ChainMap())
             assert isinstance(scope_def, _PackageDefinition)
-            assert "mod_a" in scope_def
-            assert "mod_b" in scope_def
 
-            root = resolve(ns_pkg)
+            root = mount(ns_pkg)
             assert root.mod_a.value_a == "a"
+            assert root.mod_b.base == "base"
         finally:
             sys.path.remove(FIXTURES_DIR)
             sys.modules.pop("ns_pkg", None)
@@ -345,7 +348,7 @@ class TestModuleParsing:
         try:
             import ns_pkg
 
-            root = resolve(ns_pkg)
+            root = mount(ns_pkg)
             assert root.mod_b.base == "base"
             assert root.mod_b.derived == "base_derived"
         finally:
@@ -368,14 +371,12 @@ class TestModuleParsing:
                 import ns_pkg
 
                 assert len(ns_pkg.__path__) == 2
-                scope_def = _parse_package(ns_pkg, get_module_proxy_class=lambda _: CachedProxy)
+                scope_def = _parse_package(ns_pkg, get_module_proxy_class=lambda _: CachedProxy, symbol_table=ChainMap())
                 assert isinstance(scope_def, _PackageDefinition)
-                assert "mod_a" in scope_def
-                assert "mod_b" in scope_def
-                assert "mod_c" in scope_def
 
-                root = resolve(ns_pkg)
+                root = mount(ns_pkg)
                 assert root.mod_a.value_a == "a"
+                assert root.mod_b.base == "base"
                 assert root.mod_c.value_c == "c"
             finally:
                 sys.path.remove(FIXTURES_DIR)
@@ -423,38 +424,26 @@ class TestProxyCallable:
         assert proxy.timeout == 30
 
     def test_proxy_call_provides_endo_only_base_value(self) -> None:
-        """Test Proxy callable providing base value for endo-only resource pattern.
+        """Test Proxy callable providing base value for parameter pattern.
 
         Pattern:
-        - Outer scope provides base value via Proxy.__call__
-        - Module has nested scope that depends on parameter with same name
-        - Same-name lookup (param == resource name) finds value from outer scope
+        - Use @extern to declare a symbol that will be provided at runtime
+        - Provide the value via Proxy.__call__
+        - Other resources can depend on the parameter
         """
 
         class Config:
-            @resource
-            def db_config(db_config: dict) -> dict:
-                """Endo-only resource with same-name parameter
-
-                Since param name == resource name, it looks up 'db_config'
-                in outer lexical scope, getting the value from Proxy.__call__
-                """
-                return db_config
+            @extern
+            def db_config() -> dict:
+                """Parameter to be provided via Proxy.__call__"""
+                ...
 
             @resource
             def connection_string(db_config: dict) -> str:
-                """Depends on db_config which comes from outer scope"""
+                """Depends on db_config parameter"""
                 return f"{db_config['host']}:{db_config['port']}"
 
-        # Provide the base value via Proxy.__call__
-        outer_proxy = CachedProxy(mixins=frozenset([]))(
-            db_config={"host": "localhost", "port": "5432"}
-        )
-
-        def outer_scope() -> Iterator[Proxy]:
-            yield outer_proxy
-
-        root = resolve(Config, lexical_scope=outer_scope)
+        root = mount(Config)(db_config={"host": "localhost", "port": "5432"})
         assert root.db_config == {"host": "localhost", "port": "5432"}
         assert root.connection_string == "localhost:5432"
 
@@ -508,7 +497,7 @@ class TestProxyDir:
             def foo() -> str:
                 return "foo"
 
-        root = resolve(Namespace)
+        root = mount(Namespace)
         result = dir(root)
         assert isinstance(result, list)
 
@@ -528,7 +517,7 @@ class TestProxyDir:
             def resource3() -> str:
                 return "r3"
 
-        root = resolve(Namespace)
+        root = mount(Namespace)
         result = dir(root)
         assert "resource1" in result
         assert "resource2" in result
@@ -542,7 +531,7 @@ class TestProxyDir:
             def foo() -> str:
                 return "foo"
 
-        root = resolve(Namespace)
+        root = mount(Namespace)
         result = dir(root)
         assert "__class__" in result
         assert "__getitem__" in result
@@ -564,7 +553,7 @@ class TestProxyDir:
             def middle() -> str:
                 return "m"
 
-        root = resolve(Namespace)
+        root = mount(Namespace)
         result = dir(root)
         assert result == sorted(result)
 
@@ -581,7 +570,7 @@ class TestProxyDir:
             def bar() -> str:
                 return "bar"
 
-        root = resolve(Namespace1, Namespace2)
+        root = mount(Namespace1, Namespace2)
         result = dir(root)
         assert "foo" in result
         assert "bar" in result
@@ -599,7 +588,7 @@ class TestProxyDir:
             def shared() -> Callable[[str], str]:
                 return lambda s: s + "_patched"
 
-        root = resolve(Namespace1, Namespace2)
+        root = mount(Namespace1, Namespace2)
         result = dir(root)
         assert result.count("shared") == 1
 
@@ -611,7 +600,7 @@ class TestProxyDir:
             def cached_resource() -> str:
                 return "cached"
 
-        root = resolve(Namespace, root_proxy_class=CachedProxy)
+        root = mount(Namespace, root_proxy_class=CachedProxy)
         result = dir(root)
         assert "cached_resource" in result
 
@@ -623,7 +612,7 @@ class TestProxyDir:
             def weak_resource() -> str:
                 return "weak"
 
-        root = resolve(Namespace, root_proxy_class=WeakCachedScope)
+        root = mount(Namespace, root_proxy_class=WeakCachedScope)
         result = dir(root)
         assert "weak_resource" in result
 
@@ -639,7 +628,7 @@ class TestProxyDir:
             def accessible2() -> str:
                 return "a2"
 
-        root = resolve(Namespace)
+        root = mount(Namespace)
         assert "accessible1" in dir(root)
         assert "accessible2" in dir(root)
         assert getattr(root, "accessible1") == "a1"
@@ -650,28 +639,28 @@ class TestParameter:
     """Test parameter decorator as syntactic sugar for empty patches."""
 
     def test_parameter_with_keyword_argument_mixin(self) -> None:
-        """Test that @parameter registers a resource name and accepts injected values."""
+        """Test that @extern registers a resource name and accepts injected values."""
 
         class Config:
-            @parameter
+            @extern
             def database_url(): ...
 
             @resource
             def connection_string(database_url: str) -> str:
                 return f"Connected to: {database_url}"
 
-        root = resolve(Config)(database_url="postgresql://localhost/mydb")
+        root = mount(Config)(database_url="postgresql://localhost/mydb")
         assert root.connection_string == "Connected to: postgresql://localhost/mydb"
 
     def test_parameter_with_dependencies(self) -> None:
-        """Test that @parameter can have its own dependencies."""
+        """Test that @extern can have its own dependencies."""
 
         class Config:
             @resource
             def host() -> str:
                 return "localhost"
 
-            @parameter
+            @extern
             def database_url(host: str):
                 """This parameter depends on host but returns nothing useful."""
                 return f"postgresql://{host}/db"  # Return value is ignored
@@ -680,21 +669,21 @@ class TestParameter:
             def connection_string(database_url: str) -> str:
                 return f"Connected to: {database_url}"
 
-        root = resolve(Config)(database_url="postgresql://prod-server/mydb")
+        root = mount(Config)(database_url="postgresql://prod-server/mydb")
         assert root.connection_string == "Connected to: postgresql://prod-server/mydb"
 
     def test_parameter_without_base_value_raises_error(self) -> None:
-        """Test that accessing a @parameter without providing a base value raises NotImplementedError."""
+        """Test that accessing a @extern without providing a base value raises NotImplementedError."""
 
         class Config:
-            @parameter
+            @extern
             def database_url(): ...
 
             @resource
             def connection_string(database_url: str) -> str:
                 return f"Connected to: {database_url}"
 
-        root = resolve(Config)
+        root = mount(Config)
         try:
             _ = root.connection_string
             assert False, "Expected NotImplementedError"
@@ -702,36 +691,88 @@ class TestParameter:
             pass
 
     def test_parameter_equivalent_to_empty_patches(self) -> None:
-        """Test that @parameter is equivalent to @patches returning empty collection."""
+        """Test that @extern is equivalent to @patch_many returning empty collection."""
 
         class WithParameter:
-            @parameter
+            @extern
             def value(): ...
 
         class WithEmptyPatches:
-            @patches
+            @patch_many
             def value():
                 return ()
 
-        root_param = resolve(WithParameter)(value=42)
-        root_patches = resolve(WithEmptyPatches)(value=42)
+        root_param = mount(WithParameter)(value=42)
+        root_patches = mount(WithEmptyPatches)(value=42)
 
         assert root_param.value == 42
         assert root_patches.value == 42
 
     def test_parameter_multiple_injections(self) -> None:
-        """Test that multiple @parameter resources can be injected together."""
+        """Test that multiple @extern resources can be injected together."""
 
         class Config:
-            @parameter
+            @extern
             def host(): ...
 
-            @parameter
+            @extern
             def port(): ...
 
             @resource
             def url(host: str, port: int) -> str:
                 return f"http://{host}:{port}"
 
-        root = resolve(Config)(host="example.com", port=8080)
+        root = mount(Config)(host="example.com", port=8080)
         assert root.url == "http://example.com:8080"
+
+    def test_patch_with_identity_endo_equivalent_to_parameter(self) -> None:
+        """Test that @patch with identity endo is equivalent to @extern.
+
+        Pattern:
+        - @patch returning `lambda x: x` (identity function) without dependencies
+        - Should behave identically to @extern
+
+        The identity endo passes through the base value unchanged, effectively
+        making it a placeholder that accepts injected values.
+        """
+
+        class WithParameter:
+            @extern
+            def value(): ...
+
+            @resource
+            def doubled(value: int) -> int:
+                return value * 2
+
+        class WithIdentityPatch:
+            @patch
+            def value() -> Callable[[int], int]:
+                return lambda x: x
+
+            @resource
+            def doubled(value: int) -> int:
+                return value * 2
+
+        # Both should work identically when value is injected
+        root_param = mount(WithParameter)(value=21)
+        root_patch = mount(WithIdentityPatch)(value=21)
+
+        assert root_param.value == 21
+        assert root_patch.value == 21
+        assert root_param.doubled == 42
+        assert root_patch.doubled == 42
+
+    def test_patch_with_identity_endo_requires_base_value(self) -> None:
+        """Test that @patch with identity endo requires a base value (like @extern)."""
+
+        class WithIdentityPatch:
+            @patch
+            def config() -> Callable[[dict], dict]:
+                return lambda x: x
+
+        root = mount(WithIdentityPatch)
+        try:
+            _ = root.config
+            assert False, "Expected NotImplementedError"
+        except NotImplementedError:
+            pass

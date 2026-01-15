@@ -1,16 +1,16 @@
-"""Branch 0: Defines aggregators for deduplicated_tags and union_mount_point."""
+"""Branch 0: Defines merges for deduplicated_tags and union_mount_point."""
 
 from typing import Callable, Iterator
 
-from mixinject import CachedProxy, Mixin, aggregator
+from mixinject import CachedProxy, Mixin, merge
 
 
-@aggregator
+@merge
 def deduplicated_tags() -> Callable[[Iterator[str]], frozenset[str]]:
     return frozenset
 
 
-@aggregator
+@merge
 def union_mount_point() -> Callable[[Iterator[Mixin]], CachedProxy]:
     def create_proxy(mixins: Iterator[Mixin]) -> CachedProxy:
         return CachedProxy(mixins=frozenset(mixins))
