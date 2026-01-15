@@ -784,9 +784,12 @@ class _MultiplePatchDefinition(PatcherDefinition[TPatch_co]):
         return bind_proxy
 
 
+DefinitionMapping: TypeAlias = Mapping[str, Definition]
+
+
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
 class _ProxyBuilderPatcher(Builder[Proxy, Proxy], Patcher[Proxy]):
-    definitions: Mapping[str, Definition]
+    definitions: DefinitionMapping
     lexical_scope: LexicalScope
     proxy_class: type[Proxy]
 
@@ -818,7 +821,7 @@ class _ProxyBuilderPatcher(Builder[Proxy, Proxy], Patcher[Proxy]):
 class _ScopeDefinition(BuilderDefinition[Proxy, Proxy], PatcherDefinition[Proxy]):
     """Definition that creates a Proxy from nested ScopeDefinition (lazy evaluation)."""
 
-    definitions: Mapping[str, Definition]
+    definitions: DefinitionMapping
     proxy_class: type[Proxy]
 
     @override
@@ -840,7 +843,7 @@ class _ScopeDefinition(BuilderDefinition[Proxy, Proxy], PatcherDefinition[Proxy]
 
 
 @dataclass(frozen=True, kw_only=True)
-class _NamespaceDefinition(Mapping[str, Definition], Generic[T]):
+class _NamespaceDefinition(DefinitionMapping, Generic[T]):
     """
     A lazy mapping that parses definitions from an object's attributes on access.
     Implements call-by-name semantics using dir() and getattr().
@@ -926,7 +929,7 @@ class _PackageDefinition(_NamespaceDefinition[ModuleType]):
             return False
 
 
-def _parse_namespace(namespace: object) -> Mapping[str, Definition]:
+def _parse_namespace(namespace: object) -> DefinitionMapping:
     """
     Parses an object into a ScopeDefinition.
 
@@ -959,7 +962,7 @@ def scope(
 
 def _parse_package(
     module: ModuleType, get_module_proxy_class: Callable[[ModuleType], type[Proxy]]
-) -> Mapping[str, Definition]:
+) -> DefinitionMapping:
     """
     Parses a module into a ScopeDefinition.
 
@@ -1165,7 +1168,7 @@ class _BoundMixin(Mixin):
     """
 
     lexical_scope: LexicalScope
-    definitions: Mapping[str, Definition]
+    definitions: DefinitionMapping
 
     def __getitem__(self, key: str, /) -> Callable[[Proxy], Builder | Patcher]:
         definition = self.definitions[key]
@@ -1180,7 +1183,7 @@ class _BoundMixin(Mixin):
 
 def _parse(
     namespace: object, get_module_proxy_class: Callable[[ModuleType], type[Proxy]]
-) -> Mapping[str, Definition]:
+) -> DefinitionMapping:
     if isinstance(namespace, ModuleType):
         return _parse_package(namespace, get_module_proxy_class=get_module_proxy_class)
     else:
