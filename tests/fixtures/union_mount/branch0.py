@@ -2,7 +2,7 @@
 
 from typing import Callable, Iterator
 
-from mixinject import CachedProxy, Component, aggregator
+from mixinject import CachedProxy, Mixin, aggregator
 
 
 @aggregator
@@ -11,8 +11,8 @@ def deduplicated_tags() -> Callable[[Iterator[str]], frozenset[str]]:
 
 
 @aggregator
-def union_mount_point() -> Callable[[Iterator[Component]], CachedProxy]:
-    def create_proxy(components: Iterator[Component]) -> CachedProxy:
-        return CachedProxy(components=frozenset(components))
+def union_mount_point() -> Callable[[Iterator[Mixin]], CachedProxy]:
+    def create_proxy(mixins: Iterator[Mixin]) -> CachedProxy:
+        return CachedProxy(mixins=frozenset(mixins))
 
     return create_proxy

@@ -1,6 +1,6 @@
 """Branch 1: Provides tag1 patch and another_dependency resource."""
 
-from mixinject import Component, patch, resource, simple_component
+from mixinject import Mixin, patch, resource, simple_mixin
 
 
 @patch
@@ -14,5 +14,5 @@ def another_dependency() -> str:
 
 
 @patch
-def union_mount_point() -> Component:
-    return simple_component(foo="foo")
+def union_mount_point() -> Mixin:
+    return simple_mixin(foo="foo")

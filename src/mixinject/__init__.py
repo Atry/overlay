@@ -71,13 +71,13 @@ class Proxy(Mapping[str, "Node"], ABC):
     A Proxy represents resources available via attributes or keys.
     """
 
-    components: frozenset["Component"]
+    mixins: frozenset["Mixin"]
 
     def __getitem__(self, key: str) -> "Node":
         def generate_resource() -> Iterator[Builder | Patch]:
-            for components in self.components:
+            for mixins in self.mixins:
                 try:
-                    factory_or_patch = components[key]
+                    factory_or_patch = mixins[key]
                 except KeyError:
                     continue
                 yield factory_or_patch(self)
@@ -92,20 +92,20 @@ class Proxy(Mapping[str, "Node"], ABC):
 
     def __iter__(self) -> Iterator[str]:
         visited: set[str] = set()
-        for components in self.components:
-            for key in components:
+        for mixins in self.mixins:
+            for key in mixins:
                 if key not in visited:
                     visited.add(key)
                     yield key
 
     def __len__(self) -> int:
         keys: set[str] = set()
-        for components in self.components:
-            keys.update(components)
+        for mixins in self.mixins:
+            keys.update(mixins)
         return len(keys)
 
     def __call__(self, **kwargs: object) -> Self:
-        return type(self)(components=self.components | {simple_component(**kwargs)})
+        return type(self)(mixins=self.mixins | {simple_mixin(**kwargs)})
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
@@ -214,10 +214,10 @@ class SimpleBuilder(Builder[Any, Resource]):
         return self.value
 
 
-class Component(Mapping[str, Callable[[Proxy], Builder | Patch]], Hashable, ABC):
+class Mixin(Mapping[str, Callable[[Proxy], Builder | Patch]], Hashable, ABC):
     """
-    Abstract base class for components.
-    Components are mappings from resource names to factory functions.
+    Abstract base class for mixins.
+    Mixins are mappings from resource names to factory functions.
     They must compare by identity to allow storage in sets.
     """
 
@@ -273,12 +273,12 @@ class PatchDefinition(ABC, Generic[TPatch_co]):
     ) -> Callable[[Proxy], Patch]: ...
 
 
-ResourceDefinition: TypeAlias = BuilderDefinition | PatchDefinition
-ScopeDefinition: TypeAlias = Mapping[str, ResourceDefinition]
+Definition: TypeAlias = BuilderDefinition | PatchDefinition
+DefinitionMapping: TypeAlias = Mapping[str, Definition]
 
 
 def _resolve_dependencies(
-    callable_obj: Callable[..., Any],
+    function: Callable[..., Any],
     resource_name: str,
     outer_lexical_scope: LexicalScope,
     proxy: Proxy,
@@ -300,7 +300,7 @@ def _resolve_dependencies(
         except KeyError:
             return loop_up(outer_lexical_scope, param_name)
 
-    sig = signature(callable_obj)
+    sig = signature(function)
     return {param_name: resolve_param(param_name) for param_name in sig.parameters}
 
 
@@ -308,7 +308,7 @@ def _resolve_dependencies(
 class AggregatorDefinition(BuilderDefinition[TPatch_contra, TResult_co]):
     """Definition for aggregator decorator."""
 
-    callable_obj: Callable[..., Callable[[Iterator[TPatch_contra]], TResult_co]]
+    function: Callable[..., Callable[[Iterator[TPatch_contra]], TResult_co]]
 
     @override
     def __call__(
@@ -316,21 +316,21 @@ class AggregatorDefinition(BuilderDefinition[TPatch_contra, TResult_co]):
     ) -> Callable[[Proxy], Builder[TPatch_contra, TResult_co]]:
         def factory(proxy: Proxy) -> Builder[TPatch_contra, TResult_co]:
             resolved_args = _resolve_dependencies(
-                self.callable_obj, resource_name, outer_lexical_scope, proxy
+                self.function, resource_name, outer_lexical_scope, proxy
             )
-            aggregation_fn = self.callable_obj(**resolved_args)
+            aggregation_fn = self.function(**resolved_args)
             return FunctionBuilder(aggregation_function=aggregation_fn)
 
         return factory
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class ResourceDefinitionImpl(
+class ResourceDefinition(
     Generic[TResult], BuilderDefinition[Callable[[TResult], TResult], TResult]
 ):
     """Definition for resource decorator."""
 
-    callable_obj: Callable[..., TResult]
+    function: Callable[..., TResult]
 
     @override
     def __call__(
@@ -338,9 +338,9 @@ class ResourceDefinitionImpl(
     ) -> Callable[[Proxy], Builder[Callable[[TResult], TResult], TResult]]:
         def factory(proxy: Proxy) -> Builder[Callable[[TResult], TResult], TResult]:
             resolved_args = _resolve_dependencies(
-                self.callable_obj, resource_name, outer_lexical_scope, proxy
+                self.function, resource_name, outer_lexical_scope, proxy
             )
-            base_value = self.callable_obj(**resolved_args)
+            base_value = self.function(**resolved_args)
             return EndoBuilder(base_value=base_value)
 
         return factory
@@ -350,7 +350,7 @@ class ResourceDefinitionImpl(
 class PatchDefinitionImpl(PatchDefinition[TPatch_co]):
     """Definition for patch decorator (single patch)."""
 
-    callable_obj: Callable[..., TPatch_co]
+    function: Callable[..., TPatch_co]
 
     @override
     def __call__(
@@ -359,9 +359,9 @@ class PatchDefinitionImpl(PatchDefinition[TPatch_co]):
         def factory(proxy: Proxy) -> Patch[TPatch_co]:
             def patch_generator() -> Iterator[TPatch_co]:
                 resolved_args = _resolve_dependencies(
-                    self.callable_obj, resource_name, outer_lexical_scope, proxy
+                    self.function, resource_name, outer_lexical_scope, proxy
                 )
-                yield self.callable_obj(**resolved_args)
+                yield self.function(**resolved_args)
 
             return FunctionPatch(patch_generator=patch_generator)
 
@@ -372,7 +372,7 @@ class PatchDefinitionImpl(PatchDefinition[TPatch_co]):
 class PatchesDefinitionImpl(PatchDefinition[TPatch_co]):
     """Definition for patches decorator (multiple patches)."""
 
-    callable_obj: Callable[..., Collection[TPatch_co]]
+    function: Callable[..., Collection[TPatch_co]]
 
     @override
     def __call__(
@@ -381,9 +381,9 @@ class PatchesDefinitionImpl(PatchDefinition[TPatch_co]):
         def factory(proxy: Proxy) -> Patch[TPatch_co]:
             def patch_generator() -> Iterator[TPatch_co]:
                 resolved_args = _resolve_dependencies(
-                    self.callable_obj, resource_name, outer_lexical_scope, proxy
+                    self.function, resource_name, outer_lexical_scope, proxy
                 )
-                yield from self.callable_obj(**resolved_args)
+                yield from self.function(**resolved_args)
 
             return FunctionPatch(patch_generator=patch_generator)
 
@@ -391,24 +391,24 @@ class PatchesDefinitionImpl(PatchDefinition[TPatch_co]):
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class ScopeProxyDefinition(BuilderDefinition[Component, Proxy]):
+class ScopeDefinition(BuilderDefinition[Mixin, Proxy]):
     """Definition that creates a Proxy from nested ScopeDefinition (lazy evaluation)."""
 
-    scope_definition: ScopeDefinition
+    definitions: DefinitionMapping
 
     @override
     def __call__(
         self, outer_lexical_scope: LexicalScope, resource_name: str, /
-    ) -> Callable[[Proxy], Builder[Component, Proxy]]:
-        def factory(proxy: Proxy) -> Builder[Component, Proxy]:
-            def create_proxy(patches: Iterator[Component]) -> Proxy:
+    ) -> Callable[[Proxy], Builder[Mixin, Proxy]]:
+        def factory(proxy: Proxy) -> Builder[Mixin, Proxy]:
+            def create_proxy(patches: Iterator[Mixin]) -> Proxy:
                 def inner_lexical_scope() -> Iterator[Proxy]:
                     yield proxy
                     yield from outer_lexical_scope()
 
-                base_component = compile(inner_lexical_scope, self.scope_definition)
-                all_components = frozenset((base_component, *patches))
-                return CachedProxy(components=all_components)
+                base_mixin = compile(inner_lexical_scope, self.definitions)
+                all_mixins = frozenset((base_mixin, *patches))
+                return CachedProxy(mixins=all_mixins)
 
             return FunctionBuilder(aggregation_function=create_proxy)
 
@@ -416,20 +416,20 @@ class ScopeProxyDefinition(BuilderDefinition[Component, Proxy]):
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
-class LazySubmoduleMapping(Mapping[str, ResourceDefinition]):
+class LazySubmoduleMapping(Mapping[str, Definition]):
     """A lazy mapping that discovers submodules via pkgutil and imports them on access."""
 
     parent_module: ModuleType
     submodule_names: frozenset[str]
-    direct_attrs: Mapping[str, ResourceDefinition]
+    direct_attrs: Mapping[str, Definition]
 
-    def __getitem__(self, key: str) -> ResourceDefinition:
+    def __getitem__(self, key: str) -> Definition:
         if key in self.direct_attrs:
             return self.direct_attrs[key]
         if key in self.submodule_names:
             full_name = f"{self.parent_module.__name__}.{key}"
             submod = importlib.import_module(full_name)
-            return ScopeProxyDefinition(scope_definition=parse_module(submod))
+            return ScopeDefinition(definitions=parse_module(submod))
         raise KeyError(key)
 
     def __iter__(self) -> Iterator[str]:
@@ -442,7 +442,7 @@ class LazySubmoduleMapping(Mapping[str, ResourceDefinition]):
         return key in self.direct_attrs or key in self.submodule_names
 
 
-def parse_object(namespace: object) -> ScopeDefinition:
+def parse_object(namespace: object) -> DefinitionMapping:
     """
     Parses an object into a ScopeDefinition.
 
@@ -456,22 +456,22 @@ def parse_object(namespace: object) -> ScopeDefinition:
     namespace_dict = (
         vars(namespace) if isinstance(namespace, type) else vars(type(namespace))
     )
-    result: dict[str, ResourceDefinition] = {}
+    result: dict[str, Definition] = {}
     for name, attr in namespace_dict.items():
         if isinstance(attr, (BuilderDefinition, PatchDefinition)):
             result[name] = attr
     return result
 
 
-def scope(cls: type) -> ScopeProxyDefinition:
+def scope(cls: type) -> ScopeDefinition:
     """
     Decorator that converts a class into a ScopeProxyDefinition.
     Nested classes MUST be decorated with @scope to be included as sub-scopes.
     """
-    return ScopeProxyDefinition(scope_definition=parse_object(cls))
+    return ScopeDefinition(definitions=parse_object(cls))
 
 
-def parse_module(module: ModuleType) -> ScopeDefinition:
+def parse_module(module: ModuleType) -> DefinitionMapping:
     """
     Parses a module into a ScopeDefinition.
 
@@ -485,16 +485,14 @@ def parse_module(module: ModuleType) -> ScopeDefinition:
     and importlib.import_module to lazily import them when accessed.
     """
 
-    direct_attrs_dict: dict[str, ResourceDefinition] = {}
+    direct_attrs_dict: dict[str, Definition] = {}
     for name in dir(module):
         attr = getattr(module, name)
         if isinstance(attr, (BuilderDefinition, PatchDefinition)):
             direct_attrs_dict[name] = attr
         elif isinstance(attr, ModuleType):
-            direct_attrs_dict[name] = ScopeProxyDefinition(
-                scope_definition=parse_module(attr)
-            )
-    direct_attrs: Mapping[str, ResourceDefinition] = direct_attrs_dict
+            direct_attrs_dict[name] = ScopeDefinition(definitions=parse_module(attr))
+    direct_attrs: Mapping[str, Definition] = direct_attrs_dict
 
     if hasattr(module, "__path__"):
         submodule_names = frozenset(
@@ -548,12 +546,12 @@ def aggregator(
         # In branch0.py:
         @aggregator
         def union_mount_point():
-            return lambda components: CachedProxy(frozenset(components))
+            return lambda mixins: CachedProxy(frozenset(mixins))
 
         # In branch1.py:
         @patch
         def union_mount_point():
-            return simple_component(foo="foo")
+            return simple_mixin(foo="foo")
 
         # In branch2.py:
         @dataclass
@@ -564,7 +562,7 @@ def aggregator(
         # Still in branch2.py:
         @patches
         def union_mount_point():
-            return resolve_root(Mixin2()).components
+            return resolve_root(Mixin2()).mixins
 
         # In main.py:
         import branch0
@@ -575,7 +573,7 @@ def aggregator(
         root.deduplicated_tags  # frozenset({"tag1", "tag2_dependency_value"})
         root.union_mount_point.foo  # "foo"
         root.union_mount_point.bar  # "foo_bar"
-        root.union_mount_point.components  # frozenset of all components from branch0, branch1, branch2, branch3
+        root.union_mount_point.mixins  # frozenset of all mixins from branch0, branch1, branch2, branch3
 
 
     Suppose we have an `branch3/example_module.py` defined in the same directory, and we can resolve it in `branch3/__init__.py`:
@@ -583,9 +581,9 @@ def aggregator(
         # In __init__.py:
         @patches
         def union_mount_point(example_module: Proxy):
-            return example_module.components
+            return example_module.mixins
     """
-    return AggregatorDefinition(callable_obj=callable)
+    return AggregatorDefinition(function=callable)
 
 
 def patch(
@@ -594,7 +592,7 @@ def patch(
     """
     A decorator that converts a callable into a patch definition.
     """
-    return PatchDefinitionImpl(callable_obj=callable)
+    return PatchDefinitionImpl(function=callable)
 
 
 def patches(
@@ -603,7 +601,7 @@ def patches(
     """
     A decorator that converts a callable into a patch definition.
     """
-    return PatchesDefinitionImpl(callable_obj=callable)
+    return PatchesDefinitionImpl(function=callable)
 
 
 def resource(
@@ -636,13 +634,13 @@ def resource(
                 "Hello"
             )
     """
-    return ResourceDefinitionImpl(callable_obj=callable)
+    return ResourceDefinition(function=callable)
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, eq=False)
-class CompiledComponent(Component):
+class CompiledMixin(Mixin):
     lexical_scope: LexicalScope
-    normalized_scope_definition: ScopeDefinition
+    normalized_scope_definition: DefinitionMapping
 
     def __getitem__(self, key: str) -> Callable[[Proxy], Builder | Patch]:
         if key not in self.normalized_scope_definition:
@@ -659,15 +657,15 @@ class CompiledComponent(Component):
 
 def compile(
     lexical_scope: LexicalScope,
-    normalized_scope_definition: ScopeDefinition,
-) -> Component:
-    return CompiledComponent(
+    normalized_scope_definition: DefinitionMapping,
+) -> Mixin:
+    return CompiledMixin(
         lexical_scope=lexical_scope,
         normalized_scope_definition=normalized_scope_definition,
     )
 
 
-def parse(obj: object) -> ScopeDefinition:
+def parse(obj: object) -> DefinitionMapping:
     if isinstance(obj, ModuleType):
         return parse_module(obj)
     else:
@@ -690,7 +688,7 @@ def resolve(
              Can be customized to use different caching strategies (e.g., WeakCachedScope).
 
     Returns:
-        An instance of the cls type with resolved components.
+        An instance of the cls type with resolved mixins.
 
     Examples:
         # Use default caching
@@ -700,10 +698,8 @@ def resolve(
         root = resolve(().__iter__, MyNamespace, cls=WeakCachedScope)
     """
 
-    components = frozenset(
-        compile(lexical_scope, parse(obj)) for obj in objects
-    )
-    return cls(components=components)
+    mixins = frozenset(compile(lexical_scope, parse(obj)) for obj in objects)
+    return cls(mixins=mixins)
 
 
 def resolve_root(*objects: object, cls: type[TProxy] = CachedProxy) -> TProxy:
@@ -716,7 +712,7 @@ def resolve_root(*objects: object, cls: type[TProxy] = CachedProxy) -> TProxy:
              Can be customized to use different caching strategies (e.g., WeakCachedScope).
 
     Returns:
-        An instance of the cls type with resolved components.
+        An instance of the cls type with resolved mixins.
 
     Examples:
         # Use default caching
@@ -732,7 +728,7 @@ def resolve_root(*objects: object, cls: type[TProxy] = CachedProxy) -> TProxy:
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, eq=False)
-class SimpleComponent(Component):
+class KeywordArgumentMixin(Mixin):
     kwargs: Mapping[str, object]
 
     def __getitem__(self, key: str) -> Callable[[Proxy], Builder | Patch]:
@@ -752,5 +748,5 @@ class SimpleComponent(Component):
         return len(self.kwargs)
 
 
-def simple_component(**kwargs: object) -> Component:
-    return SimpleComponent(kwargs=kwargs)
+def simple_mixin(**kwargs: object) -> Mixin:
+    return KeywordArgumentMixin(kwargs=kwargs)

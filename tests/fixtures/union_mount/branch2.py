@@ -4,7 +4,7 @@ Note: @resource decorator returns a BuilderDefinition object, not a function,
 so @staticmethod is not needed (Python's descriptor protocol only applies to functions).
 """
 
-from mixinject import Component, patch, patches, resolve_root, resource
+from mixinject import Mixin, patch, patches, resolve_root, resource
 
 
 @patch
@@ -19,5 +19,5 @@ class Mixin2:
 
 
 @patches
-def union_mount_point() -> frozenset[Component]:
-    return resolve_root(Mixin2).components
+def union_mount_point() -> frozenset[Mixin]:
+    return resolve_root(Mixin2).mixins

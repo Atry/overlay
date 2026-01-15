@@ -58,7 +58,7 @@ def my_callable(my_callable: float) -> float:
 
 当该资源被访问时，系统会：
 1. 在lexical scope中查找这个资源名称
-2. 找到outer scope中通过`simple_component`注入的基础值
+2. 找到outer scope中通过`simple_mixin`注入的基础值
 3. 应用所有endo-only patch（通常只是恒等函数，所以值不变）
 4. 将最终值传递给依赖它的资源
 
@@ -83,12 +83,12 @@ def connection_string(settings: Dict[str, str]) -> str:
     return f"{settings.get('host', 'localhost')}:{settings.get('port', '5432')}"
 
 # main.py
-from mixinject import resolve, simple_component, CachedProxy
+from mixinject import resolve, simple_mixin, CachedProxy
 
-# 通过simple_component提供基础值到outer scope
+# 通过simple_mixin提供基础值到outer scope
 def outer_scope():
-    yield CachedProxy(components=frozenset([
-        simple_component(settings={"host": "db.example.com", "port": "3306"})
+    yield CachedProxy(mixins=frozenset([
+        simple_mixin(settings={"host": "db.example.com", "port": "3306"})
     ]))
 
 root = resolve(outer_scope, config)
@@ -98,7 +98,7 @@ assert root.connection_string == "db.example.com:3306"
 ### 关键优势
 
 1. **词法域注册**：即使不提供资源的基础实现，endo-only patch也会注册资源名称，使其在词法域中可查找
-2. **灵活注入**：基础值可以在运行时通过outer scope的`simple_component`注入
+2. **灵活注入**：基础值可以在运行时通过outer scope的`simple_mixin`注入
 3. **解耦模块**：模块不需要知道资源的具体值，只需声明它的存在
 
 这个模式在以下场景很有用：
@@ -112,11 +112,11 @@ assert root.connection_string == "db.example.com:3306"
 
 ### 实现
 
-Proxy实现了`__call__(**kwargs)`方法，返回一个新的同类型Proxy对象，该对象包含原有的所有components加上通过kwargs提供的新值（作为`simple_component`）。
+Proxy实现了`__call__(**kwargs)`方法，返回一个新的同类型Proxy对象，该对象包含原有的所有mixins加上通过kwargs提供的新值（作为`simple_mixin`）。
 
 ```python
 # 创建一个空Proxy并注入值
-proxy = CachedProxy(components=frozenset([]))
+proxy = CachedProxy(mixins=frozenset([]))
 new_proxy = proxy(setting="value", count=42)
 
 # 访问注入的值
@@ -130,7 +130,7 @@ Proxy as Callable的主要用途是为**endo-only resources**提供base values�
 
 ```python
 # 在outer scope中提供base value
-outer_proxy = CachedProxy(components=frozenset([])) \
+outer_proxy = CachedProxy(mixins=frozenset([])) \
     (db_config={"host": "localhost", "port": "5432"})
 
 def outer_scope() -> Iterator[Proxy]:

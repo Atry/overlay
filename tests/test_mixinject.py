@@ -15,7 +15,7 @@ from mixinject import (
     resolve_root,
     resource,
     scope,
-    simple_component,
+    simple_mixin,
 )
 
 FIXTURES_DIR = str(Path(__file__).parent / "fixtures")
@@ -139,17 +139,17 @@ class TestLexicalScope:
         assert root.Inner.counter == 1
 
 
-class TestSimpleComponent:
-    """Test simple_component helper."""
+class TestKeywordArgumentMixin:
+    """Test simple_mixin helper."""
 
-    def test_simple_component_single_value(self) -> None:
-        comp = simple_component(foo="bar")
-        proxy = CachedProxy(components=frozenset((comp,)))
+    def test_simple_mixin_single_value(self) -> None:
+        comp = simple_mixin(foo="bar")
+        proxy = CachedProxy(mixins=frozenset((comp,)))
         assert proxy.foo == "bar"
 
-    def test_simple_component_multiple_values(self) -> None:
-        comp = simple_component(foo="bar", count=42, flag=True)
-        proxy = CachedProxy(components=frozenset((comp,)))
+    def test_simple_mixin_multiple_values(self) -> None:
+        comp = simple_mixin(foo="bar", count=42, flag=True)
+        proxy = CachedProxy(mixins=frozenset((comp,)))
         assert proxy.foo == "bar"
         assert proxy.count == 42
         assert proxy.flag is True
@@ -244,8 +244,8 @@ class TestProxyAsSymlink:
     """Test Proxy return values acting as symlinks."""
 
     def test_proxy_symlink(self) -> None:
-        comp = simple_component(inner_value="inner")
-        inner_proxy = CachedProxy(components=frozenset((comp,)))
+        comp = simple_mixin(inner_value="inner")
+        inner_proxy = CachedProxy(mixins=frozenset((comp,)))
 
         class Namespace:
             @resource
@@ -377,25 +377,25 @@ class TestModuleParsing:
 
 
 class TestProxyCallable:
-    """Test Proxy as Callable - dynamic component injection."""
+    """Test Proxy as Callable - dynamic mixin injection."""
 
     def test_proxy_call_single_kwarg(self) -> None:
         """Test calling Proxy to inject a single new value."""
-        comp = simple_component(foo="foo_value")
-        proxy = CachedProxy(components=frozenset((comp,)))
+        comp = simple_mixin(foo="foo_value")
+        proxy = CachedProxy(mixins=frozenset((comp,)))
 
-        # Call proxy with new kwargs to add additional components
+        # Call proxy with new kwargs to add additional mixins
         new_proxy = proxy(bar="bar_value")
 
-        assert new_proxy.foo == "foo_value"  # from original component
+        assert new_proxy.foo == "foo_value"  # from original mixin
         assert new_proxy.bar == "bar_value"  # from new call
 
     def test_proxy_call_multiple_kwargs(self) -> None:
         """Test calling Proxy with multiple new kwargs."""
-        comp = simple_component(x=1, y=2)
-        proxy = CachedProxy(components=frozenset((comp,)))
+        comp = simple_mixin(x=1, y=2)
+        proxy = CachedProxy(mixins=frozenset((comp,)))
 
-        # Call to add new components (z and w)
+        # Call to add new mixins (z and w)
         new_proxy = proxy(z=3, w=4)
 
         assert new_proxy.x == 1  # from original
@@ -406,7 +406,7 @@ class TestProxyCallable:
     def test_proxy_call_injected_values_accessible(self) -> None:
         """Test that values injected via Proxy call are accessible as resources."""
         # Create empty proxy and inject values via call
-        proxy = CachedProxy(components=frozenset([])) \
+        proxy = CachedProxy(mixins=frozenset([])) \
             (config={"db": "postgres"}) \
             (timeout=30)
 
@@ -438,7 +438,7 @@ class TestProxyCallable:
                 return f"{db_config['host']}:{db_config['port']}"
 
         # Provide the base value via Proxy.__call__
-        outer_proxy = CachedProxy(components=frozenset([])) \
+        outer_proxy = CachedProxy(mixins=frozenset([])) \
             (db_config={"host": "localhost", "port": "5432"})
 
         def outer_scope() -> Iterator[Proxy]:
@@ -450,10 +450,10 @@ class TestProxyCallable:
 
     def test_proxy_call_returns_same_type(self) -> None:
         """Test that calling a Proxy subclass returns the same type."""
-        comp = simple_component(x=1)
+        comp = simple_mixin(x=1)
 
         # CachedProxy should return CachedProxy
-        cached = CachedProxy(components=frozenset((comp,)))
+        cached = CachedProxy(mixins=frozenset((comp,)))
         new_cached = cached(y=2)
 
         assert isinstance(new_cached, CachedProxy)
@@ -462,8 +462,8 @@ class TestProxyCallable:
 
     def test_proxy_call_creates_fresh_instance(self) -> None:
         """Test that calling a Proxy creates a new instance without modifying the original."""
-        comp = simple_component(a=1)
-        proxy1 = CachedProxy(components=frozenset((comp,)))
+        comp = simple_mixin(a=1)
+        proxy1 = CachedProxy(mixins=frozenset((comp,)))
 
         # Call to create a new proxy
         proxy2 = proxy1(b=2)
