@@ -447,7 +447,7 @@ def parse_object(namespace: object) -> ScopeDefinition:
     Parses an object into a ScopeDefinition.
 
     Only attributes explicitly decorated with @resource, @patch, @patches, or @aggregator are included.
-    Nested classes are recursively parsed as sub-scopes.
+    Nested classes are NOT recursively parsed unless they are decorated with @scope.
 
     IMPORTANT: Bare callables (without decorators) are NOT automatically included.
     Users must explicitly mark all injectable definitions with appropriate decorators.
@@ -460,9 +460,15 @@ def parse_object(namespace: object) -> ScopeDefinition:
     for name, attr in namespace_dict.items():
         if isinstance(attr, (BuilderDefinition, PatchDefinition)):
             result[name] = attr
-        elif isinstance(attr, type):
-            result[name] = ScopeProxyDefinition(scope_definition=parse_object(attr))
     return result
+
+
+def scope(cls: type) -> ScopeProxyDefinition:
+    """
+    Decorator that converts a class into a ScopeProxyDefinition.
+    Nested classes MUST be decorated with @scope to be included as sub-scopes.
+    """
+    return ScopeProxyDefinition(scope_definition=parse_object(cls))
 
 
 def parse_module(module: ModuleType) -> ScopeDefinition:

@@ -1,4 +1,4 @@
-from mixinject import resource, resolve_root
+from mixinject import resource, resolve_root, scope
 
 
 class TestIssueReproduction:
@@ -12,6 +12,7 @@ class TestIssueReproduction:
             def outer_val() -> str:
                 return "outer"
 
+            @scope
             class Inner:
                 @resource
                 def inner_val(outer_val: str) -> str:

@@ -14,6 +14,7 @@ from mixinject import (
     resolve,
     resolve_root,
     resource,
+    scope,
     simple_component,
 )
 
@@ -127,6 +128,7 @@ class TestLexicalScope:
             def counter() -> int:
                 return 0
 
+            @scope
             class Inner:
                 @resource
                 def counter(counter: int) -> int:
