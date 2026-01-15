@@ -474,38 +474,38 @@ def _loop_up(lexical_scope: LexicalScope, name: str) -> "Node":
 
 
 Node: TypeAlias = Resource | Proxy
-TPatcher_co = TypeVar("TPatcher_co", covariant=True)
-TPatcher_contra = TypeVar("TPatcher_contra", contravariant=True)
+TPatch_co = TypeVar("TPatch_co", covariant=True)
+TPatch_contra = TypeVar("TPatch_contra", contravariant=True)
 TResult_co = TypeVar("TResult_co", covariant=True)
 
 
-class Builder(Generic[TPatcher_contra, TResult_co], ABC):
+class Builder(Generic[TPatch_contra, TResult_co], ABC):
     @abstractmethod
-    def create(self, patches: Iterator[TPatcher_contra]) -> TResult_co: ...
+    def create(self, patches: Iterator[TPatch_contra]) -> TResult_co: ...
 
 
-class Patcher(Iterable[TPatcher_co], ABC):
+class Patcher(Iterable[TPatch_co], ABC):
     """
     An Patcher provides extra data to be applied to a Node created by a ``Builder``.
     """
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class FunctionPatcher(Patcher[TPatcher_co]):
-    patch_generator: Callable[[], Iterator[TPatcher_co]]
+class FunctionPatcher(Patcher[TPatch_co]):
+    patch_generator: Callable[[], Iterator[TPatch_co]]
 
-    def __iter__(self) -> Iterator[TPatcher_co]:
+    def __iter__(self) -> Iterator[TPatch_co]:
         return self.patch_generator()
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class FunctionBuilder(Builder[TPatcher_contra, TResult_co]):
+class FunctionBuilder(Builder[TPatch_contra, TResult_co]):
     """Builder that applies custom aggregation function to patches."""
 
-    aggregation_function: Callable[[Iterator[TPatcher_contra]], TResult_co]
+    aggregation_function: Callable[[Iterator[TPatch_contra]], TResult_co]
 
     @override
-    def create(self, patches: Iterator[TPatcher_contra]) -> TResult_co:
+    def create(self, patches: Iterator[TPatch_contra]) -> TResult_co:
         return self.aggregation_function(patches)
 
 
@@ -609,14 +609,14 @@ class Definition(ABC):
     ) -> Callable[[Proxy], Builder | Patcher]: ...
 
 
-class BuilderDefinition(Definition, Generic[TPatcher_contra, TResult_co]):
+class BuilderDefinition(Definition, Generic[TPatch_contra, TResult_co]):
     @abstractmethod
     def bind_lexical_scope(
         self, outer_lexical_scope: LexicalScope, resource_name: str, /
     ) -> Callable[[Proxy], Builder]: ...
 
 
-class PatcherDefinition(Definition, Generic[TPatcher_co]):
+class PatcherDefinition(Definition, Generic[TPatch_co]):
     @abstractmethod
     def bind_lexical_scope(
         self, outer_lexical_scope: LexicalScope, resource_name: str, /
@@ -657,16 +657,16 @@ def _resolve_dependencies(
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class _AggregatorDefinition(BuilderDefinition[TPatcher_contra, TResult_co]):
+class _AggregatorDefinition(BuilderDefinition[TPatch_contra, TResult_co]):
     """Definition for aggregator decorator."""
 
-    function: Callable[..., Callable[[Iterator[TPatcher_contra]], TResult_co]]
+    function: Callable[..., Callable[[Iterator[TPatch_contra]], TResult_co]]
 
     @override
     def bind_lexical_scope(
         self, outer_lexical_scope: LexicalScope, resource_name: str, /
-    ) -> Callable[[Proxy], Builder[TPatcher_contra, TResult_co]]:
-        def bind_proxy(proxy: Proxy) -> Builder[TPatcher_contra, TResult_co]:
+    ) -> Callable[[Proxy], Builder[TPatch_contra, TResult_co]]:
+        def bind_proxy(proxy: Proxy) -> Builder[TPatch_contra, TResult_co]:
             dependencies = _resolve_dependencies(
                 self.function, resource_name, outer_lexical_scope, proxy
             )
@@ -698,17 +698,17 @@ class _ResourceDefinition(
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class _SinglePatchDefinition(PatcherDefinition[TPatcher_co]):
+class _SinglePatchDefinition(PatcherDefinition[TPatch_co]):
     """Definition for patch decorator (single patch)."""
 
-    function: Callable[..., TPatcher_co]
+    function: Callable[..., TPatch_co]
 
     @override
     def bind_lexical_scope(
         self, outer_lexical_scope: LexicalScope, resource_name: str, /
-    ) -> Callable[[Proxy], Patcher[TPatcher_co]]:
-        def bind_proxy(proxy: Proxy) -> Patcher[TPatcher_co]:
-            def patch_generator() -> Iterator[TPatcher_co]:
+    ) -> Callable[[Proxy], Patcher[TPatch_co]]:
+        def bind_proxy(proxy: Proxy) -> Patcher[TPatch_co]:
+            def patch_generator() -> Iterator[TPatch_co]:
                 resolved_args = _resolve_dependencies(
                     self.function, resource_name, outer_lexical_scope, proxy
                 )
@@ -720,17 +720,17 @@ class _SinglePatchDefinition(PatcherDefinition[TPatcher_co]):
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class _MultiplePatchDefinition(PatcherDefinition[TPatcher_co]):
+class _MultiplePatchDefinition(PatcherDefinition[TPatch_co]):
     """Definition for patches decorator (multiple patches)."""
 
-    function: Callable[..., Iterable[TPatcher_co]]
+    function: Callable[..., Iterable[TPatch_co]]
 
     @override
     def bind_lexical_scope(
         self, outer_lexical_scope: LexicalScope, resource_name: str, /
-    ) -> Callable[[Proxy], Patcher[TPatcher_co]]:
-        def bind_proxy(proxy: Proxy) -> Patcher[TPatcher_co]:
-            def patch_generator() -> Iterator[TPatcher_co]:
+    ) -> Callable[[Proxy], Patcher[TPatch_co]]:
+        def bind_proxy(proxy: Proxy) -> Patcher[TPatch_co]:
+            def patch_generator() -> Iterator[TPatch_co]:
                 resolved_args = _resolve_dependencies(
                     self.function, resource_name, outer_lexical_scope, proxy
                 )
@@ -943,8 +943,8 @@ Endo = Callable[[TResult], TResult]
 
 
 def aggregator(
-    callable: Callable[..., Callable[[Iterator[TPatcher_contra]], TResult_co]],
-) -> BuilderDefinition[TPatcher_contra, TResult_co]:
+    callable: Callable[..., Callable[[Iterator[TPatch_contra]], TResult_co]],
+) -> BuilderDefinition[TPatch_contra, TResult_co]:
     """
     A decorator that converts a callable into a builder definition with a custom aggregation strategy for patches.
 
@@ -1019,8 +1019,8 @@ def aggregator(
 
 
 def patch(
-    callable: Callable[..., TPatcher_co],
-) -> PatcherDefinition[TPatcher_co]:
+    callable: Callable[..., TPatch_co],
+) -> PatcherDefinition[TPatch_co]:
     """
     A decorator that converts a callable into a patch definition.
     """
@@ -1028,8 +1028,8 @@ def patch(
 
 
 def patches(
-    callable: Callable[..., Iterable[TPatcher_co]],
-) -> PatcherDefinition[TPatcher_co]:
+    callable: Callable[..., Iterable[TPatch_co]],
+) -> PatcherDefinition[TPatch_co]:
     """
     A decorator that converts a callable into a patch definition.
     """
