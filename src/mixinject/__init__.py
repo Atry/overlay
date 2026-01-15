@@ -248,19 +248,27 @@ def _evaluate_resource(
         return factory.create(patchs)
 
 
-class BuilderDefinition(ABC, Generic[TPatch_contra, TResult_co]):
+class Definition(ABC):
+    @abstractmethod
+    def bind_lexical_scope(
+        self, outer_lexical_scope: LexicalScope, resource_name: str, /
+    ) -> Callable[[Proxy], Builder | Patch]: ...
+
+
+class BuilderDefinition(Definition, Generic[TPatch_contra, TResult_co]):
+    @abstractmethod
     def bind_lexical_scope(
         self, outer_lexical_scope: LexicalScope, resource_name: str, /
     ) -> Callable[[Proxy], Builder]: ...
 
 
-class PatchDefinition(ABC, Generic[TPatch_co]):
+class PatchDefinition(Definition, Generic[TPatch_co]):
+    @abstractmethod
     def bind_lexical_scope(
         self, outer_lexical_scope: LexicalScope, resource_name: str, /
     ) -> Callable[[Proxy], Patch]: ...
 
 
-Definition: TypeAlias = BuilderDefinition | PatchDefinition
 DefinitionMapping: TypeAlias = Mapping[str, Definition]
 
 
@@ -445,7 +453,7 @@ def parse_object(namespace: object) -> DefinitionMapping:
     )
     result: dict[str, Definition] = {}
     for name, attr in namespace_dict.items():
-        if isinstance(attr, (BuilderDefinition, PatchDefinition)):
+        if isinstance(attr, Definition):
             result[name] = attr
     return result
 
@@ -475,7 +483,7 @@ def parse_module(module: ModuleType) -> DefinitionMapping:
     direct_attrs_dict: dict[str, Definition] = {}
     for name in dir(module):
         attr = getattr(module, name)
-        if isinstance(attr, (BuilderDefinition, PatchDefinition)):
+        if isinstance(attr, Definition):
             direct_attrs_dict[name] = attr
         elif isinstance(attr, ModuleType):
             direct_attrs_dict[name] = ScopeDefinition(definitions=parse_module(attr))
