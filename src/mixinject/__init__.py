@@ -1259,6 +1259,7 @@ A mapping from resource names to functions that take a lexical scope and return 
 def _resolve_dependencies_kwargs(
     symbol_table: SymbolTable,
     function: Callable[P, T],
+    resource_name: str,
 ) -> Callable[[LexicalScope], T]:
     """
     Resolve dependencies for a function using standard keyword arguments.
@@ -1267,16 +1268,17 @@ def _resolve_dependencies_kwargs(
     positional-only, or if it is positional-or-keyword and its name is not present
     in the symbol table. All other parameters are resolved from the symbol table.
 
-    This implementation uses a standard closure that constructs a dictionary of
-    resolved dependencies and passes them to the function using ``**kwargs``.
+    Special case: when param_name == resource_name, uses parent symbol table to
+    avoid self-dependency, mimicking pytest fixture behavior.
 
     :param symbol_table: A mapping from resource names to their resolution functions.
     :param function: The function for which to resolve dependencies.
+    :param resource_name: The name of the resource being resolved.
     :return: A wrapper function that takes a lexical scope (where the first element
              is the current proxy) and returns the result of the original function.
     """
     sig = signature(function)
-    params = list(sig.parameters.values())
+    params = tuple(sig.parameters.values())
 
     has_proxy = False
     if params:
@@ -1293,8 +1295,14 @@ def _resolve_dependencies_kwargs(
 
     def resolved_function(lexical_scope: LexicalScope) -> T:
         kwargs = {
-            param.name: symbol_table[param.name](lexical_scope) for param in kw_params
+            param.name: (
+                symbol_table.parents[param.name](lexical_scope)
+                if param.name == resource_name
+                else symbol_table[param.name](lexical_scope)
+            )
+            for param in kw_params
         }
+
         if has_proxy:
             return function(lexical_scope[0], **kwargs)  # type: ignore
         else:
@@ -1306,6 +1314,7 @@ def _resolve_dependencies_kwargs(
 def _resolve_dependencies_jit(
     symbol_table: SymbolTable,
     function: Callable[P, T],
+    resource_name: str,
 ) -> Callable[[LexicalScope], T]:
     """
     Resolve dependencies for a function using JIT-compiled AST.
@@ -1314,20 +1323,17 @@ def _resolve_dependencies_jit(
     positional-only, or if it is positional-or-keyword and its name is not present
     in the symbol table. All other parameters are resolved from the symbol table.
 
-    This implementation generates a specialized lambda function using Python's
-    AST module, which directly calls the dependency resolution functions. This
-    can be more efficient than :func:`_resolve_dependencies_kwargs` as it avoids
-    creating a dictionary for keyword arguments at each call.
-
-    .. todo:: 需要实现pytest fixture风格的同名依赖注入语义，即当参数名与资源名相同时，从symbol_table.parents中获取符号，而不是从symbol_table本身获取。这需要给 _resolve_dependencies_jit 添加 resource_name 参数，并在生成的AST中实现相应的逻辑。
+    Special case: when param_name == resource_name, uses parent symbol table to
+    avoid self-dependency, mimicking pytest fixture behavior.
 
     :param symbol_table: A mapping from resource names to their resolution functions.
     :param function: The function for which to resolve dependencies.
+    :param resource_name: The name of the resource being resolved.
     :return: A wrapper function that takes a lexical scope (where the first element
              is the current proxy) and returns the result of the original function.
     """
     sig = signature(function)
-    params = list(sig.parameters.values())
+    params = tuple(sig.parameters.values())
 
     if not params:
         return lambda _ls: function()  # type: ignore
@@ -1342,13 +1348,22 @@ def _resolve_dependencies_jit(
     else:
         kw_params = params
 
-    # Create keyword arguments for the call: name=symbol_table['name'](lexical_scope)
+    # Create keyword arguments for the call:
+    # name=symbol_table['name'](lexical_scope) OR name=symbol_table.parents['name'](lexical_scope)
     keywords = [
         ast.keyword(
             arg=p.name,
             value=ast.Call(
                 func=ast.Subscript(
-                    value=ast.Name(id="symbol_table", ctx=ast.Load()),
+                    value=(
+                        ast.Attribute(
+                            value=ast.Name(id="symbol_table", ctx=ast.Load()),
+                            attr="parents",
+                            ctx=ast.Load(),
+                        )
+                        if p.name == resource_name
+                        else ast.Name(id="symbol_table", ctx=ast.Load())
+                    ),
                     slice=ast.Constant(value=p.name),
                     ctx=ast.Load(),
                 ),

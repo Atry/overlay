@@ -43,8 +43,8 @@ def test_resolve_dependencies_consistency():
     ]
 
     for func in test_cases:
-        resolved_kwargs = _resolve_dependencies_kwargs(symbol_table, func)
-        resolved_jit = _resolve_dependencies_jit(symbol_table, func)
+        resolved_kwargs = _resolve_dependencies_kwargs(symbol_table, func, "dummy")
+        resolved_jit = _resolve_dependencies_jit(symbol_table, func, "dummy")
 
         result_kwargs = resolved_kwargs((mock_proxy, *lexical_scope))
         result_jit = resolved_jit((mock_proxy, *lexical_scope))
@@ -69,8 +69,8 @@ def test_resolve_dependencies_complex_signatures():
     def func1(a, /, b):
         return (a, b)
 
-    res_kwargs = _resolve_dependencies_kwargs(symbol_table, func1)
-    res_jit = _resolve_dependencies_jit(symbol_table, func1)
+    res_kwargs = _resolve_dependencies_kwargs(symbol_table, func1, "dummy")
+    res_jit = _resolve_dependencies_jit(symbol_table, func1, "dummy")
 
     assert res_kwargs((mock_proxy, *lexical_scope)) == (mock_proxy, 20)
     assert res_jit((mock_proxy, *lexical_scope)) == (mock_proxy, 20)
@@ -80,8 +80,38 @@ def test_resolve_dependencies_complex_signatures():
     def func2(a, b):
         return (a, b)
 
-    res_kwargs = _resolve_dependencies_kwargs(symbol_table, func2)
-    res_jit = _resolve_dependencies_jit(symbol_table, func2)
+    res_kwargs = _resolve_dependencies_kwargs(symbol_table, func2, "dummy")
+    res_jit = _resolve_dependencies_jit(symbol_table, func2, "dummy")
 
     assert res_kwargs((mock_proxy, *lexical_scope)) == (10, 20)
     assert res_jit((mock_proxy, *lexical_scope)) == (10, 20)
+
+
+def test_resolve_dependencies_same_name():
+    lexical_scope: LexicalScope = ()
+    mock_proxy = Mock(spec=Proxy)
+
+    # Layered symbol table
+    inner_table = {"a": lambda ls: "inner_a"}
+    outer_table = {"a": lambda ls: "outer_a"}
+    symbol_table = ChainMap(inner_table, outer_table)
+
+    # When param name is 'a', and resource_name is also 'a'
+    # It should look up 'a' in symbol_table.parents (outer_table)
+    def func(a):
+        return a
+
+    # Test kwargs implementation
+    res_kwargs = _resolve_dependencies_kwargs(symbol_table, func, "a")
+    assert res_kwargs((mock_proxy, *lexical_scope)) == "outer_a"
+
+    # Test jit implementation
+    res_jit = _resolve_dependencies_jit(symbol_table, func, "a")
+    assert res_jit((mock_proxy, *lexical_scope)) == "outer_a"
+
+    # When resource_name is different, it should use inner_table
+    res_kwargs_diff = _resolve_dependencies_kwargs(symbol_table, func, "other")
+    assert res_kwargs_diff((mock_proxy, *lexical_scope)) == "inner_a"
+
+    res_jit_diff = _resolve_dependencies_jit(symbol_table, func, "other")
+    assert res_jit_diff((mock_proxy, *lexical_scope)) == "inner_a"
