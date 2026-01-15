@@ -311,7 +311,10 @@ from inspect import signature
 from types import ModuleType
 from typing import (
     Any,
+    AsyncContextManager,
+    Awaitable,
     Callable,
+    ContextManager,
     Hashable,
     Generic,
     Iterable,
@@ -334,6 +337,26 @@ Resource = NewType("Resource", object)
 class Proxy(Mapping[str, "Node"], ABC):
     """
     A Proxy represents resources available via attributes or keys.
+    
+    .. todo::
+        我希望把Proxy/CachedProxy/WeakCachedProxy合并成一个类，按需提供ResourceConfig的24种组合行为。
+
+        我希望可以通过新增的一些decorator提供 ResourceConfig 的配置。注意这个配置是静态的不依赖于 Proxy 和 Scope，也就是说需要放在 Definition里，并且 Mixin 有办法查询到 
+        ```
+        class Mixin:
+            @abstractmethod
+            def configure(self, previous: ResourceConfig) -> ResourceConfig: ... # forward call to definition
+            ...
+        class Definition:
+            @abstractmethod
+            def bind_lexical_scope(...): ...
+            @abstractmethod
+            def configure(self, previous: ResourceConfig) -> ResourceConfig: ...
+        ```
+
+
+        用同一套Builder/Patcher接口来处理context manager/async，但是`TResult`的类型取决于ResourceConfig，可能是Awaitable/ContextManager/AsyncContextManager，或是直接的同步类型。`@resource`的`TPatch`的类型也取决于ResourceConfig，可能是`Endo`/`ContextManagerEndo`/`AsyncEndo`/`AsyncContextManagerEndo`。也就是说同一套Builder/Patcher接口可以处理同步/异步/上下文管理器的情况，
+
     """
 
     mixins: frozenset["Mixin"]
@@ -372,7 +395,7 @@ class Proxy(Mapping[str, "Node"], ABC):
     @override
     def __dir__(self):
         """
-        ... note:: This method uses the two-arg super() as a workaround for https://github.com/python/cpython/pull/124455
+        .. note:: This method uses the two-arg super() as a workaround for https://github.com/python/cpython/pull/124455
         """
         return (*self, *super(Proxy, self).__dir__())
 
@@ -389,7 +412,7 @@ class CachedProxy(Proxy):
     @override
     def __getitem__(self, key: str) -> "Node":
         """
-        ... note:: This method uses the two-arg super() as a workaround for https://github.com/python/cpython/pull/124455
+        .. note:: This method uses the two-arg super() as a workaround for https://github.com/python/cpython/pull/124455
         """
         if key not in self._cache:
             value = super(CachedProxy, self).__getitem__(key)
@@ -940,6 +963,9 @@ def _parse_package(
 
 
 Endo = Callable[[TResult], TResult]
+ContextManagerEndo = Callable[[TResult], "ContextManager[TResult]"]
+AsyncEndo = Callable[[TResult], Awaitable[TResult]]
+AsyncContextManagerEndo = Callable[[TResult], "AsyncContextManager[TResult]"]
 
 
 def aggregator(
