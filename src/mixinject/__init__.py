@@ -69,14 +69,14 @@ Resource = NewType("Resource", object)
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class Proxy(ABC):
+class Proxy(Mapping[str, "Node"], ABC):
     """
     A Proxy represents resources available via attributes or keys.
     """
 
     components: frozenset["Component"]
 
-    def __getattr__(self, key: str) -> "Node":
+    def __getitem__(self, key: str) -> "Node":
         def generate_resource() -> Iterator[Builder | Patch]:
             for components in self.components:
                 try:
@@ -86,6 +86,26 @@ class Proxy(ABC):
                 yield factory_or_patch(self)
 
         return _evaluate_resource(resource_generator=generate_resource)
+
+    def __getattr__(self, key: str) -> "Node":
+        try:
+            return self[key]
+        except KeyError as e:
+            raise AttributeError(name=key, obj=self) from e
+
+    def __iter__(self) -> Iterator[str]:
+        visited: set[str] = set()
+        for components in self.components:
+            for key in components:
+                if key not in visited:
+                    visited.add(key)
+                    yield key
+
+    def __len__(self) -> int:
+        keys: set[str] = set()
+        for components in self.components:
+            keys.update(components)
+        return len(keys)
 
     def __call__(self, **kwargs: object) -> Self:
         return type(self)(components=self.components | {simple_component(**kwargs)})
@@ -98,9 +118,9 @@ class CachedProxy(Proxy):
     )
 
     @override
-    def __getattr__(self, key: str) -> "Node":
+    def __getitem__(self, key: str) -> "Node":
         if key not in self._cache:
-            value = Proxy.__getattr__(self, key)
+            value = Proxy.__getitem__(self, key)
             self._cache[key] = value
             return value
         else:
@@ -127,10 +147,10 @@ def loop_up(lexical_scope: LexicalScope, name: str) -> "Node":
     """
     for proxy in lexical_scope():
         try:
-            return getattr(proxy, name)
-        except AttributeError:
+            return proxy[name]
+        except KeyError:
             continue
-    raise AttributeError(name)
+    raise KeyError(name)
 
 
 Node: TypeAlias = Resource | Proxy
@@ -225,7 +245,7 @@ def _evaluate_resource(
         try:
             next(resource_generator())
         except StopIteration:
-            raise AttributeError("No resource found")
+            raise KeyError("No resource found")
         else:
             raise NotImplementedError("No Factory definition provided")
     else:
@@ -275,8 +295,8 @@ def _resolve_dependencies(
         if param_name == resource_name:
             return loop_up(outer_lexical_scope, param_name)
         try:
-            return getattr(proxy, param_name)
-        except AttributeError:
+            return proxy[param_name]
+        except KeyError:
             return loop_up(outer_lexical_scope, param_name)
 
     sig = signature(callable_obj)
