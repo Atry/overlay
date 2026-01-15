@@ -1,12 +1,10 @@
-import pytest
 from mixinject import resource, resolve_root
 
 
 class TestIssueReproduction:
-    @pytest.mark.xfail(reason="known bug")
-    def test_nested_lexical_scope_lookup_failure(self):
+    def test_nested_lexical_scope_lookup(self):
         """
-        Non-same-name parameters cannot be looked up in outer lexical scope.
+        Non-same-name parameters can be looked up in outer lexical scope.
         """
 
         class Outer:
@@ -24,6 +22,5 @@ class TestIssueReproduction:
 
         root = resolve_root(Outer)
 
-        # This is expected to fail currently because Inner scope doesn't see Outer scope's outer_val.
-        # Ideally, it should resolve to "inner-outer".
+        # Inner scope should be able to resolve outer_val from Outer scope.
         assert root.Inner.inner_val == "inner-outer"

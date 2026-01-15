@@ -256,17 +256,20 @@ def _resolve_dependencies(
     Special case: when param_name == resource_name, uses outer lexical scope (not current proxy).
     This implements pytest-fixture-like same-name dependency injection semantics.
 
-    FIXME: Non-same-name parameters cannot be looked up in outer lexical scope.
-    Current behavior: param_name != resource_name always looks in current proxy only.
-    This is a limitation - parameters should use lexical scope lookup as fallback if the current proxy doesn't have the resource.
+    Normal case: param_name != resource_name looks in current proxy first, then falls back to outer lexical scope.
     """
+
+    def resolve_param(param_name: str) -> Any:
+        if param_name == resource_name:
+            return loop_up(outer_lexical_scope, param_name)
+        try:
+            return getattr(proxy, param_name)
+        except AttributeError:
+            return loop_up(outer_lexical_scope, param_name)
+
     sig = signature(callable_obj)
     return {
-        param_name: (
-            loop_up(outer_lexical_scope, param_name)
-            if param_name == resource_name
-            else getattr(proxy, param_name)
-        )
+        param_name: resolve_param(param_name)
         for param_name in sig.parameters
     }
 
