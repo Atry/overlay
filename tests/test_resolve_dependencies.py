@@ -46,8 +46,8 @@ def test_resolve_dependencies_consistency():
         resolved_kwargs = _resolve_dependencies_kwargs(symbol_table, func)
         resolved_jit = _resolve_dependencies_jit(symbol_table, func)
 
-        result_kwargs = resolved_kwargs(lexical_scope, mock_proxy)
-        result_jit = resolved_jit(lexical_scope, mock_proxy)
+        result_kwargs = resolved_kwargs((mock_proxy, *lexical_scope))
+        result_jit = resolved_jit((mock_proxy, *lexical_scope))
 
         assert result_kwargs == result_jit, f"Consistency failed for {func}"
         if "no args" in str(result_kwargs):
@@ -72,8 +72,8 @@ def test_resolve_dependencies_complex_signatures():
     res_kwargs = _resolve_dependencies_kwargs(symbol_table, func1)
     res_jit = _resolve_dependencies_jit(symbol_table, func1)
 
-    assert res_kwargs(lexical_scope, mock_proxy) == (mock_proxy, 20)
-    assert res_jit(lexical_scope, mock_proxy) == (mock_proxy, 20)
+    assert res_kwargs((mock_proxy, *lexical_scope)) == (mock_proxy, 20)
+    assert res_jit((mock_proxy, *lexical_scope)) == (mock_proxy, 20)
 
     # Positional or keyword argument named 'a' which is in symbol table
     # It should NOT be treated as proxy.
@@ -83,5 +83,5 @@ def test_resolve_dependencies_complex_signatures():
     res_kwargs = _resolve_dependencies_kwargs(symbol_table, func2)
     res_jit = _resolve_dependencies_jit(symbol_table, func2)
 
-    assert res_kwargs(lexical_scope, mock_proxy) == (10, 20)
-    assert res_jit(lexical_scope, mock_proxy) == (10, 20)
+    assert res_kwargs((mock_proxy, *lexical_scope)) == (10, 20)
+    assert res_jit((mock_proxy, *lexical_scope)) == (10, 20)

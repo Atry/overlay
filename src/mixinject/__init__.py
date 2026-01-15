@@ -1259,7 +1259,7 @@ A mapping from resource names to functions that take a lexical scope and return 
 def _resolve_dependencies_kwargs(
     symbol_table: SymbolTable,
     function: Callable[P, T],
-) -> Callable[[LexicalScope, Proxy], T]:
+) -> Callable[[LexicalScope], T]:
     """
     Resolve dependencies for a function using standard keyword arguments.
 
@@ -1272,8 +1272,8 @@ def _resolve_dependencies_kwargs(
 
     :param symbol_table: A mapping from resource names to their resolution functions.
     :param function: The function for which to resolve dependencies.
-    :return: A wrapper function that takes a lexical scope and a proxy, and returns
-             the result of the original function.
+    :return: A wrapper function that takes a lexical scope (where the first element
+             is the current proxy) and returns the result of the original function.
     """
     sig = signature(function)
     params = list(sig.parameters.values())
@@ -1291,12 +1291,12 @@ def _resolve_dependencies_kwargs(
     else:
         kw_params = []
 
-    def resolved_function(lexical_scope: LexicalScope, proxy: Proxy) -> T:
+    def resolved_function(lexical_scope: LexicalScope) -> T:
         kwargs = {
             param.name: symbol_table[param.name](lexical_scope) for param in kw_params
         }
         if has_proxy:
-            return function(proxy, **kwargs)  # type: ignore
+            return function(lexical_scope[0], **kwargs)  # type: ignore
         else:
             return function(**kwargs)  # type: ignore
 
@@ -1306,7 +1306,7 @@ def _resolve_dependencies_kwargs(
 def _resolve_dependencies_jit(
     symbol_table: SymbolTable,
     function: Callable[P, T],
-) -> Callable[[LexicalScope, Proxy], T]:
+) -> Callable[[LexicalScope], T]:
     """
     Resolve dependencies for a function using JIT-compiled AST.
 
@@ -1323,14 +1323,14 @@ def _resolve_dependencies_jit(
 
     :param symbol_table: A mapping from resource names to their resolution functions.
     :param function: The function for which to resolve dependencies.
-    :return: A wrapper function that takes a lexical scope and a proxy, and returns
-             the result of the original function.
+    :return: A wrapper function that takes a lexical scope (where the first element
+             is the current proxy) and returns the result of the original function.
     """
     sig = signature(function)
     params = list(sig.parameters.values())
 
     if not params:
-        return lambda _ls, _p: function()  # type: ignore
+        return lambda _ls: function()  # type: ignore
 
     has_proxy = False
     p0 = params[0]
@@ -1361,14 +1361,22 @@ def _resolve_dependencies_jit(
 
     call_node = ast.Call(
         func=ast.Name(id="function", ctx=ast.Load()),
-        args=[ast.Name(id="proxy", ctx=ast.Load())] if has_proxy else [],
+        args=[
+            ast.Subscript(
+                value=ast.Name(id="lexical_scope", ctx=ast.Load()),
+                slice=ast.Constant(value=0),
+                ctx=ast.Load(),
+            )
+        ]
+        if has_proxy
+        else [],
         keywords=keywords,
     )
 
     lambda_node = ast.Lambda(
         args=ast.arguments(
             posonlyargs=[],
-            args=[ast.arg(arg="lexical_scope"), ast.arg(arg="proxy")],
+            args=[ast.arg(arg="lexical_scope")],
             kwonlyargs=[],
             kw_defaults=[],
             defaults=[],
