@@ -586,24 +586,23 @@ def _evaluate_resource(
        (This assumes the semantics of these items satisfy commutativity).
     4. If there are no Builders (pure or dual), a NotImplementedError is raised.
     """
-    items = list(resource_generator())
+    items = tuple(resource_generator())
     if not items:
         raise KeyError("No resource found")
 
-    pure_builders: list[Builder] = []
-    pure_patches: list[Patcher] = []
-    dual_items: list[Builder] = []  # Typed as Builder, but are also Patch
-
-    for item in items:
-        is_builder = isinstance(item, Builder)
-        is_patch = isinstance(item, Patcher)
-
-        if is_builder and not is_patch:
-            pure_builders.append(item)
-        elif is_builder and is_patch:
-            dual_items.append(item)  # type: ignore
-        elif is_patch:
-            pure_patches.append(item)
+    pure_builders = [
+        item
+        for item in items
+        if isinstance(item, Builder) and not isinstance(item, Patcher)
+    ]
+    dual_items = [
+        item for item in items if isinstance(item, Builder) and isinstance(item, Patcher)
+    ]
+    pure_patches = [
+        item
+        for item in items
+        if not isinstance(item, Builder) and isinstance(item, Patcher)
+    ]
 
     selected_builder: Builder
     patches_to_apply: list[Patcher]
