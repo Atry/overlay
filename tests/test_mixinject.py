@@ -494,3 +494,152 @@ class TestProxyCallable:
         assert proxy2.b == 2
         # They should be different instances
         assert proxy1 is not proxy2
+
+
+class TestProxyDir:
+    """Test Proxy.__dir__ method."""
+
+    def test_dir_returns_list(self) -> None:
+        """Test that __dir__ returns a list."""
+
+        class Namespace:
+            @resource
+            def foo() -> str:
+                return "foo"
+
+        root = resolve(Namespace)
+        result = dir(root)
+        assert isinstance(result, list)
+
+    def test_dir_includes_resource_names(self) -> None:
+        """Test that __dir__ includes all resource names."""
+
+        class Namespace:
+            @resource
+            def resource1() -> str:
+                return "r1"
+
+            @resource
+            def resource2() -> str:
+                return "r2"
+
+            @resource
+            def resource3() -> str:
+                return "r3"
+
+        root = resolve(Namespace)
+        result = dir(root)
+        assert "resource1" in result
+        assert "resource2" in result
+        assert "resource3" in result
+
+    def test_dir_includes_builtin_attrs(self) -> None:
+        """Test that __dir__ includes builtin attributes."""
+
+        class Namespace:
+            @resource
+            def foo() -> str:
+                return "foo"
+
+        root = resolve(Namespace)
+        result = dir(root)
+        assert "__class__" in result
+        assert "__getitem__" in result
+        assert "mixins" in result
+
+    def test_dir_is_sorted(self) -> None:
+        """Test that __dir__ returns a sorted list."""
+
+        class Namespace:
+            @resource
+            def zebra() -> str:
+                return "z"
+
+            @resource
+            def apple() -> str:
+                return "a"
+
+            @resource
+            def middle() -> str:
+                return "m"
+
+        root = resolve(Namespace)
+        result = dir(root)
+        assert result == sorted(result)
+
+    def test_dir_with_multiple_mixins(self) -> None:
+        """Test __dir__ with multiple mixins providing different resources."""
+
+        class Namespace1:
+            @resource
+            def foo() -> str:
+                return "foo"
+
+        class Namespace2:
+            @resource
+            def bar() -> str:
+                return "bar"
+
+        root = resolve(Namespace1, Namespace2)
+        result = dir(root)
+        assert "foo" in result
+        assert "bar" in result
+
+    def test_dir_deduplicates_names(self) -> None:
+        """Test that __dir__ deduplicates resource names when multiple mixins provide the same name."""
+
+        class Namespace1:
+            @resource
+            def shared() -> str:
+                return "from_ns1"
+
+        class Namespace2:
+            @patch
+            def shared() -> Callable[[str], str]:
+                return lambda s: s + "_patched"
+
+        root = resolve(Namespace1, Namespace2)
+        result = dir(root)
+        assert result.count("shared") == 1
+
+    def test_dir_works_with_cached_proxy(self) -> None:
+        """Test __dir__ works with CachedProxy subclass."""
+
+        class Namespace:
+            @resource
+            def cached_resource() -> str:
+                return "cached"
+
+        root = resolve(Namespace, root_proxy_class=CachedProxy)
+        result = dir(root)
+        assert "cached_resource" in result
+
+    def test_dir_works_with_weak_cached_scope(self) -> None:
+        """Test __dir__ works with WeakCachedScope subclass."""
+
+        class Namespace:
+            @resource
+            def weak_resource() -> str:
+                return "weak"
+
+        root = resolve(Namespace, root_proxy_class=WeakCachedScope)
+        result = dir(root)
+        assert "weak_resource" in result
+
+    def test_dir_accessible_via_getattr(self) -> None:
+        """Test that all resource names from __dir__ are accessible via getattr."""
+
+        class Namespace:
+            @resource
+            def accessible1() -> str:
+                return "a1"
+
+            @resource
+            def accessible2() -> str:
+                return "a2"
+
+        root = resolve(Namespace)
+        assert "accessible1" in dir(root)
+        assert "accessible2" in dir(root)
+        assert getattr(root, "accessible1") == "a1"
+        assert getattr(root, "accessible2") == "a2"

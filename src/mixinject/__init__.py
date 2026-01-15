@@ -105,6 +105,13 @@ class Proxy(Mapping[str, "Node"], ABC):
             keys.update(mixins)
         return len(keys)
 
+    @override
+    def __dir__(self):
+        """
+        ... note:: This method uses the two-arg super() as a workaround for https://github.com/python/cpython/pull/124455
+        """
+        return (*self, *super(Proxy, self).__dir__())
+
     def __call__(self, **kwargs: object) -> Self:
         return type(self)(mixins=self.mixins | {KeywordArgumentMixin(kwargs=kwargs)})
 
@@ -117,8 +124,11 @@ class CachedProxy(Proxy):
 
     @override
     def __getitem__(self, key: str) -> "Node":
+        """
+        ... note:: This method uses the two-arg super() as a workaround for https://github.com/python/cpython/pull/124455
+        """
         if key not in self._cache:
-            value = Proxy.__getitem__(self, key)
+            value = super(CachedProxy, self).__getitem__(key)
             self._cache[key] = value
             return value
         else:
