@@ -5,7 +5,6 @@ from typing import Callable, Iterator
 
 from mixinject import (
     CachedProxy,
-    Endo,
     LazySubmoduleMapping,
     Proxy,
     aggregator,

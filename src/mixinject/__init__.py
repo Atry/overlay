@@ -47,16 +47,13 @@ from typing import (
     Any,
     Callable,
     Collection,
-    Dict,
     Hashable,
-    Generator,
     Generic,
     Iterable,
     Iterator,
     Mapping,
     MutableMapping,
     NewType,
-    Protocol,
     Self,
     TypeAlias,
     TypeVar,
@@ -276,6 +273,10 @@ class PatchDefinition(ABC, Generic[TPatch_co]):
     ) -> Callable[[Proxy], Patch]: ...
 
 
+ResourceDefinition: TypeAlias = BuilderDefinition | PatchDefinition
+ScopeDefinition: TypeAlias = Mapping[str, ResourceDefinition]
+
+
 def _resolve_dependencies(
     callable_obj: Callable[..., Any],
     resource_name: str,
@@ -393,7 +394,7 @@ class PatchesDefinitionImpl(PatchDefinition[TPatch_co]):
 class ScopeProxyDefinition(BuilderDefinition[Component, Proxy]):
     """Definition that creates a Proxy from nested ScopeDefinition (lazy evaluation)."""
 
-    scope_definition: "ScopeDefinition"
+    scope_definition: ScopeDefinition
 
     @override
     def __call__(
@@ -405,8 +406,7 @@ class ScopeProxyDefinition(BuilderDefinition[Component, Proxy]):
                     yield proxy
                     yield from outer_lexical_scope()
 
-                normalized = normalize_scope(self.scope_definition)
-                base_component = compile(inner_lexical_scope, normalized)
+                base_component = compile(inner_lexical_scope, self.scope_definition)
                 all_components = frozenset((base_component, *patches))
                 return CachedProxy(components=all_components)
 
@@ -415,25 +415,21 @@ class ScopeProxyDefinition(BuilderDefinition[Component, Proxy]):
         return factory
 
 
-ResourceDefinition: TypeAlias = BuilderDefinition | PatchDefinition
-ScopeDefinition: TypeAlias = Mapping[str, "ResourceDefinition | ScopeDefinition"]
-
-
 @dataclass(frozen=True, kw_only=True, slots=True)
-class LazySubmoduleMapping(Mapping[str, "ResourceDefinition | ScopeDefinition"]):
+class LazySubmoduleMapping(Mapping[str, ResourceDefinition]):
     """A lazy mapping that discovers submodules via pkgutil and imports them on access."""
 
     parent_module: ModuleType
     submodule_names: frozenset[str]
-    direct_attrs: Mapping[str, "ResourceDefinition | ScopeDefinition"]
+    direct_attrs: Mapping[str, ResourceDefinition]
 
-    def __getitem__(self, key: str) -> "ResourceDefinition | ScopeDefinition":
+    def __getitem__(self, key: str) -> ResourceDefinition:
         if key in self.direct_attrs:
             return self.direct_attrs[key]
         if key in self.submodule_names:
             full_name = f"{self.parent_module.__name__}.{key}"
             submod = importlib.import_module(full_name)
-            return parse_module(submod)
+            return ScopeProxyDefinition(scope_definition=parse_module(submod))
         raise KeyError(key)
 
     def __iter__(self) -> Iterator[str]:
@@ -446,26 +442,7 @@ class LazySubmoduleMapping(Mapping[str, "ResourceDefinition | ScopeDefinition"])
         return key in self.direct_attrs or key in self.submodule_names
 
 
-@dataclass(frozen=True, kw_only=True, slots=True)
-class LazyNormalizedScopeDefinition(Mapping[str, ResourceDefinition]):
-    """A lazy mapping that normalizes scope definitions on access."""
-
-    scope_definition: ScopeDefinition
-
-    def __getitem__(self, key: str) -> ResourceDefinition:
-        return normalize(self.scope_definition[key])
-
-    def __iter__(self) -> Iterator[str]:
-        return iter(self.scope_definition)
-
-    def __len__(self) -> int:
-        return len(self.scope_definition)
-
-    def __contains__(self, key: object) -> bool:
-        return key in self.scope_definition
-
-
-def parse_namespace(namespace: object) -> ScopeDefinition:
+def parse_object(namespace: object) -> ScopeDefinition:
     """
     Parses an object into a ScopeDefinition.
 
@@ -479,12 +456,12 @@ def parse_namespace(namespace: object) -> ScopeDefinition:
     namespace_dict = (
         vars(namespace) if isinstance(namespace, type) else vars(type(namespace))
     )
-    result: dict[str, ResourceDefinition | ScopeDefinition] = {}
+    result: dict[str, ResourceDefinition] = {}
     for name, attr in namespace_dict.items():
         if isinstance(attr, (BuilderDefinition, PatchDefinition)):
             result[name] = attr
         elif isinstance(attr, type):
-            result[name] = parse_namespace(attr)
+            result[name] = ScopeProxyDefinition(scope_definition=parse_object(attr))
     return result
 
 
@@ -502,14 +479,16 @@ def parse_module(module: ModuleType) -> ScopeDefinition:
     and importlib.import_module to lazily import them when accessed.
     """
 
-    direct_attrs_dict: dict[str, ResourceDefinition | ScopeDefinition] = {}
+    direct_attrs_dict: dict[str, ResourceDefinition] = {}
     for name in dir(module):
         attr = getattr(module, name)
         if isinstance(attr, (BuilderDefinition, PatchDefinition)):
             direct_attrs_dict[name] = attr
         elif isinstance(attr, ModuleType):
-            direct_attrs_dict[name] = parse_module(attr)
-    direct_attrs: Mapping[str, ResourceDefinition | ScopeDefinition] = direct_attrs_dict
+            direct_attrs_dict[name] = ScopeProxyDefinition(
+                scope_definition=parse_module(attr)
+            )
+    direct_attrs: Mapping[str, ResourceDefinition] = direct_attrs_dict
 
     if hasattr(module, "__path__"):
         submodule_names = frozenset(
@@ -522,25 +501,6 @@ def parse_module(module: ModuleType) -> ScopeDefinition:
         )
 
     return direct_attrs
-
-
-NormalizedScopeDefinition = Mapping[str, ResourceDefinition]
-
-
-def normalize(definition: ResourceDefinition | ScopeDefinition) -> ResourceDefinition:
-    """
-    Normalizes a ResourceDefinition or ScopeDefinition by converting any nested ScopeDefinitions into ResourceDefinitions of Proxy.
-    """
-    if isinstance(definition, (BuilderDefinition, PatchDefinition)):
-        return definition
-    return ScopeProxyDefinition(scope_definition=definition)
-
-
-def normalize_scope(scope_definition: ScopeDefinition) -> NormalizedScopeDefinition:
-    """
-    Normalizes a ScopeDefinition lazily by converting any nested ScopeDefinitions into ResourceDefinitions of Proxy.
-    """
-    return LazyNormalizedScopeDefinition(scope_definition=scope_definition)
 
 
 Endo = Callable[[TResult], TResult]
@@ -676,7 +636,7 @@ def resource(
 @dataclass(frozen=True, kw_only=True, slots=True, eq=False)
 class CompiledComponent(Component):
     lexical_scope: LexicalScope
-    normalized_scope_definition: NormalizedScopeDefinition
+    normalized_scope_definition: ScopeDefinition
 
     def __getitem__(self, key: str) -> Callable[[Proxy], Builder | Patch]:
         if key not in self.normalized_scope_definition:
@@ -693,7 +653,7 @@ class CompiledComponent(Component):
 
 def compile(
     lexical_scope: LexicalScope,
-    normalized_scope_definition: NormalizedScopeDefinition,
+    normalized_scope_definition: ScopeDefinition,
 ) -> Component:
     return CompiledComponent(
         lexical_scope=lexical_scope,
@@ -705,7 +665,7 @@ def parse(obj: object) -> ScopeDefinition:
     if isinstance(obj, ModuleType):
         return parse_module(obj)
     else:
-        return parse_namespace(obj)
+        return parse_object(obj)
 
 
 def resolve(
@@ -735,7 +695,7 @@ def resolve(
     """
 
     components = frozenset(
-        compile(lexical_scope, normalize_scope(parse(obj))) for obj in objects
+        compile(lexical_scope, parse(obj)) for obj in objects
     )
     return cls(components=components)
 
