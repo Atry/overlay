@@ -79,8 +79,8 @@ class Proxy(ABC):
         def generate_resource() -> Iterator[Builder | Patch]:
             for components in self.components:
                 try:
-                    factory_or_patch = components(key)
-                except AttributeError:
+                    factory_or_patch = components[key]
+                except KeyError:
                     continue
                 yield factory_or_patch(self)
 
@@ -196,7 +196,7 @@ class SimpleBuilder(Builder[Any, Resource]):
         return self.value
 
 
-Component: TypeAlias = Callable[[str], Callable[[Proxy], Builder | Patch]]
+Component: TypeAlias = Mapping[str, Callable[[Proxy], Builder | Patch]]
 
 
 def _evaluate_resource(
@@ -268,10 +268,7 @@ def _resolve_dependencies(
             return loop_up(outer_lexical_scope, param_name)
 
     sig = signature(callable_obj)
-    return {
-        param_name: resolve_param(param_name)
-        for param_name in sig.parameters
-    }
+    return {param_name: resolve_param(param_name) for param_name in sig.parameters}
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
@@ -644,17 +641,38 @@ def resource(
     return ResourceDefinitionImpl(callable_obj=callable)
 
 
+@dataclass(frozen=True, kw_only=True, slots=True, eq=False)
+class CompiledComponent(Mapping[str, Callable[[Proxy], Builder | Patch]]):
+    lexical_scope: LexicalScope
+    normalized_scope_definition: NormalizedScopeDefinition
+
+    def __getitem__(self, key: str) -> Callable[[Proxy], Builder | Patch]:
+        if key not in self.normalized_scope_definition:
+            raise KeyError(key)
+        definition = self.normalized_scope_definition[key]
+        return definition(self.lexical_scope, key)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.normalized_scope_definition)
+
+    def __len__(self) -> int:
+        return len(self.normalized_scope_definition)
+
+    def __hash__(self) -> int:
+        return hash(id(self))
+
+    def __eq__(self, other: object) -> bool:
+        return self is other
+
+
 def compile(
     lexical_scope: LexicalScope,
     normalized_scope_definition: NormalizedScopeDefinition,
 ) -> Component:
-    def component(name: str) -> Callable[[Proxy], Builder | Patch]:
-        if name not in normalized_scope_definition:
-            raise AttributeError(name)
-        definition = normalized_scope_definition[name]
-        return definition(lexical_scope, name)
-
-    return component
+    return CompiledComponent(
+        lexical_scope=lexical_scope,
+        normalized_scope_definition=normalized_scope_definition,
+    )
 
 
 def parse(obj: object) -> ScopeDefinition:
@@ -721,15 +739,32 @@ def resolve_root(*objects: object, cls: type[TProxy] = CachedProxy) -> TProxy:
     return resolve(().__iter__, *objects, cls=cls)
 
 
-def simple_component(**kwargs: object) -> Component:
-    def component(name: str) -> Callable[[Proxy], Builder]:
-        if name not in kwargs:
-            raise AttributeError(name)
-        value = kwargs[name]
+@dataclass(frozen=True, kw_only=True, slots=True, eq=False)
+class SimpleComponent(Mapping[str, Callable[[Proxy], Builder | Patch]]):
+    kwargs: Mapping[str, object]
+
+    def __getitem__(self, key: str) -> Callable[[Proxy], Builder | Patch]:
+        if key not in self.kwargs:
+            raise KeyError(key)
+        value = self.kwargs[key]
 
         def factory(proxy: Proxy) -> Builder[Any, Resource]:
             return SimpleBuilder(value=cast(Resource, value))
 
         return factory
 
-    return component
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.kwargs)
+
+    def __len__(self) -> int:
+        return len(self.kwargs)
+
+    def __hash__(self) -> int:
+        return hash(id(self))
+
+    def __eq__(self, other: object) -> bool:
+        return self is other
+
+
+def simple_component(**kwargs: object) -> Component:
+    return SimpleComponent(kwargs=kwargs)
