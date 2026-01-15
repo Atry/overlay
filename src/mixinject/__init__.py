@@ -249,13 +249,13 @@ def _evaluate_resource(
 
 
 class BuilderDefinition(ABC, Generic[TPatch_contra, TResult_co]):
-    def __call__(
+    def bind_lexical_scope(
         self, outer_lexical_scope: LexicalScope, resource_name: str, /
     ) -> Callable[[Proxy], Builder]: ...
 
 
 class PatchDefinition(ABC, Generic[TPatch_co]):
-    def __call__(
+    def bind_lexical_scope(
         self, outer_lexical_scope: LexicalScope, resource_name: str, /
     ) -> Callable[[Proxy], Patch]: ...
 
@@ -298,7 +298,7 @@ class AggregatorDefinition(BuilderDefinition[TPatch_contra, TResult_co]):
     function: Callable[..., Callable[[Iterator[TPatch_contra]], TResult_co]]
 
     @override
-    def __call__(
+    def bind_lexical_scope(
         self, outer_lexical_scope: LexicalScope, resource_name: str, /
     ) -> Callable[[Proxy], Builder[TPatch_contra, TResult_co]]:
         def factory(proxy: Proxy) -> Builder[TPatch_contra, TResult_co]:
@@ -320,7 +320,7 @@ class ResourceDefinition(
     function: Callable[..., TResult]
 
     @override
-    def __call__(
+    def bind_lexical_scope(
         self, outer_lexical_scope: LexicalScope, resource_name: str, /
     ) -> Callable[[Proxy], Builder[Callable[[TResult], TResult], TResult]]:
         def factory(proxy: Proxy) -> Builder[Callable[[TResult], TResult], TResult]:
@@ -340,7 +340,7 @@ class SinglePatchDefinition(PatchDefinition[TPatch_co]):
     function: Callable[..., TPatch_co]
 
     @override
-    def __call__(
+    def bind_lexical_scope(
         self, outer_lexical_scope: LexicalScope, resource_name: str, /
     ) -> Callable[[Proxy], Patch[TPatch_co]]:
         def factory(proxy: Proxy) -> Patch[TPatch_co]:
@@ -362,7 +362,7 @@ class MultiplePatchDefinition(PatchDefinition[TPatch_co]):
     function: Callable[..., Collection[TPatch_co]]
 
     @override
-    def __call__(
+    def bind_lexical_scope(
         self, outer_lexical_scope: LexicalScope, resource_name: str, /
     ) -> Callable[[Proxy], Patch[TPatch_co]]:
         def factory(proxy: Proxy) -> Patch[TPatch_co]:
@@ -384,7 +384,7 @@ class ScopeDefinition(BuilderDefinition[Mixin, Proxy]):
     definitions: DefinitionMapping
 
     @override
-    def __call__(
+    def bind_lexical_scope(
         self, outer_lexical_scope: LexicalScope, resource_name: str, /
     ) -> Callable[[Proxy], Builder[Mixin, Proxy]]:
         def factory(proxy: Proxy) -> Builder[Mixin, Proxy]:
@@ -633,7 +633,7 @@ class CompiledMixin(Mixin):
         if key not in self.normalized_scope_definition:
             raise KeyError(key)
         definition = self.normalized_scope_definition[key]
-        return definition(self.lexical_scope, key)
+        return definition.bind_lexical_scope(self.lexical_scope, key)
 
     def __iter__(self) -> Iterator[str]:
         return iter(self.normalized_scope_definition)
