@@ -7,23 +7,22 @@ from mixinject import (
     AggregatorDefinition,
     Builder,
     CachedProxy,
-    Mapping[str, Definition],
+    KeywordArgumentMixin,
     PackageMapping,
     ObjectMapping,
-    Patch,
     Proxy,
     ResourceDefinition,
     SinglePatchDefinition,
     aggregator,
-    compile,
+    BoundMixin,
     patch,
     patches,
     resource,
     resolve,
-    resolve_root,
+    resolve,
     scope,
-    simple_mixin,
     parse_module,
+    WeakCachedScope,
 )
 
 FIXTURES_DIR = str(Path(__file__).parent / "fixtures")
@@ -38,7 +37,7 @@ class TestSimpleResource:
             def greeting() -> str:
                 return "Hello"
 
-        root = resolve_root(Namespace)
+        root = resolve(Namespace)
         assert root.greeting == "Hello"
 
     def test_resource_with_dependency(self) -> None:
@@ -51,7 +50,7 @@ class TestSimpleResource:
             def greeting(name: str) -> str:
                 return f"Hello, {name}!"
 
-        root = resolve_root(Namespace)
+        root = resolve(Namespace)
         assert root.greeting == "Hello, World!"
 
     def test_multiple_dependencies(self) -> None:
@@ -68,7 +67,7 @@ class TestSimpleResource:
             def combined(first: str, second: str) -> str:
                 return f"{first} and {second}"
 
-        root = resolve_root(Namespace)
+        root = resolve(Namespace)
         assert root.combined == "First and Second"
 
 
@@ -86,7 +85,7 @@ class TestPatch:
             def value() -> Callable[[int], int]:
                 return lambda x: x * 2
 
-        root = resolve_root(Base, Patcher)
+        root = resolve(Base, Patcher)
         assert root.value == 20
 
     def test_multiple_patches(self) -> None:
@@ -105,7 +104,7 @@ class TestPatch:
             def value() -> Callable[[int], int]:
                 return lambda x: x + 3
 
-        root = resolve_root(Base, Patch1, Patch2)
+        root = resolve(Base, Patch1, Patch2)
         assert root.value == 18
 
 
@@ -123,7 +122,7 @@ class TestPatches:
             def value() -> tuple[Callable[[int], int], ...]:
                 return ((lambda x: x + 5), (lambda x: x + 3))
 
-        root = resolve_root(Base, Patcher)
+        root = resolve(Base, Patcher)
         assert root.value == 18
 
 
@@ -142,21 +141,21 @@ class TestLexicalScope:
                 def counter(counter: int) -> int:
                     return counter + 1
 
-        root = resolve_root(Outer)
+        root = resolve(Outer)
         assert root.counter == 0
         assert root.Inner.counter == 1
 
 
 class TestKeywordArgumentMixin:
-    """Test simple_mixin helper."""
+    """Test KeywordArgumentMixin."""
 
-    def test_simple_mixin_single_value(self) -> None:
-        comp = simple_mixin(foo="bar")
+    def test_keyword_argument_mixin_single_value(self) -> None:
+        comp = KeywordArgumentMixin(kwargs={"foo": "bar"})
         proxy = CachedProxy(mixins=frozenset((comp,)))
         assert proxy.foo == "bar"
 
-    def test_simple_mixin_multiple_values(self) -> None:
-        comp = simple_mixin(foo="bar", count=42, flag=True)
+    def test_keyword_argument_mixin_multiple_values(self) -> None:
+        comp = KeywordArgumentMixin(kwargs={"foo": "bar", "count": 42, "flag": True})
         proxy = CachedProxy(mixins=frozenset((comp,)))
         assert proxy.foo == "bar"
         assert proxy.count == 42
@@ -182,7 +181,7 @@ class TestAggregator:
             def tags() -> str:
                 return "tag2"
 
-        root = resolve_root(Base, Provider1, Provider2)
+        root = resolve(Base, Provider1, Provider2)
         assert root.tags == frozenset({"tag1", "tag2"})
 
 
@@ -200,7 +199,7 @@ class TestUnionMount:
             def bar() -> str:
                 return "bar_value"
 
-        root = resolve_root(Namespace1, Namespace2)
+        root = resolve(Namespace1, Namespace2)
         assert root.foo == "foo_value"
         assert root.bar == "bar_value"
 
@@ -215,7 +214,7 @@ class TestUnionMount:
             def combined(base_value: str) -> str:
                 return f"{base_value}_combined"
 
-        root = resolve_root(Namespace1, Namespace2)
+        root = resolve(Namespace1, Namespace2)
         assert root.combined == "base_combined"
 
     def test_deduplicated_tags_from_docstring(self) -> None:
@@ -223,8 +222,10 @@ class TestUnionMount:
         try:
             from union_mount import branch0, branch1, branch2
 
-            root = resolve_root(branch0, branch1, branch2)
-            assert root.deduplicated_tags == frozenset({"tag1", "tag2_dependency_value"})
+            root = resolve(branch0, branch1, branch2)
+            assert root.deduplicated_tags == frozenset(
+                {"tag1", "tag2_dependency_value"}
+            )
         finally:
             sys.path.remove(FIXTURES_DIR)
             sys.modules.pop("union_mount", None)
@@ -237,7 +238,7 @@ class TestUnionMount:
         try:
             from union_mount import branch0, branch1, branch2
 
-            root = resolve_root(branch0, branch1, branch2)
+            root = resolve(branch0, branch1, branch2)
             assert root.union_mount_point.foo == "foo"
             assert root.union_mount_point.bar == "foo_bar"
         finally:
@@ -252,7 +253,7 @@ class TestProxyAsSymlink:
     """Test Proxy return values acting as symlinks."""
 
     def test_proxy_symlink(self) -> None:
-        comp = simple_mixin(inner_value="inner")
+        comp = KeywordArgumentMixin(kwargs={"inner_value": "inner"})
         inner_proxy = CachedProxy(mixins=frozenset((comp,)))
 
         class Namespace:
@@ -260,7 +261,7 @@ class TestProxyAsSymlink:
             def linked() -> Proxy:
                 return inner_proxy
 
-        root = resolve_root(Namespace)
+        root = resolve(Namespace)
         assert root.linked.inner_value == "inner"
 
 
@@ -272,7 +273,7 @@ class TestModuleParsing:
         try:
             import regular_pkg
 
-            scope_def = parse_module(regular_pkg)
+            scope_def = parse_module(regular_pkg, get_module_proxy_class=lambda _: CachedProxy)
             assert isinstance(scope_def, PackageMapping)
             assert "child" in scope_def
         finally:
@@ -285,7 +286,7 @@ class TestModuleParsing:
         try:
             import regular_pkg
 
-            scope_def = parse_module(regular_pkg)
+            scope_def = parse_module(regular_pkg, get_module_proxy_class=lambda _: CachedProxy)
             assert "regular_pkg.child" not in sys.modules
             _ = scope_def["child"]
             assert "regular_pkg.child" in sys.modules
@@ -299,7 +300,7 @@ class TestModuleParsing:
         try:
             import regular_pkg
 
-            root = resolve_root(regular_pkg)
+            root = resolve(regular_pkg)
             assert root.pkg_value == "from_pkg"
             assert root.child.child_value == "from_child"
         finally:
@@ -312,7 +313,7 @@ class TestModuleParsing:
         try:
             import regular_mod
 
-            scope_def = parse_module(regular_mod)
+            scope_def = parse_module(regular_mod, get_module_proxy_class=lambda _: CachedProxy)
             assert isinstance(scope_def, ObjectMapping)
             assert not isinstance(scope_def, PackageMapping)
         finally:
@@ -325,12 +326,12 @@ class TestModuleParsing:
             import ns_pkg
 
             assert hasattr(ns_pkg, "__path__")
-            scope_def = parse_module(ns_pkg)
+            scope_def = parse_module(ns_pkg, get_module_proxy_class=lambda _: CachedProxy)
             assert isinstance(scope_def, PackageMapping)
             assert "mod_a" in scope_def
             assert "mod_b" in scope_def
 
-            root = resolve_root(ns_pkg)
+            root = resolve(ns_pkg)
             assert root.mod_a.value_a == "a"
         finally:
             sys.path.remove(FIXTURES_DIR)
@@ -343,7 +344,7 @@ class TestModuleParsing:
         try:
             import ns_pkg
 
-            root = resolve_root(ns_pkg)
+            root = resolve(ns_pkg)
             assert root.mod_b.base == "base"
             assert root.mod_b.derived == "base_derived"
         finally:
@@ -357,8 +358,7 @@ class TestModuleParsing:
             ns_pkg_dir = Path(tmpdir) / "ns_pkg"
             ns_pkg_dir.mkdir()
             (ns_pkg_dir / "mod_c.py").write_text(
-                "from mixinject import resource\n"
-                "value_c = resource(lambda: 'c')\n"
+                "from mixinject import resource\n" "value_c = resource(lambda: 'c')\n"
             )
 
             sys.path.insert(0, FIXTURES_DIR)
@@ -367,13 +367,13 @@ class TestModuleParsing:
                 import ns_pkg
 
                 assert len(ns_pkg.__path__) == 2
-                scope_def = parse_module(ns_pkg)
+                scope_def = parse_module(ns_pkg, get_module_proxy_class=lambda _: CachedProxy)
                 assert isinstance(scope_def, PackageMapping)
                 assert "mod_a" in scope_def
                 assert "mod_b" in scope_def
                 assert "mod_c" in scope_def
 
-                root = resolve_root(ns_pkg)
+                root = resolve(ns_pkg)
                 assert root.mod_a.value_a == "a"
                 assert root.mod_c.value_c == "c"
             finally:
@@ -390,7 +390,7 @@ class TestProxyCallable:
 
     def test_proxy_call_single_kwarg(self) -> None:
         """Test calling Proxy to inject a single new value."""
-        comp = simple_mixin(foo="foo_value")
+        comp = KeywordArgumentMixin(kwargs={"foo": "foo_value"})
         proxy = CachedProxy(mixins=frozenset((comp,)))
 
         # Call proxy with new kwargs to add additional mixins
@@ -401,7 +401,7 @@ class TestProxyCallable:
 
     def test_proxy_call_multiple_kwargs(self) -> None:
         """Test calling Proxy with multiple new kwargs."""
-        comp = simple_mixin(x=1, y=2)
+        comp = KeywordArgumentMixin(kwargs={"x": 1, "y": 2})
         proxy = CachedProxy(mixins=frozenset((comp,)))
 
         # Call to add new mixins (z and w)
@@ -415,9 +415,7 @@ class TestProxyCallable:
     def test_proxy_call_injected_values_accessible(self) -> None:
         """Test that values injected via Proxy call are accessible as resources."""
         # Create empty proxy and inject values via call
-        proxy = CachedProxy(mixins=frozenset([])) \
-            (config={"db": "postgres"}) \
-            (timeout=30)
+        proxy = CachedProxy(mixins=frozenset([]))(config={"db": "postgres"})(timeout=30)
 
         # Injected values should be accessible
         assert proxy.config == {"db": "postgres"}
@@ -431,6 +429,7 @@ class TestProxyCallable:
         - Module has nested scope that depends on parameter with same name
         - Same-name lookup (param == resource name) finds value from outer scope
         """
+
         class Config:
             @resource
             def db_config(db_config: dict) -> dict:
@@ -447,31 +446,42 @@ class TestProxyCallable:
                 return f"{db_config['host']}:{db_config['port']}"
 
         # Provide the base value via Proxy.__call__
-        outer_proxy = CachedProxy(mixins=frozenset([])) \
-            (db_config={"host": "localhost", "port": "5432"})
+        outer_proxy = CachedProxy(mixins=frozenset([]))(
+            db_config={"host": "localhost", "port": "5432"}
+        )
 
         def outer_scope() -> Iterator[Proxy]:
             yield outer_proxy
 
-        root = resolve(outer_scope, Config)
+        root = resolve(Config, lexical_scope=outer_scope)
         assert root.db_config == {"host": "localhost", "port": "5432"}
         assert root.connection_string == "localhost:5432"
 
     def test_proxy_call_returns_same_type(self) -> None:
         """Test that calling a Proxy subclass returns the same type."""
-        comp = simple_mixin(x=1)
+        class Value:
+            pass
+
+        v1, v2 = Value(), Value()
+        comp = KeywordArgumentMixin(kwargs={"x": v1})
 
         # CachedProxy should return CachedProxy
         cached = CachedProxy(mixins=frozenset((comp,)))
-        new_cached = cached(y=2)
-
+        new_cached = cached(y=v2)
         assert isinstance(new_cached, CachedProxy)
-        assert new_cached.x == 1
-        assert new_cached.y == 2
+        assert new_cached.x is v1
+        assert new_cached.y is v2
+
+        # WeakCachedScope should return WeakCachedScope
+        weak = WeakCachedScope(mixins=frozenset((comp,)))
+        new_weak = weak(y=v2)
+        assert isinstance(new_weak, WeakCachedScope)
+        assert new_weak.x is v1
+        assert new_weak.y is v2
 
     def test_proxy_call_creates_fresh_instance(self) -> None:
         """Test that calling a Proxy creates a new instance without modifying the original."""
-        comp = simple_mixin(a=1)
+        comp = KeywordArgumentMixin(kwargs={"a": 1})
         proxy1 = CachedProxy(mixins=frozenset((comp,)))
 
         # Call to create a new proxy

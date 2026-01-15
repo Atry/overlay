@@ -1,27 +1,284 @@
-from mixinject import resource, resolve_root, scope
+import pytest
+from dataclasses import dataclass
+from typing import Any, Iterator, override
+from mixinject import (
+    Builder,
+    Patcher,
+    Proxy,
+    CachedProxy,
+    WeakCachedScope,
+    resource,
+    patch,
+    resolve,
+    resolve,
+    scope,
+    Definition,
+    LexicalScope,
+)
 
 
-class TestIssueReproduction:
-    def test_nested_lexical_scope_lookup(self):
+def _calculate_most_derived_class(first: type, *rest: type) -> type:
+    """Calculate the most derived class."""
+
+    candidates = (first,)
+    for new_candidate in rest:
+        if any(issubclass(candidate, new_candidate) for candidate in candidates):
+            continue
+        else:
+            candidates = (
+                *(
+                    candidate
+                    for candidate in candidates
+                    if not issubclass(new_candidate, candidate)
+                ),
+                new_candidate,
+            )
+
+    match candidates:
+        case (winner,):
+            return winner
+        case _:
+            raise TypeError(
+                "class conflict: "
+                "the class of a derived class "
+                "must be a (non-strict) subclass "
+                "of the classes of all its bases"
+            )
+
+
+class Result:
+    def __init__(self, value: str):
+        self.value = value
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Result):
+            return self.value == other.value
+        return NotImplemented
+
+    def __repr__(self) -> str:
+        return f"Result({self.value!r})"
+
+
+@dataclass(frozen=True)
+class Dual(Patcher[Any], Builder[Any, Any]):
+    value: Any
+    _proxy_class: type[Proxy] | None = None
+
+    @property
+    @override
+    def proxy_class(self) -> type[Proxy] | None:
+        return self._proxy_class
+
+    @override
+    def create(self, patches: Iterator[Any]) -> Any:
+        return Result(
+            f"builder-{self.value}-" + "-".join(sorted(str(p) for p in patches))
+        )
+
+    @override
+    def __iter__(self) -> Iterator[Any]:
+        yield f"patch-{self.value}"
+
+
+@dataclass(frozen=True)
+class PureBuilder(Builder[Any, Any]):
+    value: Any
+    _proxy_class: type[Proxy] | None = None
+
+    @property
+    @override
+    def proxy_class(self) -> type[Proxy] | None:
+        return self._proxy_class
+
+    @override
+    def create(self, patches: Iterator[Any]) -> Any:
+        return Result(
+            f"pure-{self.value}-" + "-".join(sorted(str(p) for p in patches))
+        )
+
+
+@dataclass
+class DirectDefinition(Definition):
+    item: Any
+
+    def bind_lexical_scope(
+        self, outer_lexical_scope: LexicalScope, resource_name: str, /
+    ):
+        return lambda proxy: self.item
+
+
+@pytest.mark.parametrize("proxy_class", [CachedProxy, WeakCachedScope])
+class TestNestedLexicalScope:
+    def test_nested_lexical_scope_lookup(self, proxy_class: type[Proxy]) -> None:
         """
         Non-same-name parameters can be looked up in outer lexical scope.
         """
 
         class Outer:
             @resource
-            def outer_val() -> str:
-                return "outer"
+            def outer_val() -> Result:
+                return Result("outer")
 
             @scope
             class Inner:
                 @resource
-                def inner_val(outer_val: str) -> str:
+                def inner_val(outer_val: Result) -> Result:
                     # This depends on 'outer_val' which is in Outer scope.
-                    # Current implementation only looks up 'outer_val' in Inner scope (current proxy)
-                    # unless the parameter name matches the resource name (which is not the case).
-                    return f"inner-{outer_val}"
+                    return Result(f"inner-{outer_val.value}")
 
-        root = resolve_root(Outer)
+        root = resolve(Outer, root_proxy_class=proxy_class)
+        assert root.Inner.inner_val == Result("inner-outer")
 
-        # Inner scope should be able to resolve outer_val from Outer scope.
-        assert root.Inner.inner_val == "inner-outer"
+    def test_evaluate_resource_dual_role_single(self, proxy_class: type[Proxy]) -> None:
+        """Test: Single Dual item -> selected as Builder."""
+
+        class Namespace:
+            target = DirectDefinition(Dual("A"))
+
+        root = resolve(Namespace, root_proxy_class=proxy_class)
+        assert root.target == Result("builder-A-")
+
+    def test_evaluate_resource_dual_and_patch(self, proxy_class: type[Proxy]) -> None:
+        """Test: Dual + Dual -> One is Builder, other is Patch."""
+
+        class N1:
+            target = DirectDefinition(Dual("A"))
+
+        class N2:
+            target = DirectDefinition(Dual("B"))
+
+        root = resolve(N1, N2, root_proxy_class=proxy_class)
+        val = root.target
+        # Either builder-A-patch-B or builder-B-patch-A
+        assert val == Result("builder-A-patch-B") or val == Result("builder-B-patch-A")
+
+    def test_evaluate_resource_pure_builder_and_dual(
+        self, proxy_class: type[Proxy]
+    ) -> None:
+        """Test: Pure Builder + Dual -> Pure Builder selected, Dual is Patch."""
+
+        class N1:
+            target = DirectDefinition(PureBuilder("P"))
+
+        class N2:
+            target = DirectDefinition(Dual("D"))
+
+        root = resolve(N1, N2, root_proxy_class=proxy_class)
+        # Pure P is builder. Dual D is patch.
+        assert root.target == Result("pure-P-patch-D")
+
+    def test_evaluate_resource_multiple_pure_builders_error(
+        self, proxy_class: type[Proxy]
+    ) -> None:
+        """Test: Multiple pure builders -> ValueError."""
+
+        class N1:
+            target = DirectDefinition(PureBuilder("A"))
+
+        class N2:
+            target = DirectDefinition(PureBuilder("B"))
+
+        root = resolve(N1, N2, root_proxy_class=proxy_class)
+        with pytest.raises(ValueError, match="Multiple Factory definitions provided"):
+            _ = root.target
+
+    def test_evaluate_resource_no_builder_error(self, proxy_class: type[Proxy]) -> None:
+        """Test: Only patches (no builder) -> NotImplementedError."""
+
+        @dataclass(frozen=True)
+        class PurePatch(Patcher[Any]):
+            value: Any
+
+            @override
+            def __iter__(self) -> Iterator[Any]:
+                yield f"patch-{self.value}"
+
+        class N1:
+            target = DirectDefinition(PurePatch("A"))
+
+        root = resolve(N1, root_proxy_class=proxy_class)
+        with pytest.raises(NotImplementedError, match="No Factory definition provided"):
+            _ = root.target
+
+    def test_scope_as_patch(self, proxy_class: type[Proxy]) -> None:
+        """Test: @scope used as a patch for another @scope."""
+
+        @scope
+        class Base:
+            @resource
+            def val() -> Result:
+                return Result("base")
+
+        @scope
+        class Extension:
+            @resource
+            def extended_val(val: Result) -> Result:
+                return Result(f"{val.value}-extended")
+
+            @resource
+            def extra() -> Result:
+                return Result("extra")
+
+        class N1:
+            sub_scope = Base
+
+        class N2:
+            # Extension is used as a patch for sub_scope
+            sub_scope = Extension
+
+        root = resolve(N1, N2, root_proxy_class=proxy_class)
+        assert root.sub_scope.extended_val == Result("base-extended")
+        assert root.sub_scope.extra == Result("extra")
+
+    def test_scope_proxy_class_resolution(self, proxy_class: type[Proxy]) -> None:
+        """Test: Most derived proxy_class is selected."""
+
+        class CustomProxy(CachedProxy):
+            pass
+
+        @scope(proxy_class=CachedProxy)
+        class Base:
+            @resource
+            def val() -> str:
+                return "base"
+
+        @scope(proxy_class=CustomProxy)
+        class Extension:
+            @resource
+            def extra() -> str:
+                return "extra"
+
+        class N1:
+            sub_scope = Base
+
+        class N2:
+            sub_scope = Extension
+
+        root = resolve(N1, N2, root_proxy_class=proxy_class)
+        # CustomProxy is a subclass of CachedProxy, so it should be chosen.
+        assert isinstance(root.sub_scope, CustomProxy)
+        assert not isinstance(root.sub_scope, WeakCachedScope)
+
+    def test_scope_proxy_class_conflict(self, proxy_class: type[Proxy]) -> None:
+        """Test: Conflict between unrelated proxy classes raises TypeError."""
+
+        @scope(proxy_class=WeakCachedScope)
+        class Base:
+            pass
+
+        class CustomProxy(Proxy):
+            pass
+
+        @scope(proxy_class=CustomProxy)
+        class Extension:
+            pass
+
+        class N1:
+            sub_scope = Base
+
+        class N2:
+            sub_scope = Extension
+
+        root = resolve(N1, N2, root_proxy_class=proxy_class)
+        with pytest.raises(TypeError, match="class conflict"):
+            _ = root.sub_scope
