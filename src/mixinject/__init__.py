@@ -521,6 +521,23 @@ class Proxy(Mapping[str, "Node"], ABC):
 
         用同一套Merger/Patcher接口来处理context manager/async，但是`TResult`的类型取决于ResourceConfig，可能是Awaitable/ContextManager/AsyncContextManager，或是直接的同步类型。`@resource`的`TPatch`的类型也取决于ResourceConfig，可能是`Endofunction`/`ContextManagerEndofunction`/`AsyncEndofunction`/`AsyncContextManagerEndofunction`。也就是说同一套Merger/Patcher接口可以处理同步/异步/上下文管理器的情况。
 
+    .. todo::
+        支持定义 method，需要动态生成类。
+
+        当前实现通过 ``__getattr__`` 拦截属性访问来提供资源，但 ``__getattr__`` 不是真正的
+        method，无法用于定义 dunder 方法（如 ``__str__``、``__repr__``、``__eq__`` 等）。
+        Python 的 dunder 方法查找直接在类的 ``__dict__`` 中进行，不经过 ``__getattr__``。
+
+        问题示例::
+
+            @scope
+            class MyScope:
+                @resource
+                def __str__() -> str:
+                    return "custom string representation"
+
+            root = mount(MyScope)
+            str(root)  # 不会调用自定义的 __str__，而是使用 Proxy 默认的 __str__
 
     """
 
