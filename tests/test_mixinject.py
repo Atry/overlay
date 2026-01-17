@@ -1096,7 +1096,7 @@ class TestProxyDir:
             def cached_resource() -> str:
                 return "cached"
 
-        root = mount("root", Namespace, root_proxy_class=CachedProxy)
+        root = mount("root", Namespace)
         result = dir(root)
         assert "cached_resource" in result
 
@@ -1109,7 +1109,7 @@ class TestProxyDir:
             def weak_resource() -> str:
                 return "weak"
 
-        root = mount("root", Namespace, root_proxy_class=WeakCachedScope)
+        root = mount("root", Namespace)
         result = dir(root)
         assert "weak_resource" in result
 

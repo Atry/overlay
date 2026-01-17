@@ -1907,41 +1907,27 @@ def local(definition: TMergerDefinition) -> TMergerDefinition:
 def mount(
     name: TKey,
     namespace: ModuleType | _NamespaceDefinition,
-    lexical_scope: LexicalScope = (),
-    symbol_table: SymbolTable = SymbolTableSentinel.ROOT,
-    root_proxy_class: type[TProxy] = CachedProxy,
-    get_module_proxy_class: Callable[
-        [ModuleType], type[StaticProxy]
-    ] = lambda _: CachedProxy,
 ) -> StaticProxy[TKey]:
     """
     Resolves a Proxy from the given object using the provided lexical scope.
 
     :param name: The name of the mounted proxy.
     :param namespace: Module or namespace definition (decorated with @scope) to resolve resources from.
-    :param lexical_scope: The lexical scope chain for dependency resolution.
     :return: An instance of the cls type with resolved mixins.
 
     Example::
 
-        # Use default caching
         root = mount("root", MyNamespace)
-
-        # Use weak reference caching
-        root = mount("root", MyNamespace, root_proxy_class=WeakCachedScope)
 
     .. todo:: Phase 2: Pass ``jit_cache`` and ``base_jit_caches``
               when creating ``StaticChildDependencyGraph``.
     """
-    if symbol_table is SymbolTableSentinel.ROOT:
-        assert (
-            len(lexical_scope) == 0
-        ), f"lexical_scope must be empty when symbol_table is ROOT, got {len(lexical_scope)}"
-    else:
-        assert len(symbol_table.maps) == len(lexical_scope), (
-            f"symbol_table depth ({len(symbol_table.maps)}) must equal "
-            f"lexical_scope depth ({len(lexical_scope)})"
-        )
+    lexical_scope: LexicalScope = ()
+    symbol_table: SymbolTable = SymbolTableSentinel.ROOT
+    root_proxy_class: type[StaticProxy] = CachedProxy
+
+    def get_module_proxy_class(_module: ModuleType) -> type[StaticProxy]:
+        return CachedProxy
 
     namespace_definition: _ProxyDefinition
     if isinstance(namespace, _NamespaceDefinition):
