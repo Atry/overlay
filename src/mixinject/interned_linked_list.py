@@ -31,7 +31,8 @@ class InternedLinkedList(*((Collection,) if TYPE_CHECKING else ()), Generic[T_co
 
     This class is immutable and hashable, suitable for use as dictionary keys.
 
-    Usage:
+    Example::
+
         >>> list1 = InternedLinkedList(iter([1, 2, 3]))
         >>> list2 = InternedLinkedList(iter([1, 2, 3]))
         >>> list1 is list2  # Same object due to interning
@@ -59,8 +60,9 @@ class InternedLinkedList(*((Collection,) if TYPE_CHECKING else ()), Generic[T_co
     def from_iterable(values: Iterable[T_co]):
         """Create an interned linked list from the given iterable.
 
-        Returns EmptyInternedLinkedList if iterator is empty,
-        otherwise returns NonEmptyInternedLinkedList.
+        :param values: The iterable to create the list from.
+        :return: EmptyInternedLinkedList if iterator is empty,
+                 otherwise returns NonEmptyInternedLinkedList.
         """
         values_tuple = tuple(values)
         if not values_tuple:

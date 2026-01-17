@@ -444,8 +444,12 @@ creating an :class:`InstanceProxy` that stores kwargs directly for lookup.
 
 Example::
 
-    # Create an empty Proxy and inject values
-    proxy = CachedProxy(_mixins=frozenset([]), _reversed_path=EmptyInternedLinkedList.INSTANCE)
+    # Create a Proxy with a name and inject values
+    from mixinject.interned_linked_list import NonEmptyInternedLinkedList, EmptyInternedLinkedList
+    proxy = CachedProxy(
+        mixins={},
+        reversed_path=NonEmptyInternedLinkedList(head="my_proxy", tail=EmptyInternedLinkedList.INSTANCE),
+    )
     new_proxy = proxy(setting="value", count=42)
 
     # Access injected values
@@ -459,9 +463,13 @@ The primary use of Proxy as Callable is to provide base values for parameter inj
 By using :meth:`Proxy.__call__` in an outer scope to inject parameter values, resources in
 modules can access these values via symbol table lookup::
 
-    # Provide base value in outer scope
-    outer_proxy = CachedProxy(_mixins=frozenset([]), _reversed_path=EmptyInternedLinkedList.INSTANCE) \
-        (db_config={"host": "localhost", "port": "5432"})
+    # Provide base value in outer scope via mount
+    @scope()
+    class Config:
+        @extern
+        def db_config(): ...
+
+    outer_proxy = mount("config", Config)(db_config={"host": "localhost", "port": "5432"})
 
     outer_scope: LexicalScope = (outer_proxy,)
 
@@ -477,6 +485,8 @@ modules can access these values via symbol table lookup::
 
 Callables can be used not only to define resources but also to define and transform Proxy objects.
 """
+
+from __future__ import annotations
 
 import ast
 from enum import Enum, auto
@@ -526,6 +536,7 @@ from mixinject.interned_linked_list import (
 P = ParamSpec("P")
 T = TypeVar("T")
 TKey = TypeVar("TKey", bound=Hashable)
+TStrKey = TypeVar("TStrKey", bound=str)
 
 Resource = NewType("Resource", object)
 
@@ -581,19 +592,34 @@ class Proxy(Mapping[TKey, "Node"], ABC):
 
     @property
     @abstractmethod
-    def mixins(self) -> frozenset["Mixin[TKey]"]:
-        """The mixins that provide resources for this proxy."""
+    def mixins(
+        self,
+    ) -> Mapping[
+        "NonEmptyInternedLinkedList[ReversedPathElement[TKey]]", "Mixin[TKey]"
+    ]:
+        """The mixins that provide resources for this proxy, keyed by reversed_path.
+
+        Each proxy's own properties (not from extend=) are stored at
+        mixins[self.reversed_path]. Extended proxies contribute their mixins
+        with their original reversed_path keys.
+        """
         ...
 
     @property
     @abstractmethod
-    def reversed_path(self) -> "InternedLinkedList[TKey] | InstanceReversedPath[TKey]":
-        """The reversed path from root to this proxy."""
+    def reversed_path(self) -> "NonEmptyInternedLinkedList[ReversedPathElement[TKey]]":
+        """The runtime access path from root to this proxy, in reverse order.
+
+        This path reflects how the proxy was accessed at runtime, not where
+        it was statically defined. For example, root.object1.MyInner and
+        root.object2.MyInner should have different reversed_paths even if
+        MyInner is defined in the same place.
+        """
         ...
 
     def __getitem__(self, key: TKey) -> "Node":
         def generate_resource() -> Iterator[Merger | Patcher]:
-            for mixin in self.mixins:
+            for mixin in self.mixins.values():
                 try:
                     factory_or_patch = mixin[key]
                 except KeyError:
@@ -610,7 +636,7 @@ class Proxy(Mapping[TKey, "Node"], ABC):
 
     def __iter__(self) -> Iterator[TKey]:
         visited: set[TKey] = set()
-        for mixin in self.mixins:
+        for mixin in self.mixins.values():
             for key in mixin:
                 if key not in visited:
                     visited.add(key)
@@ -618,7 +644,7 @@ class Proxy(Mapping[TKey, "Node"], ABC):
 
     def __len__(self) -> int:
         keys: set[TKey] = set()
-        for mixin in self.mixins:
+        for mixin in self.mixins.values():
             keys.update(mixin)
         return len(keys)
 
@@ -634,7 +660,7 @@ class Proxy(Mapping[TKey, "Node"], ABC):
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class StaticProxy(Proxy[str], ABC):
+class StaticProxy(Proxy[TKey], ABC):
     """
     A static proxy representing class/module level definitions.
 
@@ -642,62 +668,75 @@ class StaticProxy(Proxy[str], ABC):
     InstanceProxy with additional kwargs.
     """
 
-    _mixins: Final[frozenset["Mixin[str]"]]
-    _reversed_path: Final[InternedLinkedList[str]]
+    mixins: Mapping[  # type: ignore[misc]
+        NonEmptyInternedLinkedList[ReversedPathElement[TKey]], "Mixin[TKey]"
+    ]
+    reversed_path: NonEmptyInternedLinkedList[TKey]  # type: ignore[misc]
 
-    @property
-    @override
-    def mixins(self) -> frozenset["Mixin[str]"]:
-        return self._mixins
+    def __call__(self, **kwargs: object) -> InstanceProxy[TKey]:  # type: ignore[type-var]
+        # Wrap the head of the path in InstanceMarker to distinguish InstanceProxy from StaticProxy
+        instance_path: NonEmptyInternedLinkedList[ReversedPathElement[TKey]] = (
+            NonEmptyInternedLinkedList(
+                head=InstanceMarker(key=self.reversed_path.head),
+                tail=self.reversed_path.tail,
+            )
+        )
 
-    @property
-    @override
-    def reversed_path(self) -> InternedLinkedList[str]:
-        return self._reversed_path
-
-    def __call__(self, **kwargs: object) -> "InstanceProxy":
         return InstanceProxy(
-            base_proxy=self,
+            base_proxy=self,  # type: ignore[arg-type]
             kwargs=kwargs,
+            reversed_path=instance_path,
         )
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class InstanceReversedPath(Generic[TKey]):
+class InstanceMarker(Generic[TKey]):
     """
-    A wrapper for reversed path in InstanceProxy.
+    A marker that wraps a key to indicate it represents an InstanceProxy.
 
-    This distinguishes the reversed path of an InstanceProxy from its base StaticProxy,
-    allowing the path to be different for identity purposes.
+    When an InstanceProxy is created from a StaticProxy, its reversed_path
+    is constructed by wrapping the head of the base path in InstanceMarker.
+    This allows distinguishing the instance from its base while maintaining
+    the InternedLinkedList structure.
     """
 
-    base_reversed_path: Final[InternedLinkedList[TKey]]
+    key: Final[TKey]
+
+
+ReversedPathElement: TypeAlias = "TKey | InstanceMarker[TKey]"
+"""
+An element in a reversed path, which can be either a plain key or an InstanceMarker.
+"""
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class InstanceProxy(Proxy[str]):
+class InstanceProxy(Proxy[TStrKey]):
     """
     An instance proxy created via StaticProxy.__call__.
 
     InstanceProxy stores kwargs directly and checks them first during lookup,
     then delegates to the base proxy for other resources.
+
+    .. note:: TStrKey is bounded by str because Python's **kwargs only accepts string keys.
     """
 
-    base_proxy: Final[StaticProxy]
+    base_proxy: Final[StaticProxy[TStrKey]]
     kwargs: Final[Mapping[str, object]]
+    reversed_path: Final[  # type: ignore[misc]
+        NonEmptyInternedLinkedList[ReversedPathElement[TStrKey]]
+    ]
 
     @property
     @override
-    def mixins(self) -> frozenset["Mixin[str]"]:
+    def mixins(
+        self,
+    ) -> Mapping[
+        NonEmptyInternedLinkedList[ReversedPathElement[TStrKey]], Mixin[TStrKey]
+    ]:
         return self.base_proxy.mixins
 
-    @property
     @override
-    def reversed_path(self) -> InstanceReversedPath[str]:
-        return InstanceReversedPath(base_reversed_path=self.base_proxy.reversed_path)
-
-    @override
-    def __getitem__(self, key: str) -> "Node":
+    def __getitem__(self, key: TStrKey) -> Node:
         if key in self.kwargs:
             value = self.kwargs[key]
 
@@ -705,7 +744,7 @@ class InstanceProxy(Proxy[str]):
                 # Yield the kwargs value as a Merger
                 yield _EndofunctionMerger(base_value=cast(Resource, value))
                 # Also collect any Patchers from mixins
-                for mixin in self.mixins:
+                for mixin in self.mixins.values():
                     try:
                         factory_or_patch = mixin[key]
                     except KeyError:
@@ -716,29 +755,31 @@ class InstanceProxy(Proxy[str]):
         return super(InstanceProxy, self).__getitem__(key)
 
     @override
-    def __iter__(self) -> Iterator[str]:
-        yield from self.kwargs
+    def __iter__(self) -> Iterator[TStrKey]:
+        for key in self.kwargs:
+            yield key  # type: ignore[misc]
         for key in super(InstanceProxy, self).__iter__():
             if key not in self.kwargs:
                 yield key
 
     @override
     def __len__(self) -> int:
-        base_keys: set[str] = set()
-        for mixin in self.mixins:
+        base_keys: set[TStrKey] = set()
+        for mixin in self.mixins.values():
             base_keys.update(mixin)
-        return len(base_keys | set(self.kwargs))
+        return len(base_keys | set(self.kwargs))  # type: ignore[arg-type]
 
-    def __call__(self, **kwargs: object) -> "InstanceProxy":
+    def __call__(self, **kwargs: object) -> InstanceProxy[TStrKey]:
         merged_kwargs: Mapping[str, object] = {**self.kwargs, **kwargs}
         return InstanceProxy(
             base_proxy=self.base_proxy,
             kwargs=merged_kwargs,
+            reversed_path=self.reversed_path,
         )
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class CachedProxy(StaticProxy):
+class CachedProxy(StaticProxy[str]):
     """A StaticProxy with cached resource lookups."""
 
     _cache: MutableMapping[str, "Node"] = field(
@@ -1211,13 +1252,18 @@ class _ProxySemigroup(Merger[Proxy, Proxy], Patcher[Proxy]):
 
         winner_class = _calculate_most_derived_class(*(type(p) for p in proxies_tuple))
 
-        def generate_all_mixins() -> Iterator[Mixin]:
+        def generate_all_mixin_items() -> (
+            Iterator[
+                tuple[NonEmptyInternedLinkedList[ReversedPathElement[str]], Mixin[str]]
+            ]
+        ):
             for proxy in proxies_tuple:
-                yield from proxy.mixins
+                yield from proxy.mixins.items()
 
+        primary_proxy = proxies_tuple[0]
         return winner_class(
-            _mixins=frozenset(generate_all_mixins()),
-            _reversed_path=EmptyInternedLinkedList.INSTANCE,
+            mixins=dict(generate_all_mixin_items()),
+            reversed_path=primary_proxy.reversed_path,
         )
 
     @override
@@ -1226,8 +1272,9 @@ class _ProxySemigroup(Merger[Proxy, Proxy], Patcher[Proxy]):
 
 
 def _resolve_resource_reference(
-    reference: "ResourceReference[str]",
+    reference: "ResourceReference[TKey]",
     lexical_scope: LexicalScope,
+    forbid_instance_proxy: bool = False,
 ) -> Proxy:
     """
     Resolve a ResourceReference to a Proxy using the given lexical scope.
@@ -1239,9 +1286,14 @@ def _resolve_resource_reference(
     For AbsoluteReference:
         - Start from the root (outermost proxy)
         - Navigate down through `parts` by accessing attributes
+
+    :param forbid_instance_proxy: If True, raises TypeError if any step in the
+        path resolves to an InstanceProxy. Used by extend to prevent referencing
+        paths through InstanceProxy (e.g., object1.MyInner where object1 is an
+        InstanceProxy).
     """
     match reference:
-        case RelativeReference(levels_up=levels_up, parts=parts):
+        case RelativeReference(levels_up=levels_up, path=parts):
             if levels_up > len(lexical_scope):
                 raise ValueError(
                     f"Cannot navigate {levels_up} levels up from scope of depth {len(lexical_scope)}"
@@ -1249,19 +1301,28 @@ def _resolve_resource_reference(
             # Navigate up: levels_up=0 means innermost (last), levels_up=1 means parent, etc.
             scope_index = len(lexical_scope) - 1 - levels_up
             current: Proxy | Resource = lexical_scope[scope_index]
-        case AbsoluteReference(parts=parts):
+        case AbsoluteReference(path=parts):
             if not lexical_scope:
-                raise ValueError("Cannot resolve absolute reference with empty lexical scope")
+                raise ValueError(
+                    "Cannot resolve absolute reference with empty lexical scope"
+                )
             current = lexical_scope[0]
         case _ as unreachable:
             assert_never(unreachable)
 
     # Navigate through parts
+    traversed_parts: list[TKey] = []
     for part in parts:
         resolved = current[part]
         if not isinstance(resolved, Proxy):
             raise TypeError(
                 f"Expected Proxy while resolving reference, got {type(resolved)} at part '{part}'"
+            )
+        traversed_parts.append(part)
+        if forbid_instance_proxy and isinstance(resolved, InstanceProxy):
+            raise TypeError(
+                f"Cannot extend through InstanceProxy. "
+                f"Path {'.'.join(str(p) for p in traversed_parts)} resolved to an InstanceProxy."
             )
         current = resolved
 
@@ -1271,10 +1332,12 @@ def _resolve_resource_reference(
 
 
 @dataclass(frozen=True, kw_only=True)
-class _ProxyDefinition(MergerDefinition[Proxy, Proxy], PatcherDefinition[Proxy]):
+class _ProxyDefinition(
+    MergerDefinition[Proxy, Proxy], PatcherDefinition[Proxy], Generic[TKey]
+):
     proxy_class: type[StaticProxy]
     underlying: object
-    extend: tuple["ResourceReference[str]", ...] = ()
+    extend: tuple["ResourceReference[TKey]", ...] = ()
 
     def generate_keys(self) -> Iterator[str]:
         for name in dir(self.underlying):
@@ -1306,30 +1369,43 @@ class _ProxyDefinition(MergerDefinition[Proxy, Proxy], PatcherDefinition[Proxy])
             lexical_scope: LexicalScope,
         ) -> _ProxySemigroup:
             def proxy_factory() -> Proxy[str]:
-                parent_reversed_path: InternedLinkedList[str] = (
-                    lexical_scope[-1].reversed_path if lexical_scope else EmptyInternedLinkedList.INSTANCE
+                assert (
+                    lexical_scope
+                ), "lexical_scope must not be empty when resolving resources"
+                parent_reversed_path = lexical_scope[-1].reversed_path
+                proxy_reversed_path: NonEmptyInternedLinkedList[
+                    ReversedPathElement[str]
+                ] = NonEmptyInternedLinkedList(
+                    head=resource_name,
+                    tail=parent_reversed_path,
                 )
 
-                def generate_all_mixins() -> Iterator[Mixin[str]]:
-                    # Include mixin from this definition
-                    yield self.create_mixin(
-                        lexical_scope=lexical_scope,
-                        symbol_table=inner_symbol_table,
+                def generate_all_mixin_items() -> Iterator[
+                    tuple[
+                        NonEmptyInternedLinkedList[ReversedPathElement[str]],
+                        Mixin[str],
+                    ]
+                ]:
+                    # Include mixin from this definition, keyed by proxy's path
+                    yield (
+                        proxy_reversed_path,
+                        self.create_mixin(
+                            lexical_scope=lexical_scope,
+                            symbol_table=inner_symbol_table,
+                        ),
                     )
-                    # Include mixins from extended proxies
+                    # Include mixins from extended proxies, preserving their original keys
                     for reference in self.extend:
                         extended_proxy = _resolve_resource_reference(
                             reference=reference,
                             lexical_scope=lexical_scope,
+                            forbid_instance_proxy=True,
                         )
-                        yield from extended_proxy.mixins
+                        yield from extended_proxy.mixins.items()
 
                 return self.proxy_class(
-                    _mixins=frozenset(generate_all_mixins()),
-                    _reversed_path=NonEmptyInternedLinkedList(
-                        head=resource_name,
-                        tail=parent_reversed_path,
-                    ),
+                    mixins=dict(generate_all_mixin_items()),
+                    reversed_path=proxy_reversed_path,
                 )
 
             return _ProxySemigroup(proxy_factory=proxy_factory)
@@ -1382,44 +1458,25 @@ class _PackageDefinition(_ProxyDefinition):
         )
 
 
-def _parse_namespace(
-    namespace: object, symbol_table: SymbolTable, proxy_class: type[StaticProxy]
-) -> _NamespaceDefinition:
-    """
-    Parses an object into a NamespaceDefinition.
-
-    Only attributes explicitly decorated with @resource, @patch, @patch_many, or @merge are included.
-    Nested classes are NOT recursively parsed unless they are decorated with @scope.
-
-    IMPORTANT: Bare callables (without decorators) are NOT automatically included.
-    Users must explicitly mark all injectable definitions with appropriate decorators.
-    """
-    return _NamespaceDefinition(
-        underlying=namespace,
-        proxy_class=proxy_class,
-    )
-
-
 def scope(
     *,
     proxy_class: type[StaticProxy] = CachedProxy,
-    extend: Iterable["ResourceReference[str]"] = (),
-) -> Callable[[type], _NamespaceDefinition]:
+    extend: Iterable["ResourceReference[TKey]"] = (),
+) -> Callable[[object], _NamespaceDefinition]:
     """
     Decorator that converts a class into a NamespaceDefinition.
     Nested classes MUST be decorated with @scope() to be included as sub-scopes.
 
     Note: Always use @scope() with parentheses, not @scope without parentheses.
 
-    Args:
-        proxy_class: The Proxy subclass to use for this scope.
-        extend: ResourceReferences to other scopes whose mixins should be included.
-            This allows composing scopes without explicit merge operations.
+    :param proxy_class: The Proxy subclass to use for this scope.
+    :param extend: ResourceReferences to other scopes whose mixins should be included.
+                   This allows composing scopes without explicit merge operations.
 
     Example - Using extend to inherit from another scope::
 
         @scope(extend=(
-            RelativeReference(levels_up=1, parts=("Base",)),
+            RelativeReference(levels_up=1, path=("Base",)),
         ))
         class MyScope:
             @patch
@@ -1461,7 +1518,7 @@ def scope(
     """
     extend_tuple = tuple(extend)
 
-    def wrapper(c: type) -> _NamespaceDefinition:
+    def wrapper(c: object) -> _NamespaceDefinition:
         return _NamespaceDefinition(
             underlying=c,
             proxy_class=proxy_class,
@@ -1474,7 +1531,6 @@ def scope(
 def _parse_package(
     module: ModuleType,
     get_module_proxy_class: Callable[[ModuleType], type[StaticProxy]],
-    symbol_table: SymbolTable,
 ) -> _ProxyDefinition:
     """
     Parses a module into a NamespaceDefinition.
@@ -1597,12 +1653,9 @@ def extern(callable: Callable[..., Any]) -> PatcherDefinition[Any]:
     - **Dependency injection**: Mark injection points for external values
     - **Module decoupling**: Declare required resources without hardcoding
 
-    Args:
-        callable: A callable that may have parameters for dependency injection.
-                 The return value is ignored.
-
-    Returns:
-        A PatcherDefinition that provides no patches.
+    :param callable: A callable that may have parameters for dependency injection.
+                     The return value is ignored.
+    :return: A PatcherDefinition that provides no patches.
     """
     sig = signature(callable)
 
@@ -1647,83 +1700,69 @@ def resource(
     return _ResourceDefinition(function=callable)
 
 
-def _parse(
-    namespace: object,
-    get_module_proxy_class: Callable[[ModuleType], type[StaticProxy]],
-    symbol_table: SymbolTable,
-    root_proxy_class: type[StaticProxy],
-) -> _ProxyDefinition:
-    if isinstance(namespace, ModuleType):
-        return _parse_package(
-            namespace,
-            get_module_proxy_class=get_module_proxy_class,
-            symbol_table=symbol_table,
-        )
-    else:
-        return _parse_namespace(
-            namespace, symbol_table=symbol_table, proxy_class=root_proxy_class
-        )
-
-
 def mount(
-    *namespaces: object,
+    name: TStrKey,
+    namespace: ModuleType | _NamespaceDefinition,
     lexical_scope: LexicalScope = (),
     symbol_table: SymbolTable = SymbolTableSentinel.ROOT,
     root_proxy_class: type[TProxy] = CachedProxy,
-    get_module_proxy_class: Callable[[ModuleType], type[StaticProxy]] = lambda _: CachedProxy,
+    get_module_proxy_class: Callable[
+        [ModuleType], type[StaticProxy]
+    ] = lambda _: CachedProxy,
 ) -> TProxy:
     """
-    Resolves a Proxy from the given objects using the provided lexical scope.
+    Resolves a Proxy from the given object using the provided lexical scope.
 
-    Args:
-        lexical_scope: The lexical scope chain for dependency resolution.
-        *namespaces: Objects (modules, classes or instances) to resolve resources from.
+    :param name: The name of the mounted proxy.
+    :param namespace: Module or namespace definition (decorated with @scope) to resolve resources from.
+    :param lexical_scope: The lexical scope chain for dependency resolution.
+    :return: An instance of the cls type with resolved mixins.
 
-    Returns:
-        An instance of the cls type with resolved mixins.
+    Example::
 
-    Examples:
         # Use default caching
-        root = mount(MyNamespace)
+        root = mount("root", MyNamespace)
 
         # Use weak reference caching
-        root = mount(MyNamespace, root_proxy_class=WeakCachedScope)
+        root = mount("root", MyNamespace, root_proxy_class=WeakCachedScope)
     """
+    if symbol_table is SymbolTableSentinel.ROOT:
+        assert (
+            len(lexical_scope) == 0
+        ), f"lexical_scope must be empty when symbol_table is ROOT, got {len(lexical_scope)}"
+    else:
+        assert len(symbol_table.maps) == len(lexical_scope), (
+            f"symbol_table depth ({len(symbol_table.maps)}) must equal "
+            f"lexical_scope depth ({len(lexical_scope)})"
+        )
 
-    namespace_definitions = tuple(
-        _parse(
+    namespace_definition: _ProxyDefinition
+    if isinstance(namespace, _NamespaceDefinition):
+        namespace_definition = namespace
+    elif isinstance(namespace, ModuleType):
+        namespace_definition = _parse_package(
             namespace,
             get_module_proxy_class=get_module_proxy_class,
-            symbol_table=SymbolTableSentinel.ROOT,
-            root_proxy_class=root_proxy_class,
         )
-        for namespace in namespaces
+    else:
+        assert_never(namespace)
+
+    per_namespace_symbol_table = _extend_symbol_table_jit(
+        outer=symbol_table,
+        names=namespace_definition.generate_keys(),
+    )
+    mixin = namespace_definition.create_mixin(
+        lexical_scope=lexical_scope,
+        symbol_table=per_namespace_symbol_table,
     )
 
-    def make_mixin(namespace_definition: _ProxyDefinition) -> Mixin:
-        per_namespace_symbol_table = _extend_symbol_table_jit(
-            outer=symbol_table,
-            names=namespace_definition.generate_keys(),
-        )
-        jit_cache = _JitCache(
-            proxy_definition=namespace_definition,
-            symbol_table=per_namespace_symbol_table,
-        )
-        if isinstance(namespace_definition, _PackageDefinition):
-            return _PackageMixin(
-                jit_cache=jit_cache,
-                lexical_scope=lexical_scope,
-                get_module_proxy_class=get_module_proxy_class,
-            )
-        else:
-            return _NamespaceMixin(
-                jit_cache=jit_cache,
-                lexical_scope=lexical_scope,
-            )
-
+    root_path: NonEmptyInternedLinkedList[TStrKey] = NonEmptyInternedLinkedList(
+        head=name,
+        tail=EmptyInternedLinkedList.INSTANCE,
+    )
     return root_proxy_class(
-        _mixins=frozenset(make_mixin(nd) for nd in namespace_definitions),
-        _reversed_path=EmptyInternedLinkedList.INSTANCE,
+        mixins={root_path: mixin},
+        reversed_path=root_path,
     )
 
 
@@ -1887,7 +1926,7 @@ class AbsoluteReference(Generic[T]):
     An absolute reference to a resource starting from the root scope.
     """
 
-    parts: Final[tuple[T, ...]]
+    path: Final[tuple[T, ...]]
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
@@ -1903,7 +1942,7 @@ class RelativeReference(Generic[T]):
     Number of levels to go up in the lexical scope.
     """
 
-    parts: Final[tuple[T, ...]]
+    path: Final[tuple[T, ...]]
 
 
 ResourceReference: TypeAlias = AbsoluteReference[T] | RelativeReference[T]
@@ -1925,11 +1964,11 @@ def resource_reference_from_pure_path(path: PurePath) -> ResourceReference[str]:
 
     Examples:
         >>> resource_reference_from_pure_path(PurePath("../foo/bar"))
-        RelativeReference(levels_up=1, parts=('foo', 'bar'))
+        RelativeReference(levels_up=1, path=('foo', 'bar'))
         >>> resource_reference_from_pure_path(PurePath("../../config"))
-        RelativeReference(levels_up=2, parts=('config',))
+        RelativeReference(levels_up=2, path=('config',))
         >>> resource_reference_from_pure_path(PurePath("/absolute/path"))
-        AbsoluteReference(parts=('absolute', 'path'))
+        AbsoluteReference(path=('absolute', 'path'))
         >>> resource_reference_from_pure_path(PurePath("foo/../bar"))
         Traceback (most recent call last):
             ...
@@ -1940,12 +1979,12 @@ def resource_reference_from_pure_path(path: PurePath) -> ResourceReference[str]:
         for part in path_parts:
             if part == os.curdir or part == os.pardir:
                 raise ValueError(f"Path is not normalized: {path}")
-        return AbsoluteReference(parts=path_parts)
+        return AbsoluteReference(path=path_parts)
 
     all_parts = path.parts
 
     if all_parts == (os.curdir,):
-        return RelativeReference(levels_up=0, parts=())
+        return RelativeReference(levels_up=0, path=())
 
     levels_up = 0
     remaining_parts: list[str] = []
@@ -1962,4 +2001,4 @@ def resource_reference_from_pure_path(path: PurePath) -> ResourceReference[str]:
             finished_pardir = True
             remaining_parts.append(part)
 
-    return RelativeReference(levels_up=levels_up, parts=tuple(remaining_parts))
+    return RelativeReference(levels_up=levels_up, path=tuple(remaining_parts))

@@ -6,9 +6,15 @@ from mixinject import (
     SymbolTable,
     SymbolTableSentinel,
     Node,
-    mount,
+    CachedProxy,
     _extend_symbol_table_jit,
 )
+from mixinject.interned_linked_list import EmptyInternedLinkedList, NonEmptyInternedLinkedList
+
+
+def _empty_proxy() -> CachedProxy:
+    """Create an empty proxy for testing."""
+    return CachedProxy(mixins={}, reversed_path=NonEmptyInternedLinkedList(head="test", tail=EmptyInternedLinkedList.INSTANCE))
 
 def _make_getitem_factory(
     name: str, index: int
@@ -31,8 +37,8 @@ def extend_symbol_table_getitem(
 
 def test_symbol_table_extension_consistency():
     # Setup
-    proxy_inner = mount()(a=1, b=2)
-    proxy_outer = mount()(c=3, a=100) # 'a' is shadowed in inner
+    proxy_inner = _empty_proxy()(a=1, b=2)
+    proxy_outer = _empty_proxy()(c=3, a=100) # 'a' is shadowed in inner
     
     # ls_outer = (outer,)
     ls_outer: LexicalScope = (proxy_outer,)
@@ -75,7 +81,7 @@ def test_symbol_table_extension_consistency():
 
 def test_jit_factory_invalid_identifier():
     # Test if JIT factory handles names that are not valid identifiers but valid keys
-    proxy = mount()(**{"not_identifier": "value"})
+    proxy = _empty_proxy()(**{"not_identifier": "value"})
     lexical_scope: LexicalScope = (proxy,)
 
     symbol_table_jit = _extend_symbol_table_jit(SymbolTableSentinel.ROOT, ["not_identifier"])
@@ -83,7 +89,7 @@ def test_jit_factory_invalid_identifier():
 
     # If we use a name that is not a valid identifier
     invalid_name = "not an identifier"
-    proxy_invalid = mount()(**{invalid_name: "value"})
+    proxy_invalid = _empty_proxy()(**{invalid_name: "value"})
     lexical_scope_invalid: LexicalScope = (proxy_invalid,)
 
     try:

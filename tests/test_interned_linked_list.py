@@ -100,15 +100,23 @@ class TestWeakReference:
 
     def test_recreate_after_gc(self) -> None:
         list1 = InternedLinkedList.from_iterable([999, 888, 777])
-        object_id_before = id(list1)
 
         del list1
         gc.collect()
 
-        list2 = InternedLinkedList.from_iterable([999, 888, 777])
-        object_id_after = id(list2)
+        # After GC, the weak reference should be cleared from the intern pool.
+        # Creating a new list with the same values should succeed.
+        # We verify the intern pool was cleared by checking its size before/after.
+        pool_size_after_gc = len(NonEmptyInternedLinkedList._intern_pool)
 
-        assert object_id_before != object_id_after
+        list2 = InternedLinkedList.from_iterable([999, 888, 777])
+
+        # The pool should now have one more entry (the newly created list2)
+        pool_size_after_create = len(NonEmptyInternedLinkedList._intern_pool)
+        assert pool_size_after_create == pool_size_after_gc + 3  # 3 nodes: 999->888->777
+
+        # Verify list2 is usable
+        assert tuple(list2) == (999, 888, 777)
 
 
 class TestCollectionABC:

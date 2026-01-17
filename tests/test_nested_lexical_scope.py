@@ -17,6 +17,7 @@ from mixinject import (
     Definition,
     LexicalScope,
     SymbolTable,
+    RelativeReference as R,
 )
 
 
@@ -118,6 +119,7 @@ class TestNestedLexicalScope:
         Non-same-name parameters can be looked up in outer lexical scope.
         """
 
+        @scope()
         class Outer:
             @resource
             def outer_val() -> Result:
@@ -130,61 +132,95 @@ class TestNestedLexicalScope:
                     # This depends on 'outer_val' which is in Outer scope.
                     return Result(f"inner-{outer_val.value}")
 
-        root = mount(Outer, root_proxy_class=proxy_class)
+        root = mount("root", Outer, root_proxy_class=proxy_class)
         assert root.Inner.inner_val == Result("inner-outer")
 
     def test_evaluate_resource_dual_role_single(self, proxy_class: type[Proxy]) -> None:
         """Test: Single Dual item -> selected as Merger."""
 
+        @scope()
         class Namespace:
             target = DirectDefinition(Dual("A"))
 
-        root = mount(Namespace, root_proxy_class=proxy_class)
+        root = mount("root", Namespace, root_proxy_class=proxy_class)
         assert root.target == Result("merger-A-")
 
     def test_evaluate_resource_dual_and_patch(self, proxy_class: type[Proxy]) -> None:
         """Test: Dual + Dual -> One is Merger, other is Patch."""
 
-        class N1:
-            target = DirectDefinition(Dual("A"))
+        @scope()
+        class Root:
+            @scope()
+            class N1:
+                target = DirectDefinition(Dual("A"))
 
-        class N2:
-            target = DirectDefinition(Dual("B"))
+            @scope()
+            class N2:
+                target = DirectDefinition(Dual("B"))
 
-        root = mount(N1, N2, root_proxy_class=proxy_class)
-        val = root.target
+            @scope(extend=[
+                R(levels_up=0, path=("N1",)),
+                R(levels_up=0, path=("N2",)),
+            ])
+            class Combined:
+                pass
+
+        root = mount("root", Root, root_proxy_class=proxy_class)
+        value = root.Combined.target
         # Either merger-A-patch-B or merger-B-patch-A
-        assert val == Result("merger-A-patch-B") or val == Result("merger-B-patch-A")
+        assert value == Result("merger-A-patch-B") or value == Result("merger-B-patch-A")
 
     def test_evaluate_resource_pure_merger_and_dual(
         self, proxy_class: type[Proxy]
     ) -> None:
         """Test: Pure Merger + Dual -> Pure Merger selected, Dual is Patch."""
 
-        class N1:
-            target = DirectDefinition(PureMerger("P"))
+        @scope()
+        class Root:
+            @scope()
+            class N1:
+                target = DirectDefinition(PureMerger("P"))
 
-        class N2:
-            target = DirectDefinition(Dual("D"))
+            @scope()
+            class N2:
+                target = DirectDefinition(Dual("D"))
 
-        root = mount(N1, N2, root_proxy_class=proxy_class)
+            @scope(extend=[
+                R(levels_up=0, path=("N1",)),
+                R(levels_up=0, path=("N2",)),
+            ])
+            class Combined:
+                pass
+
+        root = mount("root", Root, root_proxy_class=proxy_class)
         # Pure P is merger. Dual D is patch.
-        assert root.target == Result("pure-P-patch-D")
+        assert root.Combined.target == Result("pure-P-patch-D")
 
     def test_evaluate_resource_multiple_pure_mergers_error(
         self, proxy_class: type[Proxy]
     ) -> None:
         """Test: Multiple pure mergers -> ValueError."""
 
-        class N1:
-            target = DirectDefinition(PureMerger("A"))
+        @scope()
+        class Root:
+            @scope()
+            class N1:
+                target = DirectDefinition(PureMerger("A"))
 
-        class N2:
-            target = DirectDefinition(PureMerger("B"))
+            @scope()
+            class N2:
+                target = DirectDefinition(PureMerger("B"))
 
-        root = mount(N1, N2, root_proxy_class=proxy_class)
+            @scope(extend=[
+                R(levels_up=0, path=("N1",)),
+                R(levels_up=0, path=("N2",)),
+            ])
+            class Combined:
+                pass
+
+        root = mount("root", Root, root_proxy_class=proxy_class)
         with pytest.raises(ValueError, match="Multiple Factory definitions provided"):
-            _ = root.target
+            _ = root.Combined.target
 
     def test_evaluate_resource_no_merger_error(self, proxy_class: type[Proxy]) -> None:
         """Test: Only patches (no merger) -> NotImplementedError."""
@@ -197,10 +233,11 @@ class TestNestedLexicalScope:
             def __iter__(self) -> Iterator[Any]:
                 yield f"patch-{self.value}"
 
+        @scope()
         class N1:
             target = DirectDefinition(PurePatch("A"))
 
-        root = mount(N1, root_proxy_class=proxy_class)
+        root = mount("root", N1, root_proxy_class=proxy_class)
         with pytest.raises(NotImplementedError, match="No Factory definition provided"):
             _ = root.target
 
@@ -212,87 +249,100 @@ class TestNestedLexicalScope:
         """
 
         @scope()
-        class Base:
-            @resource
-            def val() -> Result:
-                return Result("base")
+        class Root:
+            @scope()
+            class Base:
+                @resource
+                def val() -> Result:
+                    return Result("base")
 
-        @scope()
-        class Extension:
-            @extern
-            def val() -> Result:
-                """Declare that val is expected to be provided by Base."""
-                ...
+            @scope()
+            class Extension:
+                @extern
+                def val() -> Result:
+                    """Declare that val is expected to be provided by Base."""
+                    ...
 
-            @resource
-            def extended_val(val: Result) -> Result:
-                return Result(f"{val.value}-extended")
+                @resource
+                def extended_val(val: Result) -> Result:
+                    return Result(f"{val.value}-extended")
 
-            @resource
-            def extra() -> Result:
-                return Result("extra")
+                @resource
+                def extra() -> Result:
+                    return Result("extra")
 
-        class N1:
-            sub_scope = Base
+            @scope(extend=[
+                R(levels_up=0, path=("Base",)),
+                R(levels_up=0, path=("Extension",)),
+            ])
+            class Combined:
+                pass
 
-        class N2:
-            # Extension is used as a patch for sub_scope
-            sub_scope = Extension
-
-        root = mount(N1, N2, root_proxy_class=proxy_class)
-        assert root.sub_scope.extended_val == Result("base-extended")
-        assert root.sub_scope.extra == Result("extra")
+        root = mount("root", Root, root_proxy_class=proxy_class)
+        assert root.Combined.extended_val == Result("base-extended")
+        assert root.Combined.extra == Result("extra")
 
     def test_scope_proxy_class_resolution(self, proxy_class: type[Proxy]) -> None:
-        """Test: Most derived proxy_class is selected."""
+        """Test: Proxy class is determined by the scope declaring extend=."""
 
         class CustomProxy(CachedProxy):
             pass
 
-        @scope(proxy_class=CachedProxy)
-        class Base:
-            @resource
-            def val() -> str:
-                return "base"
+        @scope()
+        class Root:
+            @scope(proxy_class=CachedProxy)
+            class Base:
+                @resource
+                def val() -> str:
+                    return "base"
 
-        @scope(proxy_class=CustomProxy)
-        class Extension:
-            @resource
-            def extra() -> str:
-                return "extra"
+            @scope(proxy_class=CachedProxy)
+            class Extension:
+                @resource
+                def extra() -> str:
+                    return "extra"
 
-        class N1:
-            sub_scope = Base
+            # Combined explicitly sets proxy_class=CustomProxy
+            @scope(proxy_class=CustomProxy, extend=[
+                R(levels_up=0, path=("Base",)),
+                R(levels_up=0, path=("Extension",)),
+            ])
+            class Combined:
+                pass
 
-        class N2:
-            sub_scope = Extension
+        root = mount("root", Root, root_proxy_class=proxy_class)
+        # Combined's proxy_class (CustomProxy) is used
+        assert isinstance(root.Combined, CustomProxy)
+        assert not isinstance(root.Combined, WeakCachedScope)
 
-        root = mount(N1, N2, root_proxy_class=proxy_class)
-        # CustomProxy is a subclass of CachedProxy, so it should be chosen.
-        assert isinstance(root.sub_scope, CustomProxy)
-        assert not isinstance(root.sub_scope, WeakCachedScope)
+    def test_scope_proxy_class_uses_declaring_scope(self, proxy_class: type[Proxy]) -> None:
+        """Test: Combined scope uses its own proxy_class, not from extended scopes."""
 
-    def test_scope_proxy_class_conflict(self, proxy_class: type[Proxy]) -> None:
-        """Test: Conflict between unrelated proxy classes raises TypeError."""
+        @scope()
+        class Root:
+            @scope(proxy_class=WeakCachedScope)
+            class Base:
+                @resource
+                def val() -> str:
+                    return "base"
 
-        @scope(proxy_class=WeakCachedScope)
-        class Base:
-            pass
+            @scope(proxy_class=CachedProxy)
+            class Extension:
+                @resource
+                def extra() -> str:
+                    return "extra"
 
-        @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-        class CustomProxy(StaticProxy):
-            pass
+            # Combined uses CachedProxy regardless of what Base/Extension use
+            @scope(proxy_class=CachedProxy, extend=[
+                R(levels_up=0, path=("Base",)),
+                R(levels_up=0, path=("Extension",)),
+            ])
+            class Combined:
+                pass
 
-        @scope(proxy_class=CustomProxy)
-        class Extension:
-            pass
-
-        class N1:
-            sub_scope = Base
-
-        class N2:
-            sub_scope = Extension
-
-        root = mount(N1, N2, root_proxy_class=proxy_class)
-        with pytest.raises(TypeError, match="class conflict"):
-            _ = root.sub_scope
+        root = mount("root", Root, root_proxy_class=proxy_class)
+        # Combined uses its own proxy_class (CachedProxy), not Base's WeakCachedScope
+        assert isinstance(root.Combined, CachedProxy)
+        # Resources from both Base and Extension are accessible
+        assert root.Combined.val == "base"
+        assert root.Combined.extra == "extra"
