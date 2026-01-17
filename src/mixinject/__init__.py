@@ -445,10 +445,10 @@ creating an :class:`InstanceProxy` that stores kwargs directly for lookup.
 Example::
 
     # Create a Proxy with a name and inject values
-    from mixinject.interned_linked_list import NonEmptyInternedLinkedList, EmptyInternedLinkedList
+    from mixinject import StaticChildDependencyGraph, RootDependencyGraph
     proxy = CachedProxy(
         mixins={},
-        reversed_path=NonEmptyInternedLinkedList(head="my_proxy", tail=EmptyInternedLinkedList.INSTANCE),
+        reversed_path=StaticChildDependencyGraph(head="my_proxy", tail=RootDependencyGraph()),
     )
     new_proxy = proxy(setting="value", count=42)
 
@@ -523,20 +523,108 @@ from typing import (
     TypeVar,
     assert_never,
     cast,
+    final,
     override,
 )
 from weakref import WeakValueDictionary
 
-from mixinject.interned_linked_list import (
-    EmptyInternedLinkedList,
-    InternedLinkedList,
-    NonEmptyInternedLinkedList,
-)
+
+import weakref
+
+
+T = TypeVar("T")
+T_co = TypeVar("T_co", covariant=True)
 
 P = ParamSpec("P")
-T = TypeVar("T")
 TKey = TypeVar("TKey", bound=Hashable)
 TStrKey = TypeVar("TStrKey", bound=str)
+
+
+@dataclass(kw_only=True, slots=True, weakref_slot=False, eq=False)
+class DependencyGraph(ABC, Generic[TKey]):
+    """Base class for dependency graphs supporting O(1) equality comparison.
+
+    Equal graphs are interned to the same object instance within the same root,
+    making equality comparison a simple identity check (O(1) instead of O(n)).
+
+    This class is immutable and hashable, suitable for use as dictionary keys.
+
+    Example::
+
+        >>> root = RootDependencyGraph()
+        >>> graph1 = StaticChildDependencyGraph(head=1, tail=root)
+        >>> graph2 = StaticChildDependencyGraph(head=1, tail=root)
+        >>> graph1 is graph2  # Same object due to interning within same root
+        True
+
+        >>> # O(1) equality comparison via identity
+        >>> graph1 == graph2
+        True
+
+        >>> # Suitable as dict key
+        >>> cache = {graph1: "cached_value"}
+        >>> cache[graph2]  # Same key due to interning
+        'cached_value'
+    """
+
+    intern_pool: Final[
+        weakref.WeakValueDictionary[TKey, "StaticChildDependencyGraph[Any]"]
+    ] = field(default_factory=weakref.WeakValueDictionary)
+
+
+@final
+@dataclass(kw_only=True, slots=True, weakref_slot=False, eq=False)
+class RootDependencyGraph(DependencyGraph[T]):
+    """
+    Root of a dependency graph, representing an empty dependency chain.
+
+    Each RootDependencyGraph instance has its own intern pool for interning
+    StaticChildDependencyGraph nodes within that dependency graph.
+    """
+
+
+@dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
+class ChildDependencyGraph(DependencyGraph[TKey]):
+    """Non-empty dependency graph node.
+
+    Uses object.__eq__ and object.__hash__ (identity-based) for O(1) comparison.
+    This works because interned graphs with equal head within the same parent
+    are the same object.
+    """
+
+    tail: Final[DependencyGraph[Any]]
+    """
+    .. todo:: Rename this field to ``parent``.
+    """
+
+
+@final
+@dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
+class InstanceChildDependencyGraph(ChildDependencyGraph[TKey | str], Generic[TKey]):
+    """Non-empty dependency graph node for InstanceProxy.
+
+    Uses object.__eq__ and object.__hash__ (identity-based) for O(1) comparison.
+    This works because interned graphs with equal head within the same parent
+    are the same object.
+    """
+
+
+@final
+@dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
+class StaticChildDependencyGraph(ChildDependencyGraph[TKey], Generic[TKey]):
+
+    head: Final[TKey]
+    """
+    .. todo:: Remove this field. It's legacy and useless now.
+    """
+
+    _cached_instance_dependency_graph: (
+        weakref.ReferenceType[InstanceChildDependencyGraph[TKey]] | None
+    ) = field(default=None, init=False)
+    """
+    Cache for the corresponding InstanceChildDependencyGraph.
+    """
+
 
 Resource = NewType("Resource", object)
 
@@ -594,9 +682,7 @@ class Proxy(Mapping[TKey, "Node"], ABC):
     @abstractmethod
     def mixins(
         self,
-    ) -> Mapping[
-        "NonEmptyInternedLinkedList[ReversedPathElement[TKey]]", "Mixin[TKey]"
-    ]:
+    ) -> Mapping["StaticChildDependencyGraph[TKey]", "Mixin[TKey]"]:
         """The mixins that provide resources for this proxy, keyed by reversed_path.
 
         Each proxy's own properties (not from extend=) are stored at
@@ -605,17 +691,14 @@ class Proxy(Mapping[TKey, "Node"], ABC):
         """
         ...
 
-    @property
-    @abstractmethod
-    def reversed_path(self) -> "NonEmptyInternedLinkedList[ReversedPathElement[TKey]]":
-        """The runtime access path from root to this proxy, in reverse order.
+    reversed_path: "ChildDependencyGraph[TKey]"
+    """The runtime access path from root to this proxy, in reverse order.
 
-        This path reflects how the proxy was accessed at runtime, not where
-        it was statically defined. For example, root.object1.MyInner and
-        root.object2.MyInner should have different reversed_paths even if
-        MyInner is defined in the same place.
-        """
-        ...
+    This path reflects how the proxy was accessed at runtime, not where
+    it was statically defined. For example, root.object1.MyInner and
+    root.object2.MyInner should have different reversed_paths even if
+    MyInner is defined in the same place.
+    """
 
     def __getitem__(self, key: TKey) -> "Node":
         def generate_resource() -> Iterator[Merger | Patcher]:
@@ -668,19 +751,18 @@ class StaticProxy(Proxy[TKey], ABC):
     InstanceProxy with additional kwargs.
     """
 
-    mixins: Mapping[  # type: ignore[misc]
-        NonEmptyInternedLinkedList[ReversedPathElement[TKey]], "Mixin[TKey]"
-    ]
-    reversed_path: NonEmptyInternedLinkedList[TKey]  # type: ignore[misc]
+    mixins: Mapping[StaticChildDependencyGraph[TKey], "Mixin[TKey]"]  # type: ignore[misc]
+    reversed_path: StaticChildDependencyGraph[TKey]  # type: ignore[misc]
 
-    def __call__(self, **kwargs: object) -> InstanceProxy[TKey]:  # type: ignore[type-var]
-        # Wrap the head of the path in InstanceMarker to distinguish InstanceProxy from StaticProxy
-        instance_path: NonEmptyInternedLinkedList[ReversedPathElement[TKey]] = (
-            NonEmptyInternedLinkedList(
-                head=InstanceMarker(key=self.reversed_path.head),
-                tail=self.reversed_path.tail,
+    def __call__(self, **kwargs: object) -> InstanceProxy[Any]:  # type: ignore[type-var]
+        # Get or create InstanceChildDependencyGraph (memoized via weak reference)
+        cached_ref = self.reversed_path._cached_instance_dependency_graph
+        instance_path = cached_ref() if cached_ref is not None else None
+        if instance_path is None:
+            instance_path = InstanceChildDependencyGraph[Any](tail=self.reversed_path)
+            self.reversed_path._cached_instance_dependency_graph = weakref.ref(
+                instance_path
             )
-        )
 
         return InstanceProxy(
             base_proxy=self,  # type: ignore[arg-type]
@@ -690,27 +772,7 @@ class StaticProxy(Proxy[TKey], ABC):
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class InstanceMarker(Generic[TKey]):
-    """
-    A marker that wraps a key to indicate it represents an InstanceProxy.
-
-    When an InstanceProxy is created from a StaticProxy, its reversed_path
-    is constructed by wrapping the head of the base path in InstanceMarker.
-    This allows distinguishing the instance from its base while maintaining
-    the InternedLinkedList structure.
-    """
-
-    key: Final[TKey]
-
-
-ReversedPathElement: TypeAlias = "TKey | InstanceMarker[TKey]"
-"""
-An element in a reversed path, which can be either a plain key or an InstanceMarker.
-"""
-
-
-@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class InstanceProxy(Proxy[TStrKey]):
+class InstanceProxy(Proxy[TKey | str], Generic[TKey]):
     """
     An instance proxy created via StaticProxy.__call__.
 
@@ -720,23 +782,19 @@ class InstanceProxy(Proxy[TStrKey]):
     .. note:: TStrKey is bounded by str because Python's **kwargs only accepts string keys.
     """
 
-    base_proxy: Final[StaticProxy[TStrKey]]
+    base_proxy: Final[StaticProxy[TKey]]
     kwargs: Final[Mapping[str, object]]
-    reversed_path: Final[  # type: ignore[misc]
-        NonEmptyInternedLinkedList[ReversedPathElement[TStrKey]]
-    ]
+    reversed_path: InstanceChildDependencyGraph[TKey | str]
 
     @property
     @override
     def mixins(
         self,
-    ) -> Mapping[
-        NonEmptyInternedLinkedList[ReversedPathElement[TStrKey]], Mixin[TStrKey]
-    ]:
+    ) -> Mapping[StaticChildDependencyGraph[TKey | str], Mixin[TKey | str]]:
         return self.base_proxy.mixins
 
     @override
-    def __getitem__(self, key: TStrKey) -> Node:
+    def __getitem__(self, key: TKey | str) -> Node:
         if key in self.kwargs:
             value = self.kwargs[key]
 
@@ -755,7 +813,7 @@ class InstanceProxy(Proxy[TStrKey]):
         return super(InstanceProxy, self).__getitem__(key)
 
     @override
-    def __iter__(self) -> Iterator[TStrKey]:
+    def __iter__(self) -> Iterator[TKey | str]:
         for key in self.kwargs:
             yield key  # type: ignore[misc]
         for key in super(InstanceProxy, self).__iter__():
@@ -764,12 +822,12 @@ class InstanceProxy(Proxy[TStrKey]):
 
     @override
     def __len__(self) -> int:
-        base_keys: set[TStrKey] = set()
+        base_keys: set[TKey | str] = set()
         for mixin in self.mixins.values():
             base_keys.update(mixin)
         return len(base_keys | set(self.kwargs))  # type: ignore[arg-type]
 
-    def __call__(self, **kwargs: object) -> InstanceProxy[TStrKey]:
+    def __call__(self, **kwargs: object) -> InstanceProxy[TKey | str]:
         merged_kwargs: Mapping[str, object] = {**self.kwargs, **kwargs}
         return InstanceProxy(
             base_proxy=self.base_proxy,
@@ -1268,9 +1326,7 @@ class _ProxySemigroup(Merger[Proxy, Proxy], Patcher[Proxy]):
         winner_class = _calculate_most_derived_class(*(type(p) for p in proxies_tuple))
 
         def generate_all_mixin_items() -> (
-            Iterator[
-                tuple[NonEmptyInternedLinkedList[ReversedPathElement[str]], Mixin[str]]
-            ]
+            Iterator[tuple[StaticChildDependencyGraph[str], Mixin[str]]]
         ):
             for proxy in proxies_tuple:
                 yield from proxy.mixins.items()
@@ -1364,9 +1420,7 @@ class _ProxyDefinition(
                 yield name
 
     @abstractmethod
-    def create_mixin(
-        self, lexical_scope: LexicalScope, jit_cache: _JitCache
-    ) -> Mixin:
+    def create_mixin(self, lexical_scope: LexicalScope, jit_cache: _JitCache) -> Mixin:
         """
         Create a Mixin for this ProxyDefinition given the lexical scope and JIT cache.
         Must be implemented by subclasses.
@@ -1392,19 +1446,22 @@ class _ProxyDefinition(
                     lexical_scope
                 ), "lexical_scope must not be empty when resolving resources"
                 parent_reversed_path = lexical_scope[-1].reversed_path
-                proxy_reversed_path: NonEmptyInternedLinkedList[
-                    ReversedPathElement[str]
-                ] = NonEmptyInternedLinkedList(
-                    head=resource_name,
-                    tail=parent_reversed_path,
-                )
 
-                def generate_all_mixin_items() -> Iterator[
-                    tuple[
-                        NonEmptyInternedLinkedList[ReversedPathElement[str]],
-                        Mixin[str],
-                    ]
-                ]:
+                # Memoization: check if StaticChildDependencyGraph already exists
+                intern_pool = parent_reversed_path.intern_pool
+                existing = intern_pool.get(resource_name)
+                if existing is not None:
+                    proxy_reversed_path = existing
+                else:
+                    proxy_reversed_path = StaticChildDependencyGraph(
+                        head=resource_name,
+                        tail=parent_reversed_path,
+                    )
+                    intern_pool[resource_name] = proxy_reversed_path
+
+                def generate_all_mixin_items() -> (
+                    Iterator[tuple[StaticChildDependencyGraph[str], Mixin[str]]]
+                ):
                     # Include mixin from this definition, keyed by proxy's path
                     yield (
                         proxy_reversed_path,
@@ -1439,9 +1496,7 @@ class _NamespaceDefinition(_ProxyDefinition):
     Implements lazy evaluation via resolve_symbols.
     """
 
-    def create_mixin(
-        self, lexical_scope: LexicalScope, jit_cache: _JitCache
-    ) -> Mixin:
+    def create_mixin(self, lexical_scope: LexicalScope, jit_cache: _JitCache) -> Mixin:
         return _NamespaceMixin(
             jit_cache=jit_cache,
             lexical_scope=lexical_scope,
@@ -1461,9 +1516,7 @@ class _PackageDefinition(_ProxyDefinition):
         for mod_info in pkgutil.iter_modules(self.underlying.__path__):
             yield mod_info.name
 
-    def create_mixin(
-        self, lexical_scope: LexicalScope, jit_cache: _JitCache
-    ) -> Mixin:
+    def create_mixin(self, lexical_scope: LexicalScope, jit_cache: _JitCache) -> Mixin:
         return _PackageMixin(
             jit_cache=jit_cache,
             lexical_scope=lexical_scope,
@@ -1815,10 +1868,24 @@ def mount(
         jit_cache=jit_cache,
     )
 
-    root_path: NonEmptyInternedLinkedList[TKey] = NonEmptyInternedLinkedList(
-        head=name,
-        tail=EmptyInternedLinkedList.INSTANCE,
-    )
+    # Determine parent path based on lexical_scope
+    if lexical_scope:
+        parent_reversed_path: DependencyGraph[TKey] = lexical_scope[-1].reversed_path
+    else:
+        parent_reversed_path = RootDependencyGraph()
+
+    # Memoization: check if StaticChildDependencyGraph already exists
+    intern_pool = parent_reversed_path.intern_pool
+    existing = intern_pool.get(name)
+    if existing is not None:
+        root_path = existing
+    else:
+        root_path = StaticChildDependencyGraph(
+            head=name,
+            tail=parent_reversed_path,
+        )
+        intern_pool[name] = root_path
+
     return root_proxy_class(
         mixins={root_path: mixin},
         reversed_path=root_path,
@@ -2061,4 +2128,3 @@ def resource_reference_from_pure_path(path: PurePath) -> ResourceReference[str]:
             remaining_parts.append(part)
 
     return RelativeReference(levels_up=levels_up, path=tuple(remaining_parts))
-

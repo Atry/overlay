@@ -1,154 +1,136 @@
 import gc
-from collections.abc import Collection
 
-from mixinject.interned_linked_list import NonEmptyInternedLinkedList, EmptyInternedLinkedList, InternedLinkedList
-
-
-class TestEmpty:
-    """Test empty list behavior."""
-
-    def test_empty_from_empty_iterable(self) -> None:
-        result = InternedLinkedList.from_iterable([])
-        assert result is EmptyInternedLinkedList.INSTANCE
-
-    def test_empty_iteration(self) -> None:
-        assert list(EmptyInternedLinkedList.INSTANCE) == []
-
-    def test_empty_length(self) -> None:
-        assert len(EmptyInternedLinkedList.INSTANCE) == 0
-
-    def test_empty_contains(self) -> None:
-        assert 1 not in EmptyInternedLinkedList.INSTANCE
-        assert "x" not in EmptyInternedLinkedList.INSTANCE
+from mixinject import (
+    StaticChildDependencyGraph,
+    DependencyGraph,
+    Proxy,
+    RootDependencyGraph,
+    mount,
+    resource,
+    scope,
+)
 
 
-class TestCons:
-    """Test non-empty list behavior."""
+class TestRoot:
+    """Test root dependency graph behavior."""
 
-    def test_single_element(self) -> None:
-        result = InternedLinkedList.from_iterable([42])
-        assert isinstance(result, NonEmptyInternedLinkedList)
-        assert result.head == 42
-        assert result.tail is EmptyInternedLinkedList.INSTANCE
+    def test_root_hasintern_pool(self) -> None:
+        root = RootDependencyGraph()
+        assert root.intern_pool is not None
 
-    def test_multiple_elements(self) -> None:
-        result = InternedLinkedList.from_iterable([1, 2, 3])
-        assert isinstance(result, NonEmptyInternedLinkedList)
-        assert list(result) == [1, 2, 3]
-
-    def test_iteration(self) -> None:
-        result = InternedLinkedList.from_iterable(["a", "b", "c"])
-        assert list(result) == ["a", "b", "c"]
-
-    def test_length(self) -> None:
-        result = InternedLinkedList.from_iterable([1, 2, 3, 4, 5])
-        assert len(result) == 5
-
-    def test_contains_present(self) -> None:
-        result = InternedLinkedList.from_iterable([1, 2, 3])
-        assert 2 in result
-
-    def test_contains_absent(self) -> None:
-        result = InternedLinkedList.from_iterable([1, 2, 3])
-        assert 99 not in result
+    def test_different_roots_have_different_pools(self) -> None:
+        root1 = RootDependencyGraph()
+        root2 = RootDependencyGraph()
+        assert root1.intern_pool is not root2.intern_pool
 
 
 class TestInterning:
-    """Test interning behavior for O(1) equality."""
+    """Test interning behavior for O(1) equality.
 
-    def test_same_content_same_object(self) -> None:
-        list1 = InternedLinkedList.from_iterable([1, 2, 3])
-        list2 = InternedLinkedList.from_iterable([1, 2, 3])
-        assert list1 is list2
+    Note: Interning now happens in proxy_factory and mount, not in __new__.
+    Direct instantiation creates new objects each time.
+    """
 
-    def test_different_content_different_object(self) -> None:
-        list1 = InternedLinkedList.from_iterable([1, 2, 3])
-        list2 = InternedLinkedList.from_iterable([1, 2, 4])
-        assert list1 is not list2
+    def test_direct_instantiation_creates_new_objects(self) -> None:
+        """Direct instantiation without going through proxy_factory creates new objects."""
+        root = RootDependencyGraph()
+        child1 = StaticChildDependencyGraph(head=1, tail=root)
+        child2 = StaticChildDependencyGraph(head=1, tail=root)
+        # Without interning, these are different objects
+        assert child1 is not child2
 
-    def test_identity_based_equality(self) -> None:
-        list1 = InternedLinkedList.from_iterable([1, 2, 3])
-        list2 = InternedLinkedList.from_iterable([1, 2, 3])
-        assert list1 == list2
-        assert list1 is list2
+    def test_different_head_same_root_different_object(self) -> None:
+        root = RootDependencyGraph()
+        child1 = StaticChildDependencyGraph(head=1, tail=root)
+        child2 = StaticChildDependencyGraph(head=2, tail=root)
+        assert child1 is not child2
 
-    def test_usable_as_dict_key(self) -> None:
-        list1 = InternedLinkedList.from_iterable([1, 2, 3])
-        cache = {list1: "cached_value"}
-        list2 = InternedLinkedList.from_iterable([1, 2, 3])
-        assert cache[list2] == "cached_value"
+    def test_same_head_different_root_different_object(self) -> None:
+        root1 = RootDependencyGraph()
+        root2 = RootDependencyGraph()
+        child1 = StaticChildDependencyGraph(head=1, tail=root1)
+        child2 = StaticChildDependencyGraph(head=1, tail=root2)
+        assert child1 is not child2
 
-    def test_tail_sharing(self) -> None:
-        list1 = InternedLinkedList.from_iterable([2, 3])
-        list2 = InternedLinkedList.from_iterable([1, 2, 3])
-        assert isinstance(list2, NonEmptyInternedLinkedList)
-        assert list2.tail is list1
+    def test_each_node_has_ownintern_pool(self) -> None:
+        root = RootDependencyGraph()
+        child1 = StaticChildDependencyGraph(head=1, tail=root)
+        child2 = StaticChildDependencyGraph(head=2, tail=child1)
+        assert child1.intern_pool is not root.intern_pool
+        assert child2.intern_pool is not child1.intern_pool
+        assert child2.intern_pool is not root.intern_pool
+
+    def test_interning_via_mount(self) -> None:
+        """Interning happens when using mount."""
+        @scope()
+        class Root:
+            @resource
+            def foo() -> int:
+                return 42
+
+        root1 = mount("root", Root)
+        root2 = mount("root", Root)
+
+        # Different mount calls create different proxies
+        assert root1 is not root2
+        # But they should have different reversed_paths since each mount creates a new root
+
+    def test_interning_via_nested_scope_access(self) -> None:
+        """Accessing the same nested scope multiple times returns proxies with the same reversed_path."""
+        @scope()
+        class Root:
+            @scope()
+            class Inner:
+                @resource
+                def foo() -> int:
+                    return 42
+
+        root = mount("root", Root)
+        inner1 = root.Inner
+        inner2 = root.Inner
+
+        # Cached proxy should return the same object
+        assert inner1 is inner2
+        # Therefore same reversed_path
+        assert isinstance(inner1, Proxy)
+        assert isinstance(inner2, Proxy)
+        assert inner1.reversed_path is inner2.reversed_path
 
 
 class TestWeakReference:
     """Test weak reference behavior of intern pool."""
 
-    def test_garbage_collection_removes_from_pool(self) -> None:
-        list1 = InternedLinkedList.from_iterable([100, 200, 300])
-        pool_size_before = len(NonEmptyInternedLinkedList._intern_pool)
+    def test_intern_pool_supports_weak_references(self) -> None:
+        """The intern pool is a WeakValueDictionary."""
+        root = RootDependencyGraph()
+        # Add an entry manually to the pool
+        child = StaticChildDependencyGraph(head=100, tail=root)
+        root.intern_pool[100] = child
 
-        del list1
+        pool_size_before = len(root.intern_pool)
+        assert pool_size_before == 1
+
+        del child
         gc.collect()
 
-        pool_size_after = len(NonEmptyInternedLinkedList._intern_pool)
+        pool_size_after = len(root.intern_pool)
         assert pool_size_after < pool_size_before
 
-    def test_recreate_after_gc(self) -> None:
-        list1 = InternedLinkedList.from_iterable([999, 888, 777])
 
-        del list1
-        gc.collect()
+class TestSubclass:
+    """Test isinstance/issubclass behavior."""
 
-        # After GC, the weak reference should be cleared from the intern pool.
-        # Creating a new list with the same values should succeed.
-        # We verify the intern pool was cleared by checking its size before/after.
-        pool_size_after_gc = len(NonEmptyInternedLinkedList._intern_pool)
+    def test_root_is_subclass_of_dependency_graph(self) -> None:
+        assert issubclass(RootDependencyGraph, DependencyGraph)
 
-        list2 = InternedLinkedList.from_iterable([999, 888, 777])
+    def test_child_is_subclass_of_dependency_graph(self) -> None:
+        assert issubclass(StaticChildDependencyGraph, DependencyGraph)
 
-        # The pool should now have one more entry (the newly created list2)
-        pool_size_after_create = len(NonEmptyInternedLinkedList._intern_pool)
-        assert pool_size_after_create == pool_size_after_gc + 3  # 3 nodes: 999->888->777
+    def test_root_instance_is_instance_of_dependency_graph(self) -> None:
+        root = RootDependencyGraph()
+        assert isinstance(root, DependencyGraph)
 
-        # Verify list2 is usable
-        assert tuple(list2) == (999, 888, 777)
-
-
-class TestCollectionABC:
-    """Test isinstance/issubclass behavior with collections.abc.Collection."""
-
-    def test_interned_linked_list_is_subclass_of_collection(self) -> None:
-        assert issubclass(InternedLinkedList, Collection)
-
-    def test_empty_interned_linked_list_is_subclass_of_collection(self) -> None:
-        assert issubclass(EmptyInternedLinkedList, Collection)
-
-    def test_non_empty_interned_linked_list_is_subclass_of_collection(self) -> None:
-        assert issubclass(NonEmptyInternedLinkedList, Collection)
-
-    def test_empty_instance_is_instance_of_collection(self) -> None:
-        empty = EmptyInternedLinkedList.INSTANCE
-        assert isinstance(empty, Collection)
-
-    def test_non_empty_instance_is_instance_of_collection(self) -> None:
-        non_empty = InternedLinkedList.from_iterable([1, 2, 3])
-        assert isinstance(non_empty, Collection)
-
-    def test_empty_instance_is_instance_of_interned_linked_list(self) -> None:
-        empty = EmptyInternedLinkedList.INSTANCE
-        assert isinstance(empty, InternedLinkedList)
-
-    def test_non_empty_instance_is_instance_of_interned_linked_list(self) -> None:
-        non_empty = InternedLinkedList.from_iterable([1, 2, 3])
-        assert isinstance(non_empty, InternedLinkedList)
-
-    def test_empty_is_subclass_of_interned_linked_list(self) -> None:
-        assert issubclass(EmptyInternedLinkedList, InternedLinkedList)
-
-    def test_non_empty_is_subclass_of_interned_linked_list(self) -> None:
-        assert issubclass(NonEmptyInternedLinkedList, InternedLinkedList)
+    def test_child_instance_is_instance_of_dependency_graph(self) -> None:
+        root = RootDependencyGraph()
+        child = StaticChildDependencyGraph(head=1, tail=root)
+        assert isinstance(child, DependencyGraph)

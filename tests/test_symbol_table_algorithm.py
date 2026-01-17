@@ -9,12 +9,12 @@ from mixinject import (
     CachedProxy,
     _extend_symbol_table_jit,
 )
-from mixinject.interned_linked_list import EmptyInternedLinkedList, NonEmptyInternedLinkedList
+from mixinject import RootDependencyGraph, StaticChildDependencyGraph
 
 
 def _empty_proxy() -> CachedProxy:
     """Create an empty proxy for testing."""
-    return CachedProxy(mixins={}, reversed_path=NonEmptyInternedLinkedList(head="test", tail=EmptyInternedLinkedList.INSTANCE))
+    return CachedProxy(mixins={}, reversed_path=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))
 
 def _make_getitem_factory(
     name: str, index: int
