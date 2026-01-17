@@ -448,7 +448,7 @@ Example::
     from mixinject import StaticChildDependencyGraph, RootDependencyGraph
     proxy = CachedProxy(
         mixins={},
-        reversed_path=StaticChildDependencyGraph(head="my_proxy", tail=RootDependencyGraph()),
+        dependency_graph=StaticChildDependencyGraph(head="my_proxy", tail=RootDependencyGraph()),
     )
     new_proxy = proxy(setting="value", count=42)
 
@@ -704,17 +704,17 @@ class Proxy(Mapping[TKey, "Node"], ABC):
     def mixins(
         self,
     ) -> Mapping["StaticChildDependencyGraph[TKey]", "Mixin[TKey]"]:
-        """The mixins that provide resources for this proxy, keyed by reversed_path.
+        """The mixins that provide resources for this proxy, keyed by dependency_graph.
 
         Each proxy's own properties (not from extend=) are stored at
-        mixins[self.reversed_path]. Extended proxies contribute their mixins
-        with their original reversed_path keys.
+        mixins[self.dependency_graph]. Extended proxies contribute their mixins
+        with their original dependency_graph keys.
 
         .. todo:: 改用 ``ChainMap`` 代替 ``dict``。
         """
         ...
 
-    reversed_path: "ChildDependencyGraph[TKey]"
+    dependency_graph: "ChildDependencyGraph[TKey]"
     """The runtime access path from root to this proxy, in reverse order.
 
     This path reflects how the proxy was accessed at runtime, not where
@@ -775,7 +775,7 @@ class StaticProxy(Proxy[TKey], ABC):
     """
 
     mixins: Mapping[StaticChildDependencyGraph[TKey], "Mixin[TKey]"]  # type: ignore[misc]
-    reversed_path: StaticChildDependencyGraph[TKey]  # type: ignore[misc]
+    dependency_graph: StaticChildDependencyGraph[TKey]  # type: ignore[misc]
 
     def __call__(self, **kwargs: object) -> InstanceProxy[Any]:  # type: ignore[type-var]
         """
@@ -785,18 +785,18 @@ class StaticProxy(Proxy[TKey], ABC):
                   when creating ``InstanceChildDependencyGraph``.
         """
         # Get or create InstanceChildDependencyGraph (memoized via weak reference)
-        cached_ref = self.reversed_path._cached_instance_dependency_graph
+        cached_ref = self.dependency_graph._cached_instance_dependency_graph
         instance_path = cached_ref() if cached_ref is not None else None
         if instance_path is None:
-            instance_path = InstanceChildDependencyGraph[Any](tail=self.reversed_path)
-            self.reversed_path._cached_instance_dependency_graph = weakref.ref(
+            instance_path = InstanceChildDependencyGraph[Any](tail=self.dependency_graph)
+            self.dependency_graph._cached_instance_dependency_graph = weakref.ref(
                 instance_path
             )
 
         return InstanceProxy(
             base_proxy=self,  # type: ignore[arg-type]
             kwargs=kwargs,
-            reversed_path=instance_path,
+            dependency_graph=instance_path,
         )
 
 
@@ -813,7 +813,7 @@ class InstanceProxy(Proxy[TKey | str], Generic[TKey]):
 
     base_proxy: Final[StaticProxy[TKey]]
     kwargs: Final[Mapping[str, object]]
-    reversed_path: InstanceChildDependencyGraph[TKey | str]
+    dependency_graph: InstanceChildDependencyGraph[TKey | str]
 
     @property
     @override
@@ -861,7 +861,7 @@ class InstanceProxy(Proxy[TKey | str], Generic[TKey]):
         return InstanceProxy(
             base_proxy=self.base_proxy,
             kwargs=merged_kwargs,
-            reversed_path=self.reversed_path,
+            dependency_graph=self.dependency_graph,
         )
 
 
@@ -1069,7 +1069,7 @@ class _JitCache(Mapping[str, Callable[[LexicalScope], Merger | Patcher]]):
         outer = val.resolve_symbols(self.symbol_table, key)
 
         def inner(lexical_scope: LexicalScope) -> Merger | Patcher:
-            dependency_graph = lexical_scope[-1].reversed_path
+            dependency_graph = lexical_scope[-1].dependency_graph
             return outer(dependency_graph)(lexical_scope)
 
         self.cache[key] = inner
@@ -1156,7 +1156,7 @@ class _PackageMixin(_NamespaceMixin):
 
         def bind_proxy(proxy: Proxy[str]) -> Merger | Patcher:
             inner_lexical_scope: LexicalScope = (*self.lexical_scope, proxy)
-            dependency_graph = inner_lexical_scope[-1].reversed_path
+            dependency_graph = inner_lexical_scope[-1].dependency_graph
             return outer(dependency_graph)(inner_lexical_scope)
 
         return bind_proxy
@@ -1414,7 +1414,7 @@ class _ProxySemigroup(Merger[Proxy, Proxy], Patcher[Proxy]):
         primary_proxy = proxies_tuple[0]
         return winner_class(
             mixins=dict(generate_all_mixin_items()),
-            reversed_path=primary_proxy.reversed_path,
+            dependency_graph=primary_proxy.dependency_graph,
         )
 
     @override
@@ -1536,7 +1536,7 @@ class _ProxyDefinition(
                     assert (
                         lexical_scope
                     ), "lexical_scope must not be empty when resolving resources"
-                    parent_reversed_path = lexical_scope[-1].reversed_path
+                    parent_reversed_path = lexical_scope[-1].dependency_graph
 
                     # Memoization: check if StaticChildDependencyGraph already exists
                     # .. todo:: Phase 2: Pass ``jit_cache`` and ``base_jit_caches``
@@ -1575,7 +1575,7 @@ class _ProxyDefinition(
 
                     return self.proxy_class(
                         mixins=dict(generate_all_mixin_items()),
-                        reversed_path=proxy_reversed_path,
+                        dependency_graph=proxy_reversed_path,
                     )
 
                 return _ProxySemigroup(proxy_factory=proxy_factory)
@@ -1969,7 +1969,7 @@ def mount(
 
     # Determine parent path based on lexical_scope
     if lexical_scope:
-        parent_reversed_path: DependencyGraph[TKey] = lexical_scope[-1].reversed_path
+        parent_reversed_path: DependencyGraph[TKey] = lexical_scope[-1].dependency_graph
     else:
         parent_reversed_path = RootDependencyGraph()
 
@@ -1987,7 +1987,7 @@ def mount(
 
     return root_proxy_class(
         mixins={root_path: mixin},
-        reversed_path=root_path,
+        dependency_graph=root_path,
     )
 
 

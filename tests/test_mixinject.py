@@ -198,13 +198,13 @@ class TestInstanceProxy:
     """Test InstanceProxy created via StaticProxy.__call__."""
 
     def test_instance_proxy_single_value(self) -> None:
-        base_proxy = CachedProxy(mixins={}, reversed_path=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))
+        base_proxy = CachedProxy(mixins={}, dependency_graph=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))
         proxy = base_proxy(foo="bar")
         assert isinstance(proxy, InstanceProxy)
         assert proxy.foo == "bar"
 
     def test_instance_proxy_multiple_values(self) -> None:
-        base_proxy = CachedProxy(mixins={}, reversed_path=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))
+        base_proxy = CachedProxy(mixins={}, dependency_graph=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))
         proxy = base_proxy(foo="bar", count=42, flag=True)
         assert isinstance(proxy, InstanceProxy)
         assert proxy.foo == "bar"
@@ -570,19 +570,19 @@ class TestScalaStylePathDependentTypes:
 
         root = mount("root", Root)
 
-        # reversed_path is the runtime access path:
-        #   root.object1.MyInner.reversed_path == ("MyInner", "object1", "root")
-        #   root.object2.MyInner.reversed_path == ("MyInner", "object2", "root")
+        # dependency_graph is the runtime access path:
+        #   root.object1.MyInner.dependency_graph == ("MyInner", "object1", "root")
+        #   root.object2.MyInner.dependency_graph == ("MyInner", "object2", "root")
         object1_inner = root.object1.MyInner
         object2_inner = root.object2.MyInner
-        assert object1_inner.reversed_path != object2_inner.reversed_path
+        assert object1_inner.dependency_graph != object2_inner.dependency_graph
 
         # foo = 10 (Base) + 1 (object1.MyInner) + 2 (object2.MyInner) + 100 (MyObjectA) = 113
         assert root.MyObjectA.foo == 113
 
 
 class TestInstanceProxyReversedPath:
-    """Test that InstanceProxy has correct reversed_path with InstanceChildDependencyGraph."""
+    """Test that InstanceProxy has correct dependency_graph with InstanceChildDependencyGraph."""
 
     def test_instance_proxy_nested_access_has_instance_dependency_graph_in_path(
         self,
@@ -611,8 +611,8 @@ class TestInstanceProxyReversedPath:
         my_instance = root.my_instance
         my_inner = my_instance.MyInner
 
-        # The reversed_path should be InstanceChildDependencyGraph to distinguish from static path
-        assert isinstance(my_instance.reversed_path, InstanceChildDependencyGraph)
+        # The dependency_graph should be InstanceChildDependencyGraph to distinguish from static path
+        assert isinstance(my_instance.dependency_graph, InstanceChildDependencyGraph)
 
         # Verify the resource works correctly
         assert my_inner.foo == "foo_42"
@@ -641,9 +641,9 @@ class TestJitCacheSharing:
         inner1 = root.Outer(arg="v1").Inner
         inner2 = root.Outer(arg="v2").Inner
 
-        # Use the proxy's actual reversed_path to look up the mixin
-        jit_cache1 = inner1.mixins[inner1.reversed_path].jit_cache
-        jit_cache2 = inner2.mixins[inner2.reversed_path].jit_cache
+        # Use the proxy's actual dependency_graph to look up the mixin
+        jit_cache1 = inner1.mixins[inner1.dependency_graph].jit_cache
+        jit_cache2 = inner2.mixins[inner2.dependency_graph].jit_cache
 
         assert jit_cache1 is jit_cache2
 
@@ -667,9 +667,9 @@ class TestJitCacheSharing:
         instance_inner = root.Outer(arg="v1").Inner
         static_inner = root.Outer.Inner
 
-        # Use the proxies' actual reversed_path to look up the mixin
-        instance_jit_cache = instance_inner.mixins[instance_inner.reversed_path].jit_cache
-        static_jit_cache = static_inner.mixins[static_inner.reversed_path].jit_cache
+        # Use the proxies' actual dependency_graph to look up the mixin
+        instance_jit_cache = instance_inner.mixins[instance_inner.dependency_graph].jit_cache
+        static_jit_cache = static_inner.mixins[static_inner.dependency_graph].jit_cache
 
         assert instance_jit_cache is static_jit_cache
 
@@ -698,9 +698,9 @@ class TestJitCacheSharing:
         outer_inner = root.Outer(arg="v1").Inner
         object1_inner = root.object1(arg="v2").Inner
 
-        # Use the proxies' actual reversed_path to look up the mixin
-        outer_jit_cache = outer_inner.mixins[outer_inner.reversed_path].jit_cache
-        object1_jit_cache = object1_inner.mixins[object1_inner.reversed_path].jit_cache
+        # Use the proxies' actual dependency_graph to look up the mixin
+        outer_jit_cache = outer_inner.mixins[outer_inner.dependency_graph].jit_cache
+        object1_jit_cache = object1_inner.mixins[object1_inner.dependency_graph].jit_cache
 
         assert outer_jit_cache is object1_jit_cache
         assert outer_jit_cache.proxy_definition is object1_jit_cache.proxy_definition
@@ -710,7 +710,7 @@ class TestProxyAsSymlink:
     """Test Proxy return values acting as symlinks."""
 
     def test_proxy_symlink(self) -> None:
-        base_proxy = CachedProxy(mixins={}, reversed_path=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))
+        base_proxy = CachedProxy(mixins={}, dependency_graph=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))
         inner_proxy = base_proxy(inner_value="inner")
 
         @scope()
@@ -856,7 +856,7 @@ class TestProxyCallable:
 
     def test_proxy_call_single_kwarg(self) -> None:
         """Test calling Proxy to inject a single new value."""
-        base_proxy = CachedProxy(mixins={}, reversed_path=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))
+        base_proxy = CachedProxy(mixins={}, dependency_graph=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))
         proxy = base_proxy(foo="foo_value")
 
         # Call proxy with new kwargs to add additional values
@@ -867,7 +867,7 @@ class TestProxyCallable:
 
     def test_proxy_call_multiple_kwargs(self) -> None:
         """Test calling Proxy with multiple new kwargs."""
-        base_proxy = CachedProxy(mixins={}, reversed_path=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))
+        base_proxy = CachedProxy(mixins={}, dependency_graph=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))
         proxy = base_proxy(x=1, y=2)
 
         # Call to add new values (z and w)
@@ -881,7 +881,7 @@ class TestProxyCallable:
     def test_proxy_call_injected_values_accessible(self) -> None:
         """Test that values injected via Proxy call are accessible as resources."""
         # Create empty proxy and inject values via call
-        proxy = CachedProxy(mixins={}, reversed_path=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))(config={"db": "postgres"})(timeout=30)
+        proxy = CachedProxy(mixins={}, dependency_graph=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))(config={"db": "postgres"})(timeout=30)
 
         # Injected values should be accessible
         assert proxy.config == {"db": "postgres"}
@@ -921,7 +921,7 @@ class TestProxyCallable:
         v1, v2 = Value(), Value()
 
         # CachedProxy.__call__ should return InstanceProxy
-        cached = CachedProxy(mixins={}, reversed_path=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))
+        cached = CachedProxy(mixins={}, dependency_graph=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))
         instance1 = cached(x=v1)
         assert isinstance(instance1, InstanceProxy)
         assert instance1.x is v1
@@ -933,14 +933,14 @@ class TestProxyCallable:
         assert instance2.y is v2
 
         # WeakCachedScope.__call__ should also return InstanceProxy
-        weak = WeakCachedScope(mixins={}, reversed_path=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))
+        weak = WeakCachedScope(mixins={}, dependency_graph=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))
         weak_instance = weak(x=v1)
         assert isinstance(weak_instance, InstanceProxy)
         assert weak_instance.x is v1
 
     def test_proxy_call_creates_fresh_instance(self) -> None:
         """Test that calling a Proxy creates a new instance without modifying the original."""
-        base_proxy = CachedProxy(mixins={}, reversed_path=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))
+        base_proxy = CachedProxy(mixins={}, dependency_graph=StaticChildDependencyGraph(head="test", tail=RootDependencyGraph()))
         proxy1 = base_proxy(a=1)
 
         # Call to create a new proxy

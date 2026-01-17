@@ -76,7 +76,7 @@ class TestInterning:
         # But they should have different reversed_paths since each mount creates a new root
 
     def test_interning_via_nested_scope_access(self) -> None:
-        """Accessing the same nested scope multiple times returns proxies with the same reversed_path."""
+        """Accessing the same nested scope multiple times returns proxies with the same dependency_graph."""
         @scope()
         class Root:
             @scope()
@@ -91,10 +91,10 @@ class TestInterning:
 
         # Cached proxy should return the same object
         assert inner1 is inner2
-        # Therefore same reversed_path
+        # Therefore same dependency_graph
         assert isinstance(inner1, Proxy)
         assert isinstance(inner2, Proxy)
-        assert inner1.reversed_path is inner2.reversed_path
+        assert inner1.dependency_graph is inner2.dependency_graph
 
 
 class TestWeakReference:
