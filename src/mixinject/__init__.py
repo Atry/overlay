@@ -1054,6 +1054,10 @@ class _JitCache(Mapping[str, Callable[[LexicalScope], Merger | Patcher]]):
         return self.proxy_definition.underlying
 
     def __getitem__(self, key: str) -> Callable[[LexicalScope], Merger | Patcher]:
+        """
+        .. todo:: 目前使用 ``getattr`` 的做法是错的，因为无法支持 package。
+                  Package 的子模块需要动态导入，不能通过 ``getattr`` 获取。
+        """
         if key in self.cache:
             return self.cache[key]
         try:
