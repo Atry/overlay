@@ -562,6 +562,17 @@ class Proxy(Mapping[str, "Node"], ABC):
             root = mount(MyScope)
             str(root)  # 不会调用自定义的 __str__，而是使用 Proxy 默认的 __str__
 
+    .. todo::
+        区分 ``StaticProxy`` 和 ``InstanceProxy``。
+
+        当前 ``Proxy.__call__`` 返回同类型的 Proxy，通过替换 mixins 来注入参数。
+        应该区分静态和实例两种 Proxy：
+
+        - ``StaticProxy``：表示类/模块级别的静态定义
+        - ``InstanceProxy``：表示通过 ``__call__`` 创建的实例
+
+        ``StaticProxy.__call__`` 应该返回 ``InstanceProxy``。
+
     """
 
     mixins: frozenset["Mixin"]
