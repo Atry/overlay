@@ -138,7 +138,7 @@ class TestLexicalScope:
             def counter() -> int:
                 return 0
 
-            @scope
+            @scope()
             class Inner:
                 @resource
                 def counter(counter: int) -> int:
@@ -284,35 +284,33 @@ class TestScalaStylePathDependentTypes:
         """Test that mixinject achieves the same result as Scala's mixin linearization.
 
         Uses mixinject's features:
-        - @scope for nested scopes (like Scala's inner trait)
+        - @scope with extend for composing scopes (like Scala's mixin inheritance)
         - @extern for declaring external dependencies
         - Lexical scope lookup (parameter `i` resolved from outer scope)
         - Proxy.__call__() for injecting values (like Scala's constructor args)
-        - merge_proxies for combining proxies from different outer instances
         """
-        from mixinject import merge_proxies
+        from mixinject import RelativeReference
 
         class Root:
-            @scope
+            @scope()
             class Base:
                 @resource
                 def foo() -> int:
                     return 10
 
-            @scope
+            @scope()
             class MyOuter:
                 @extern
                 def i() -> int: ...
 
-                @scope
-                class MyInner_body:
+                # MyInner extends Base and adds a patch for foo
+                @scope(extend=(
+                    RelativeReference(levels_up=1, parts=("Base",)),
+                ))
+                class MyInner:
                     @patch
                     def foo(i: int) -> Callable[[int], int]:
                         return lambda x: x + i
-
-                @resource
-                def MyInner(MyInner_body: Proxy, Base: Proxy) -> Proxy:
-                    return merge_proxies((MyInner_body, Base))
 
             @resource
             def object1(MyOuter: Proxy):
@@ -322,25 +320,15 @@ class TestScalaStylePathDependentTypes:
             def object2(MyOuter: Proxy):
                 return MyOuter(i=2)
 
-            @scope
-            class MyObjectA_body:
+            # MyObjectA extends object1.MyInner, object2.MyInner and adds its own patch
+            @scope(extend=(
+                RelativeReference(levels_up=0, parts=("object1", "MyInner")),
+                RelativeReference(levels_up=0, parts=("object2", "MyInner")),
+            ))
+            class MyObjectA:
                 @patch
                 def foo() -> Callable[[int], int]:
                     return lambda x: 100 + x
-
-            @resource
-            def MyObjectA(
-                object1: Proxy,
-                object2: Proxy,
-                MyObjectA_body: Proxy,
-            ) -> Proxy:
-                return merge_proxies(
-                    (
-                        object1.MyInner,
-                        object2.MyInner,
-                        MyObjectA_body,
-                    )
-                )
 
         root = mount(Root)
         assert root.MyObjectA.foo == 113

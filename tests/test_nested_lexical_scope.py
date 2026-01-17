@@ -122,7 +122,7 @@ class TestNestedLexicalScope:
             def outer_val() -> Result:
                 return Result("outer")
 
-            @scope
+            @scope()
             class Inner:
                 @resource
                 def inner_val(outer_val: Result) -> Result:
@@ -210,13 +210,13 @@ class TestNestedLexicalScope:
         those dependencies using @extern to make them visible at compile time.
         """
 
-        @scope
+        @scope()
         class Base:
             @resource
             def val() -> Result:
                 return Result("base")
 
-        @scope
+        @scope()
         class Extension:
             @extern
             def val() -> Result:

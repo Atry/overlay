@@ -231,13 +231,13 @@ Common patterns:
 
 **Multiple Scopes** (semigroup composition)::
 
-    @scope
+    @scope()
     class Base:
         @resource
         def foo() -> str:
             return "base_foo"
 
-    @scope
+    @scope()
     class Extension:
         @resource
         def bar() -> str:
@@ -301,7 +301,7 @@ transforming an outer scope's definition::
         def counter() -> int:
             return 0
 
-        @scope
+        @scope()
         class Inner:
             @resource
             def counter(counter: int) -> int:  # same-name parameter
@@ -466,7 +466,7 @@ modules can access these values via symbol table lookup::
     outer_scope: LexicalScope = (outer_proxy,)
 
     # Resources in modules can obtain this value via same-named parameter
-    @scope
+    @scope()
     class Database:
         @extern
         def db_config(): ...
@@ -511,6 +511,7 @@ from typing import (
     Sequence,
     TypeAlias,
     TypeVar,
+    assert_never,
     cast,
     override,
 )
@@ -561,7 +562,7 @@ class Proxy(Mapping[TKey, "Node"], ABC):
 
         问题示例::
 
-            @scope
+            @scope()
             class MyScope:
                 @resource
                 def __str__() -> str:
@@ -687,25 +688,6 @@ def _calculate_most_derived_class(first: type, *rest: type) -> type:
                 "must be a (non-strict) subclass "
                 "of the classes of all its bases"
             )
-
-
-def merge_proxies(proxies: Iterable[Proxy]) -> Proxy:
-    """
-    Merge multiple proxies into a single proxy.
-    The resulting proxy's class is the most derived class among the input proxies.
-    The resulting proxy's mixins are the union of all input proxies' mixins.
-    """
-    proxies_tuple = tuple(proxies)
-    if not proxies_tuple:
-        raise ValueError("No proxies to merge")
-
-    winner_class = _calculate_most_derived_class(*(type(p) for p in proxies_tuple))
-
-    def generate_all_mixins() -> Iterator[Mixin]:
-        for p in proxies_tuple:
-            yield from p.mixins
-
-    return winner_class(mixins=frozenset(generate_all_mixins()), reversed_path=EmptyInternedLinkedList.INSTANCE)
 
 
 LexicalScope: TypeAlias = Sequence[Proxy]
@@ -1114,21 +1096,79 @@ class _ProxySemigroup(Merger[Proxy, Proxy], Patcher[Proxy]):
 
     @override
     def create(self, patches: Iterator[Proxy]) -> Proxy:
-        def all_proxies():
+        def all_proxies() -> Iterator[Proxy]:
             yield self.proxy_factory()
             return (yield from patches)
 
-        return merge_proxies(all_proxies())
+        proxies_tuple = tuple(all_proxies())
+        assert proxies_tuple, "Expected at least one proxy from factory"
+
+        winner_class = _calculate_most_derived_class(*(type(p) for p in proxies_tuple))
+
+        def generate_all_mixins() -> Iterator[Mixin]:
+            for proxy in proxies_tuple:
+                yield from proxy.mixins
+
+        return winner_class(
+            mixins=frozenset(generate_all_mixins()),
+            reversed_path=EmptyInternedLinkedList.INSTANCE,
+        )
 
     @override
     def __iter__(self) -> Iterator[Proxy]:
         yield self.proxy_factory()
 
 
+def _resolve_resource_reference(
+    reference: "ResourceReference[str]",
+    lexical_scope: LexicalScope,
+) -> Proxy:
+    """
+    Resolve a ResourceReference to a Proxy using the given lexical scope.
+
+    For RelativeReference:
+        - Navigate up `levels_up` levels from the innermost proxy
+        - Then navigate down through `parts` by accessing attributes
+
+    For AbsoluteReference:
+        - Start from the root (outermost proxy)
+        - Navigate down through `parts` by accessing attributes
+    """
+    match reference:
+        case RelativeReference(levels_up=levels_up, parts=parts):
+            if levels_up > len(lexical_scope):
+                raise ValueError(
+                    f"Cannot navigate {levels_up} levels up from scope of depth {len(lexical_scope)}"
+                )
+            # Navigate up: levels_up=0 means innermost (last), levels_up=1 means parent, etc.
+            scope_index = len(lexical_scope) - 1 - levels_up
+            current: Proxy | Resource = lexical_scope[scope_index]
+        case AbsoluteReference(parts=parts):
+            if not lexical_scope:
+                raise ValueError("Cannot resolve absolute reference with empty lexical scope")
+            current = lexical_scope[0]
+        case _ as unreachable:
+            assert_never(unreachable)
+
+    # Navigate through parts
+    for part in parts:
+        resolved = current[part]
+        if not isinstance(resolved, Proxy):
+            raise TypeError(
+                f"Expected Proxy while resolving reference, got {type(resolved)} at part '{part}'"
+            )
+        current = resolved
+
+    if not isinstance(current, Proxy):
+        raise TypeError(f"Final resolved value is not a Proxy: {type(current)}")
+    return current
+
+
 @dataclass(frozen=True, kw_only=True)
 class _ProxyDefinition(MergerDefinition[Proxy, Proxy], PatcherDefinition[Proxy]):
     proxy_class: type[Proxy]
     underlying: object
+    extend: tuple["ResourceReference[str]", ...] = ()
 
     def generate_keys(self) -> Iterator[str]:
         for name in dir(self.underlying):
@@ -1163,15 +1203,23 @@ class _ProxyDefinition(MergerDefinition[Proxy, Proxy], PatcherDefinition[Proxy])
                 parent_reversed_path: InternedLinkedList[str] = (
                     lexical_scope[-1].reversed_path if lexical_scope else EmptyInternedLinkedList.INSTANCE
                 )
-                return self.proxy_class(
-                    mixins=frozenset(
-                        (
-                            self.create_mixin(
-                                lexical_scope=lexical_scope,
-                                symbol_table=inner_symbol_table,
-                            ),
+
+                def generate_all_mixins() -> Iterator[Mixin[str]]:
+                    # Include mixin from this definition
+                    yield self.create_mixin(
+                        lexical_scope=lexical_scope,
+                        symbol_table=inner_symbol_table,
+                    )
+                    # Include mixins from extended proxies
+                    for reference in self.extend:
+                        extended_proxy = _resolve_resource_reference(
+                            reference=reference,
+                            lexical_scope=lexical_scope,
                         )
-                    ),
+                        yield from extended_proxy.mixins
+
+                return self.proxy_class(
+                    mixins=frozenset(generate_all_mixins()),
                     reversed_path=NonEmptyInternedLinkedList(
                         head=resource_name,
                         tail=parent_reversed_path,
@@ -1247,29 +1295,42 @@ def _parse_namespace(
 
 
 def scope(
-    cls: type | None = None, /, *, proxy_class: type[Proxy] = CachedProxy
-) -> _NamespaceDefinition | Callable[[type], _NamespaceDefinition]:
+    *,
+    proxy_class: type[Proxy] = CachedProxy,
+    extend: Iterable["ResourceReference[str]"] = (),
+) -> Callable[[type], _NamespaceDefinition]:
     """
     Decorator that converts a class into a NamespaceDefinition.
-    Nested classes MUST be decorated with @scope to be included as sub-scopes.
+    Nested classes MUST be decorated with @scope() to be included as sub-scopes.
 
-    .. todo::
-        支持 vararg 来联合挂载多个 mixin/definition。
+    Note: Always use @scope() with parentheses, not @scope without parentheses.
 
-        期望 ``@scope(Mixin1, Mixin2)`` 的行为等价于 ``@functools.partial(scope, Mixin1, Mixin2)``::
+    Args:
+        proxy_class: The Proxy subclass to use for this scope.
+        extend: ResourceReferences to other scopes whose mixins should be included.
+            This allows composing scopes without explicit merge operations.
 
-            @scope(Mixin1, Mixin2)
-            class MyScope:
-                pass
+    Example::
+
+        @scope(extend=(
+            RelativeReference(levels_up=1, parts=("Base",)),
+        ))
+        class MyScope:
+            @patch
+            def foo() -> Callable[[int], int]:
+                return lambda x: x + 1
 
     """
+    extend_tuple = tuple(extend)
 
     def wrapper(c: type) -> _NamespaceDefinition:
-        return _NamespaceDefinition(underlying=c, proxy_class=proxy_class)
+        return _NamespaceDefinition(
+            underlying=c,
+            proxy_class=proxy_class,
+            extend=extend_tuple,
+        )
 
-    if cls is None:
-        return wrapper
-    return wrapper(cls)
+    return wrapper
 
 
 def _parse_package(
@@ -1733,72 +1794,17 @@ def _resolve_dependencies_jit(
     )
 
 
-class ResourceReference(Generic[T]):
-    """
-    A reference to a resource in the lexical scope.
-
-    This is used to refer to resources in the current scope.
-    """
-
-    @staticmethod
-    def from_pure_path(path: PurePath) -> "ResourceReference[str]":
-        """
-        Parse a PurePath into a ResourceReference[str].
-
-        Raises ValueError if the path is not normalized.
-        A normalized path:
-        - Has no '.' components (except a single '.' meaning current directory)
-        - Has '..' only at the beginning (for relative paths)
-
-        Examples:
-            >>> ResourceReference.from_pure_path(PurePath("../foo/bar"))
-            RelativeReference(levels_up=1, parts=('foo', 'bar'))
-            >>> ResourceReference.from_pure_path(PurePath("../../config"))
-            RelativeReference(levels_up=2, parts=('config',))
-            >>> ResourceReference.from_pure_path(PurePath("/absolute/path"))
-            AbsoluteReference(parts=('absolute', 'path'))
-            >>> ResourceReference.from_pure_path(PurePath("foo/../bar"))
-            Traceback (most recent call last):
-                ...
-            ValueError: Path is not normalized: foo/../bar
-        """
-        if path.is_absolute():
-            path_parts = path.parts[1:]
-            for part in path_parts:
-                if part == os.curdir or part == os.pardir:
-                    raise ValueError(f"Path is not normalized: {path}")
-            return AbsoluteReference(parts=path_parts)
-
-        all_parts = path.parts
-
-        if all_parts == (os.curdir,):
-            return RelativeReference(levels_up=0, parts=())
-
-        levels_up = 0
-        remaining_parts: list[str] = []
-        finished_pardir = False
-
-        for part in all_parts:
-            if part == os.curdir:
-                raise ValueError(f"Path is not normalized: {path}")
-            elif part == os.pardir:
-                if finished_pardir:
-                    raise ValueError(f"Path is not normalized: {path}")
-                levels_up += 1
-            else:
-                finished_pardir = True
-                remaining_parts.append(part)
-
-        return RelativeReference(levels_up=levels_up, parts=tuple(remaining_parts))
-
-
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class AbsoluteReference(ResourceReference[T], Generic[T]):
+class AbsoluteReference(Generic[T]):
+    """
+    An absolute reference to a resource starting from the root scope.
+    """
+
     parts: Final[tuple[T, ...]]
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class RelativeReference(ResourceReference[T], Generic[T]):
+class RelativeReference(Generic[T]):
     """
     A reference to a resource relative to the current lexical scope.
 
@@ -1811,3 +1817,62 @@ class RelativeReference(ResourceReference[T], Generic[T]):
     """
 
     parts: Final[tuple[T, ...]]
+
+
+ResourceReference: TypeAlias = AbsoluteReference[T] | RelativeReference[T]
+"""
+A reference to a resource in the lexical scope.
+
+This is a union type of AbsoluteReference and RelativeReference.
+"""
+
+
+def resource_reference_from_pure_path(path: PurePath) -> ResourceReference[str]:
+    """
+    Parse a PurePath into a ResourceReference[str].
+
+    Raises ValueError if the path is not normalized.
+    A normalized path:
+    - Has no '.' components (except a single '.' meaning current directory)
+    - Has '..' only at the beginning (for relative paths)
+
+    Examples:
+        >>> resource_reference_from_pure_path(PurePath("../foo/bar"))
+        RelativeReference(levels_up=1, parts=('foo', 'bar'))
+        >>> resource_reference_from_pure_path(PurePath("../../config"))
+        RelativeReference(levels_up=2, parts=('config',))
+        >>> resource_reference_from_pure_path(PurePath("/absolute/path"))
+        AbsoluteReference(parts=('absolute', 'path'))
+        >>> resource_reference_from_pure_path(PurePath("foo/../bar"))
+        Traceback (most recent call last):
+            ...
+        ValueError: Path is not normalized: foo/../bar
+    """
+    if path.is_absolute():
+        path_parts = path.parts[1:]
+        for part in path_parts:
+            if part == os.curdir or part == os.pardir:
+                raise ValueError(f"Path is not normalized: {path}")
+        return AbsoluteReference(parts=path_parts)
+
+    all_parts = path.parts
+
+    if all_parts == (os.curdir,):
+        return RelativeReference(levels_up=0, parts=())
+
+    levels_up = 0
+    remaining_parts: list[str] = []
+    finished_pardir = False
+
+    for part in all_parts:
+        if part == os.curdir:
+            raise ValueError(f"Path is not normalized: {path}")
+        elif part == os.pardir:
+            if finished_pardir:
+                raise ValueError(f"Path is not normalized: {path}")
+            levels_up += 1
+        else:
+            finished_pardir = True
+            remaining_parts.append(part)
+
+    return RelativeReference(levels_up=levels_up, parts=tuple(remaining_parts))
