@@ -181,7 +181,7 @@ Definition Types and Their Roles
         # 期望支持的语法
         @resource
         def connection_pool(
-            database_url: Annotated[URL, From(normalized_relative_path=PurePath("../../config/database_url"))]
+            database_url: Annotated[URL, ResourceReference.from_pure_path(PurePath("../../config/database_url"))]
         ):
             return create_connection_pool(database_url)
 
@@ -192,7 +192,7 @@ Definition Types and Their Roles
 
     前者显式指定了 ``database_url`` 的位置，后者需要在符号表查找 ``config`` 所在的闭包层级。
 
-    ``From`` 的优势在于可以访问不在词法作用域中的资源。即使 ``config`` 不在当前词法作用域的
+    ``ResourceReference`` 的优势在于可以访问不在词法作用域中的资源。即使 ``config`` 不在当前词法作用域的
     符号表中，``../../config`` 仍然可以通过路径直接定位到它。
 
 Combining Definitions
