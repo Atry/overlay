@@ -934,10 +934,17 @@ class _JitCache(Mapping[str, Callable[[LexicalScope], Merger | Patcher]]):
 
     .. todo:: Also compiles the proxy class into Python bytecode.
 
-    .. todo:: Cache _JitCache instances so that mixins with the same topological
-        structure share the same _JitCache. Currently, a new _JitCache is created
-        every time a mixin is created (in _NamespaceDefinition.create_mixin and
-        _PackageDefinition.create_mixin), which is inefficient.
+    .. note:: _JitCache instances are shared among all mixins created from the same
+        _ProxyDefinition, regardless of access path. For example, given a nested scope
+        ``Root.Outer.Inner``, the following all share the same _JitCache::
+
+            root.Outer(arg="v1").Inner.mixins[...].jit_cache
+            root.Outer(arg="v2").Inner.mixins[...].jit_cache
+            root.Outer.Inner.mixins[...].jit_cache
+
+        This is because the _JitCache is created once in _ProxyDefinition.resolve_symbols
+        and captured in the closure. The _JitCache is tied to the definition (the ``Inner``
+        class), not to the path through which the proxy is accessed.
     """
 
     proxy_definition: Final["_ProxyDefinition"]
@@ -1358,10 +1365,10 @@ class _ProxyDefinition(
 
     @abstractmethod
     def create_mixin(
-        self, lexical_scope: LexicalScope, symbol_table: SymbolTable
+        self, lexical_scope: LexicalScope, jit_cache: _JitCache
     ) -> Mixin:
         """
-        Create a Mixin for this ProxyDefinition given the lexical scope and symbol table.
+        Create a Mixin for this ProxyDefinition given the lexical scope and JIT cache.
         Must be implemented by subclasses.
         """
         raise NotImplementedError()
@@ -1371,6 +1378,10 @@ class _ProxyDefinition(
     ) -> Callable[[LexicalScope], _ProxySemigroup]:
         inner_symbol_table: SymbolTable = _extend_symbol_table_jit(
             outer=symbol_table, names=self.generate_keys()
+        )
+        jit_cache = _JitCache(
+            proxy_definition=self,
+            symbol_table=inner_symbol_table,
         )
 
         def resolve_lexical_scope(
@@ -1399,7 +1410,7 @@ class _ProxyDefinition(
                         proxy_reversed_path,
                         self.create_mixin(
                             lexical_scope=lexical_scope,
-                            symbol_table=inner_symbol_table,
+                            jit_cache=jit_cache,
                         ),
                     )
                     # Include mixins from extended proxies, preserving their original keys
@@ -1429,13 +1440,10 @@ class _NamespaceDefinition(_ProxyDefinition):
     """
 
     def create_mixin(
-        self, lexical_scope: LexicalScope, symbol_table: SymbolTable
+        self, lexical_scope: LexicalScope, jit_cache: _JitCache
     ) -> Mixin:
         return _NamespaceMixin(
-            jit_cache=_JitCache(
-                proxy_definition=self,
-                symbol_table=symbol_table,
-            ),
+            jit_cache=jit_cache,
             lexical_scope=lexical_scope,
         )
 
@@ -1454,13 +1462,10 @@ class _PackageDefinition(_ProxyDefinition):
             yield mod_info.name
 
     def create_mixin(
-        self, lexical_scope: LexicalScope, symbol_table: SymbolTable
+        self, lexical_scope: LexicalScope, jit_cache: _JitCache
     ) -> Mixin:
         return _PackageMixin(
-            jit_cache=_JitCache(
-                proxy_definition=self,
-                symbol_table=symbol_table,
-            ),
+            jit_cache=jit_cache,
             lexical_scope=lexical_scope,
             get_module_proxy_class=self.get_module_proxy_class,
         )
@@ -1801,9 +1806,13 @@ def mount(
         outer=symbol_table,
         names=namespace_definition.generate_keys(),
     )
+    jit_cache = _JitCache(
+        proxy_definition=namespace_definition,
+        symbol_table=per_namespace_symbol_table,
+    )
     mixin = namespace_definition.create_mixin(
         lexical_scope=lexical_scope,
-        symbol_table=per_namespace_symbol_table,
+        jit_cache=jit_cache,
     )
 
     root_path: NonEmptyInternedLinkedList[TKey] = NonEmptyInternedLinkedList(
