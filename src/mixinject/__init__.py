@@ -609,19 +609,11 @@ class StaticChildDependencyGraph(StaticDependencyGraph[TKey], Generic[TKey]):
     """Non-empty dependency graph node.
 
     Uses object.__eq__ and object.__hash__ (identity-based) for O(1) comparison.
-    This works because interned graphs with equal head within the same parent
-    are the same object.
+    This works because interned graphs within the same parent are the same object.
 
     """
 
-    head: Final[TKey]
-    """
-    .. todo:: Remove this field. It's legacy and useless now.
-    """
     parent: Final[DependencyGraph[Any]]
-    """
-    .. todo:: Remove this todo since this field has been renamed to ``parent``.
-    """
 
 
 @final
@@ -1550,7 +1542,6 @@ class _ProxyDefinition(
                     else:
                         proxy_reversed_path = StaticChildDependencyGraph(
                             proxy_definition=self,
-                            head=resource_name,
                             parent=parent_reversed_path,
                         )
                         intern_pool[resource_name] = proxy_reversed_path

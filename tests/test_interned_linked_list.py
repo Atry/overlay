@@ -42,31 +42,24 @@ class TestInterning:
         """Direct instantiation without going through proxy_factory creates new objects."""
         proxy_def = _empty_proxy_definition()
         root = RootDependencyGraph(proxy_definition=proxy_def)
-        child1 = StaticChildDependencyGraph(proxy_definition=proxy_def, head=1, parent=root)
-        child2 = StaticChildDependencyGraph(proxy_definition=proxy_def, head=1, parent=root)
+        child1 = StaticChildDependencyGraph(proxy_definition=proxy_def, parent=root)
+        child2 = StaticChildDependencyGraph(proxy_definition=proxy_def, parent=root)
         # Without interning, these are different objects
         assert child1 is not child2
 
-    def test_different_head_same_root_different_object(self) -> None:
-        proxy_def = _empty_proxy_definition()
-        root = RootDependencyGraph(proxy_definition=proxy_def)
-        child1 = StaticChildDependencyGraph(proxy_definition=proxy_def, head=1, parent=root)
-        child2 = StaticChildDependencyGraph(proxy_definition=proxy_def, head=2, parent=root)
-        assert child1 is not child2
-
-    def test_same_head_different_root_different_object(self) -> None:
+    def test_different_parent_different_object(self) -> None:
         proxy_def = _empty_proxy_definition()
         root1 = RootDependencyGraph(proxy_definition=proxy_def)
         root2 = RootDependencyGraph(proxy_definition=proxy_def)
-        child1 = StaticChildDependencyGraph(proxy_definition=proxy_def, head=1, parent=root1)
-        child2 = StaticChildDependencyGraph(proxy_definition=proxy_def, head=1, parent=root2)
+        child1 = StaticChildDependencyGraph(proxy_definition=proxy_def, parent=root1)
+        child2 = StaticChildDependencyGraph(proxy_definition=proxy_def, parent=root2)
         assert child1 is not child2
 
     def test_each_node_has_ownintern_pool(self) -> None:
         proxy_def = _empty_proxy_definition()
         root = RootDependencyGraph(proxy_definition=proxy_def)
-        child1 = StaticChildDependencyGraph(proxy_definition=proxy_def, head=1, parent=root)
-        child2 = StaticChildDependencyGraph(proxy_definition=proxy_def, head=2, parent=child1)
+        child1 = StaticChildDependencyGraph(proxy_definition=proxy_def, parent=root)
+        child2 = StaticChildDependencyGraph(proxy_definition=proxy_def, parent=child1)
         assert child1.intern_pool is not root.intern_pool
         assert child2.intern_pool is not child1.intern_pool
         assert child2.intern_pool is not root.intern_pool
@@ -116,8 +109,8 @@ class TestWeakReference:
         proxy_def = _empty_proxy_definition()
         root = RootDependencyGraph(proxy_definition=proxy_def)
         # Add an entry manually to the pool
-        child = StaticChildDependencyGraph(proxy_definition=proxy_def, head=100, parent=root)
-        root.intern_pool[100] = child
+        child = StaticChildDependencyGraph(proxy_definition=proxy_def, parent=root)
+        root.intern_pool["test_key"] = child
 
         pool_size_before = len(root.intern_pool)
         assert pool_size_before == 1
@@ -145,5 +138,5 @@ class TestSubclass:
     def test_child_instance_is_instance_of_dependency_graph(self) -> None:
         proxy_def = _empty_proxy_definition()
         root = RootDependencyGraph(proxy_definition=proxy_def)
-        child = StaticChildDependencyGraph(proxy_definition=proxy_def, head=1, parent=root)
+        child = StaticChildDependencyGraph(proxy_definition=proxy_def, parent=root)
         assert isinstance(child, DependencyGraph)

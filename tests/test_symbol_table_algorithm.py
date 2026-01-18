@@ -23,7 +23,6 @@ def _empty_dependency_graph() -> StaticChildDependencyGraph[str]:
     proxy_def = _empty_proxy_definition()
     return StaticChildDependencyGraph(
         proxy_definition=proxy_def,
-        head="test",
         parent=RootDependencyGraph(proxy_definition=proxy_def),
     )
 
