@@ -16,24 +16,24 @@ from mixinject import (
 )
 
 
-def _empty_proxy_definition() -> _NamespaceDefinition:
+def _empty_definition() -> _NamespaceDefinition:
     """Create a minimal empty proxy definition for testing."""
     return _NamespaceDefinition(proxy_class=CachedProxy, underlying=object())
 
 
-def _empty_root_symbol(proxy_definition: _NamespaceDefinition) -> _RootSymbol:
+def _empty_root_symbol(definition: _NamespaceDefinition) -> _RootSymbol:
     """Create a minimal root symbol for testing."""
-    return _RootSymbol(proxy_definition=proxy_definition)
+    return _RootSymbol(definition=definition)
 
 
 def _empty_nested_symbol(
-    outer: "_RootSymbol", proxy_definition: _NamespaceDefinition
+    outer: "_RootSymbol", definition: _NamespaceDefinition
 ) -> _NestedMixinSymbol:
     """Create a minimal nested symbol for testing."""
     return _NestedMixinSymbol(
         outer=outer,
         name="__test__",
-        proxy_definition=proxy_definition,
+        definition=definition,
     )
 
 
@@ -41,15 +41,15 @@ class TestRoot:
     """Test root dependency graph behavior."""
 
     def test_root_hasintern_pool(self) -> None:
-        proxy_def = _empty_proxy_definition()
+        proxy_def = _empty_definition()
         root_symbol = _empty_root_symbol(proxy_def)
         root = RootMixin(symbol=root_symbol)
         assert root.intern_pool is not None
 
     def test_different_roots_have_different_pools(self) -> None:
-        proxy_def1 = _empty_proxy_definition()
+        proxy_def1 = _empty_definition()
         root_symbol1 = _empty_root_symbol(proxy_def1)
-        proxy_def2 = _empty_proxy_definition()
+        proxy_def2 = _empty_definition()
         root_symbol2 = _empty_root_symbol(proxy_def2)
         root1 = RootMixin(symbol=root_symbol1)
         root2 = RootMixin(symbol=root_symbol2)
@@ -65,7 +65,7 @@ class TestInterning:
 
     def test_direct_instantiation_creates_new_objects(self) -> None:
         """Direct instantiation without going through proxy_factory creates new objects."""
-        proxy_def = _empty_proxy_definition()
+        proxy_def = _empty_definition()
         root_symbol = _empty_root_symbol(proxy_def)
         nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
         root = RootMixin(symbol=root_symbol)
@@ -75,7 +75,7 @@ class TestInterning:
         assert child1 is not child2
 
     def test_different_parent_different_object(self) -> None:
-        proxy_def = _empty_proxy_definition()
+        proxy_def = _empty_definition()
         root_symbol = _empty_root_symbol(proxy_def)
         nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
         root1 = RootMixin(symbol=root_symbol)
@@ -85,7 +85,7 @@ class TestInterning:
         assert child1 is not child2
 
     def test_each_node_has_ownintern_pool(self) -> None:
-        proxy_def = _empty_proxy_definition()
+        proxy_def = _empty_definition()
         root_symbol = _empty_root_symbol(proxy_def)
         nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
         root = RootMixin(symbol=root_symbol)
@@ -137,7 +137,7 @@ class TestWeakReference:
 
     def test_intern_pool_supports_weak_references(self) -> None:
         """The intern pool is a WeakValueDictionary."""
-        proxy_def = _empty_proxy_definition()
+        proxy_def = _empty_definition()
         root_symbol = _empty_root_symbol(proxy_def)
         nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
         root = RootMixin(symbol=root_symbol)
@@ -165,13 +165,13 @@ class TestSubclass:
         assert issubclass(NestedMixin, Mixin)
 
     def test_root_instance_is_instance_of_mixin(self) -> None:
-        proxy_def = _empty_proxy_definition()
+        proxy_def = _empty_definition()
         root_symbol = _empty_root_symbol(proxy_def)
         root = RootMixin(symbol=root_symbol)
         assert isinstance(root, Mixin)
 
     def test_child_instance_is_instance_of_mixin(self) -> None:
-        proxy_def = _empty_proxy_definition()
+        proxy_def = _empty_definition()
         root_symbol = _empty_root_symbol(proxy_def)
         nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
         root = RootMixin(symbol=root_symbol)

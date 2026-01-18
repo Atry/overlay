@@ -598,13 +598,13 @@ class StaticMixin(Mixin):
     """
 
     @property
-    def proxy_definition(self) -> "_MixinDefinition":
+    def definition(self) -> "_MixinDefinition":
         """The definition that describes resources, patches, and nested scopes for this dependency graph."""
         if isinstance(self.symbol, SymbolSentinel):
             raise ValueError(
-                f"proxy_definition is not available for merged dependency graphs (symbol={self.symbol})"
+                f"definition is not available for merged dependency graphs (symbol={self.symbol})"
             )
-        return self.symbol.proxy_definition
+        return self.symbol.definition
 
 
 Evaluator: TypeAlias = "Merger | Patcher"
@@ -645,7 +645,7 @@ class NestedMixin(StaticMixin):
         Resolve resources from the given lexical scope into a _ProxySemigroup.
 
         This method creates a proxy factory that:
-        1. Creates a mixin from this definition's proxy_definition
+        1. Creates a mixin from this definition's definition
         2. Includes mixins from any extended proxies (via extend references)
         3. Returns a _ProxySemigroup that can merge with other proxies
 
@@ -666,7 +666,7 @@ class NestedMixin(StaticMixin):
                 - LexicalScopes from extended proxies, preserving their original keys
                 """
                 yield (self, lexical_scope)
-                for reference in self.proxy_definition.extend:
+                for reference in self.definition.extend:
                     extended_proxy = _resolve_resource_reference(
                         reference=reference,
                         lexical_scope=lexical_scope,
@@ -674,7 +674,7 @@ class NestedMixin(StaticMixin):
                     )
                     yield from extended_proxy.mixins.items()
 
-            return self.proxy_definition.proxy_class(
+            return self.definition.proxy_class(
                 mixins=dict(generate_all_mixin_items()),
                 mixin=self,
             )
@@ -1077,6 +1077,8 @@ def _mixin_getitem(
 
 @dataclass(kw_only=True)
 class _Symbol(ABC):
+    definition: Final["Definition"]
+
     @abstractmethod
     def compile(self, mixin: "Mixin", /) -> Any:
         """Compile this symbol for a given mixin."""
@@ -1109,7 +1111,7 @@ class _NestedSymbol(_Symbol):
         """
         A JIT-compiled getter function for retrieving the resource from a lexical scope.
         """
-        return _make_jit_getter(self.resource_name, self.depth)
+        return _make_jit_getter(cast(str, self.resource_name), self.depth)  # type: ignore[arg-type]
 
 
 @dataclass(kw_only=True)
@@ -1122,7 +1124,7 @@ class _SimpleSymbol(_NestedSymbol):
     """
 
     _depth: Final[int]
-    _resource_name: Final[str]
+    _resource_name: Final[Hashable]
 
     @property
     @override
@@ -1131,7 +1133,7 @@ class _SimpleSymbol(_NestedSymbol):
 
     @property
     @override
-    def resource_name(self) -> str:
+    def resource_name(self) -> Hashable:
         return self._resource_name
 
     def compile(self, mixin: "Mixin", /) -> Any:
@@ -1163,7 +1165,7 @@ class _MixinSymbol(
         in the closure, tied to the definition itself, not to the access path.
     """
 
-    proxy_definition: Final["_MixinDefinition"]
+    definition: Final["_MixinDefinition"]  # type: ignore[misc]  # Narrowed from base class
     cache: Final[WeakValueDictionary[Hashable, "_NestedSymbol"]] = field(
         default_factory=WeakValueDictionary
     )
@@ -1177,13 +1179,13 @@ class _MixinSymbol(
     def __getitem__(self, key: Hashable) -> "_NestedSymbol":
         if key in self.cache:
             return self.cache[key]
-        val = self.proxy_definition.__getitem__(key)
+        val = self.definition.__getitem__(key)
         resolved = val.resolve_symbols(self, cast(str, key))
         self.cache[key] = resolved
         return resolved
 
     def __iter__(self) -> Iterator[Hashable]:
-        return self.proxy_definition.__iter__()
+        return self.definition.__iter__()
 
     def __len__(self) -> int:
         return sum(1 for _ in self)
@@ -1214,13 +1216,18 @@ class _NestedMixinSymbol(_MixinSymbol, _NestedSymbol):
             depth = 0
         else:
             depth = len(parent_symbol_table.maps)
-        new_symbols: dict[str, _Symbol] = {
-            name: _SimpleSymbol(outer=self, _depth=depth, _resource_name=name)
-            for name in self.proxy_definition.__iter__()
+        new_symbols: dict[Hashable, _Symbol] = {  # type: ignore[misc]
+            name: _SimpleSymbol(
+                definition=self.definition[name],
+                outer=self,
+                _depth=depth,
+                _resource_name=name,  # type: ignore[arg-type]
+            )
+            for name in self.definition.__iter__()
         }
         if parent_symbol_table is ChainMapSentinel.EMPTY:
-            return ChainMap(new_symbols)
-        return parent_symbol_table.new_child(new_symbols)
+            return ChainMap(new_symbols)  # type: ignore[return-value]
+        return parent_symbol_table.new_child(new_symbols)  # type: ignore[arg-type, return-value]
 
     @property
     def symbol_table(self) -> SymbolTable:
@@ -1248,7 +1255,7 @@ class _NestedMixinSymbol(_MixinSymbol, _NestedSymbol):
             "name=%(name)r " "underlying=%(underlying)r " "outer_name=%(outer_name)r",
             {
                 "name": self.name,
-                "underlying": self.proxy_definition.underlying,
+                "underlying": self.definition.underlying,
                 "outer_name": getattr(outer_mixin, "name", "ROOT"),
             },
         )
@@ -1263,11 +1270,16 @@ class _RootSymbol(_MixinSymbol):
         """
         .. todo:: Replace dict comprehension with ``self`` as the symbol table.
         """
-        new_symbols: dict[str, _Symbol] = {
-            name: _SimpleSymbol(outer=self, _depth=0, _resource_name=name)
-            for name in self.proxy_definition.__iter__()
+        new_symbols: dict[Hashable, _Symbol] = {  # type: ignore[misc]
+            name: _SimpleSymbol(
+                definition=self.definition[name],
+                outer=self,
+                _depth=0,
+                _resource_name=name,  # type: ignore[arg-type]
+            )
+            for name in self.definition.__iter__()
         }
-        return ChainMap(new_symbols)
+        return ChainMap(new_symbols)  # type: ignore[return-value]
 
     @property
     def symbol_table(self) -> SymbolTable:
@@ -1278,12 +1290,32 @@ class _RootSymbol(_MixinSymbol):
 
 
 @dataclass(kw_only=True)
-class _MergerSymbol(_Symbol, Generic[TPatch_contra, TResult_co]):
+class _MergerSymbol(_NestedSymbol, Generic[TPatch_contra, TResult_co]):
     """Symbol for resolved merger definitions."""
 
-    jit_compiled_function: Final[
-        Callable[[LexicalScope], Callable[[Iterator[TPatch_contra]], TResult_co]]
-    ]
+    _resource_name: Final[str]
+    function: Final[Callable[..., Callable[[Iterator[TPatch_contra]], TResult_co]]]
+
+    @property
+    def depth(self) -> int:
+        symbol_table = self.outer.symbol_table
+        if symbol_table is ChainMapSentinel.EMPTY:
+            return 0
+        return len(symbol_table.maps)
+
+    @property
+    def resource_name(self) -> str:
+        return self._resource_name
+
+    @cached_property
+    def jit_compiled_function(
+        self,
+    ) -> Callable[[LexicalScope], Callable[[Iterator[TPatch_contra]], TResult_co]]:
+        return _resolve_dependencies_jit(
+            symbol_table=self.outer.symbol_table,
+            function=self.function,
+            name=self._resource_name,
+        )
 
     def compile(
         self, _mixin: Mixin
@@ -1298,10 +1330,30 @@ class _MergerSymbol(_Symbol, Generic[TPatch_contra, TResult_co]):
 
 
 @dataclass(kw_only=True)
-class _ResourceSymbol(_Symbol, Generic[TResult]):
+class _ResourceSymbol(_NestedSymbol, Generic[TResult]):
     """Symbol for resolved resource definitions."""
 
-    jit_compiled_function: Final[Callable[[LexicalScope], TResult]]
+    _resource_name: Final[str]
+    function: Final[Callable[..., TResult]]
+
+    @property
+    def depth(self) -> int:
+        symbol_table = self.outer.symbol_table
+        if symbol_table is ChainMapSentinel.EMPTY:
+            return 0
+        return len(symbol_table.maps)
+
+    @property
+    def resource_name(self) -> str:
+        return self._resource_name
+
+    @cached_property
+    def jit_compiled_function(self) -> Callable[[LexicalScope], TResult]:
+        return _resolve_dependencies_jit(
+            symbol_table=self.outer.symbol_table,
+            function=self.function,
+            name=self._resource_name,
+        )
 
     def compile(
         self, _mixin: Mixin
@@ -1316,10 +1368,30 @@ class _ResourceSymbol(_Symbol, Generic[TResult]):
 
 
 @dataclass(kw_only=True)
-class _SinglePatchSymbol(_Symbol, Generic[TPatch_co]):
+class _SinglePatchSymbol(_NestedSymbol, Generic[TPatch_co]):
     """Symbol for resolved single patch definitions."""
 
-    jit_compiled_function: Final[Callable[[LexicalScope], TPatch_co]]
+    _resource_name: Final[str]
+    function: Final[Callable[..., TPatch_co]]
+
+    @property
+    def depth(self) -> int:
+        symbol_table = self.outer.symbol_table
+        if symbol_table is ChainMapSentinel.EMPTY:
+            return 0
+        return len(symbol_table.maps)
+
+    @property
+    def resource_name(self) -> str:
+        return self._resource_name
+
+    @cached_property
+    def jit_compiled_function(self) -> Callable[[LexicalScope], TPatch_co]:
+        return _resolve_dependencies_jit(
+            symbol_table=self.outer.symbol_table,
+            function=self.function,
+            name=self._resource_name,
+        )
 
     def compile(self, _mixin: Mixin) -> Callable[[LexicalScope], Patcher[TPatch_co]]:
         def resolve_lexical_scope(
@@ -1334,10 +1406,30 @@ class _SinglePatchSymbol(_Symbol, Generic[TPatch_co]):
 
 
 @dataclass(kw_only=True)
-class _MultiplePatchSymbol(_Symbol, Generic[TPatch_co]):
+class _MultiplePatchSymbol(_NestedSymbol, Generic[TPatch_co]):
     """Symbol for resolved multiple patch definitions."""
 
-    jit_compiled_function: Final[Callable[[LexicalScope], Iterable[TPatch_co]]]
+    _resource_name: Final[str]
+    function: Final[Callable[..., Iterable[TPatch_co]]]
+
+    @property
+    def depth(self) -> int:
+        symbol_table = self.outer.symbol_table
+        if symbol_table is ChainMapSentinel.EMPTY:
+            return 0
+        return len(symbol_table.maps)
+
+    @property
+    def resource_name(self) -> str:
+        return self._resource_name
+
+    @cached_property
+    def jit_compiled_function(self) -> Callable[[LexicalScope], Iterable[TPatch_co]]:
+        return _resolve_dependencies_jit(
+            symbol_table=self.outer.symbol_table,
+            function=self.function,
+            name=self._resource_name,
+        )
 
     def compile(self, _mixin: Mixin) -> Callable[[LexicalScope], Patcher[TPatch_co]]:
         def resolve_lexical_scope(
@@ -1430,13 +1522,13 @@ class MergerDefinition(Definition, Generic[TPatch_contra, TResult_co]):
     is_local: bool = False
 
     @abstractmethod
-    def resolve_symbols(self, outer: "_MixinSymbol", name: str, /) -> _Symbol:
+    def resolve_symbols(self, outer: "_MixinSymbol", name: str, /) -> _NestedSymbol:
         raise NotImplementedError()
 
 
 class PatcherDefinition(Definition, Generic[TPatch_co]):
     @abstractmethod
-    def resolve_symbols(self, outer: "_MixinSymbol", name: str, /) -> _Symbol:
+    def resolve_symbols(self, outer: "_MixinSymbol", name: str, /) -> _NestedSymbol:
         raise NotImplementedError()
 
 
@@ -1444,7 +1536,7 @@ class MixinDefinition(Definition):
     """Base class for definitions that resolve to nested mixin symbols."""
 
     @abstractmethod
-    def resolve_symbols(self, outer: "_MixinSymbol", name: str, /) -> _Symbol:
+    def resolve_symbols(self, outer: "_MixinSymbol", name: str, /) -> _NestedSymbol:
         raise NotImplementedError()
 
 
@@ -1457,12 +1549,12 @@ class _MergerDefinition(MergerDefinition[TPatch_contra, TResult_co]):
     def resolve_symbols(
         self, outer: "_MixinSymbol", name: str, /
     ) -> _MergerSymbol[TPatch_contra, TResult_co]:
-        jit_compiled_function = _resolve_dependencies_jit(
-            symbol_table=outer.symbol_table,
+        return _MergerSymbol(
+            definition=self,
+            outer=outer,
+            _resource_name=name,
             function=self.function,
-            name=name,
         )
-        return _MergerSymbol(jit_compiled_function=jit_compiled_function)
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
@@ -1476,12 +1568,12 @@ class _ResourceDefinition(
     def resolve_symbols(
         self, outer: "_MixinSymbol", name: str, /
     ) -> _ResourceSymbol[TResult]:
-        jit_compiled_function = _resolve_dependencies_jit(
-            symbol_table=outer.symbol_table,
+        return _ResourceSymbol(
+            definition=self,
+            outer=outer,
+            _resource_name=name,
             function=self.function,
-            name=name,
         )
-        return _ResourceSymbol(jit_compiled_function=jit_compiled_function)
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
@@ -1493,12 +1585,12 @@ class _SinglePatchDefinition(PatcherDefinition[TPatch_co]):
     def resolve_symbols(
         self, outer: "_MixinSymbol", name: str, /
     ) -> _SinglePatchSymbol[TPatch_co]:
-        jit_compiled_function = _resolve_dependencies_jit(
-            symbol_table=outer.symbol_table,
+        return _SinglePatchSymbol(
+            definition=self,
+            outer=outer,
+            _resource_name=name,
             function=self.function,
-            name=name,
         )
-        return _SinglePatchSymbol(jit_compiled_function=jit_compiled_function)
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
@@ -1510,12 +1602,12 @@ class _MultiplePatchDefinition(PatcherDefinition[TPatch_co]):
     def resolve_symbols(
         self, outer: "_MixinSymbol", name: str, /
     ) -> _MultiplePatchSymbol[TPatch_co]:
-        jit_compiled_function = _resolve_dependencies_jit(
-            symbol_table=outer.symbol_table,
+        return _MultiplePatchSymbol(
+            definition=self,
+            outer=outer,
+            _resource_name=name,
             function=self.function,
-            name=name,
         )
-        return _MultiplePatchSymbol(jit_compiled_function=jit_compiled_function)
 
 
 DefinitionMapping: TypeAlias = Mapping[
@@ -1736,7 +1828,7 @@ class _MixinDefinition(
         return _NestedMixinSymbol(
             outer=outer,
             name=name,
-            proxy_definition=self,
+            definition=self,
         )
 
 
@@ -2114,7 +2206,7 @@ def mount(
         assert_never(namespace)
 
     symbol = _RootSymbol(
-        proxy_definition=namespace_definition,
+        definition=namespace_definition,
     )
 
     root_mixin = RootMixin(

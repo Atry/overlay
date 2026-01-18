@@ -17,6 +17,14 @@ P = ParamSpec("P")
 T = TypeVar("T")
 
 
+class _MockDefinition:
+    """Mock definition for testing."""
+    pass
+
+
+_MOCK_DEFINITION = _MockDefinition()
+
+
 @dataclass(kw_only=True, slots=True, weakref_slot=True)
 class _MockSymbol(_Symbol):
     """Mock symbol for testing that wraps a getter function."""
@@ -24,6 +32,7 @@ class _MockSymbol(_Symbol):
     _getter_func: Final[Callable[[LexicalScope], Any]]
     _depth: Final[int] = 0
     _resource_name: Final[str] = ""
+    definition: Any = _MOCK_DEFINITION  # type: ignore[misc]
 
     def __post_init__(self) -> None:
         # Override the getter with our custom function instead of using the parent's JIT getter

@@ -40,30 +40,30 @@ R = RelativeReference
 FIXTURES_DIR = str(Path(__file__).parent / "fixtures")
 
 
-def _empty_proxy_definition() -> _NamespaceDefinition:
+def _empty_definition() -> _NamespaceDefinition:
     """Create a minimal empty proxy definition for testing."""
     return _NamespaceDefinition(proxy_class=CachedProxy, underlying=object())
 
 
-def _empty_root_symbol(proxy_definition: _NamespaceDefinition) -> _RootSymbol:
+def _empty_root_symbol(definition: _NamespaceDefinition) -> _RootSymbol:
     """Create a minimal root symbol for testing."""
-    return _RootSymbol(proxy_definition=proxy_definition)
+    return _RootSymbol(definition=definition)
 
 
 def _empty_nested_symbol(
-    outer: "_RootSymbol", proxy_definition: _NamespaceDefinition
+    outer: "_RootSymbol", definition: _NamespaceDefinition
 ) -> _NestedMixinSymbol:
     """Create a minimal nested symbol for testing."""
     return _NestedMixinSymbol(
         outer=outer,
         name="__test__",
-        proxy_definition=proxy_definition,
+        definition=definition,
     )
 
 
 def _empty_mixin() -> NestedMixin:
     """Create a minimal dependency graph for testing."""
-    proxy_def = _empty_proxy_definition()
+    proxy_def = _empty_definition()
     root_symbol = _empty_root_symbol(proxy_def)
     nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
     root_mixin = RootMixin(symbol=root_symbol)

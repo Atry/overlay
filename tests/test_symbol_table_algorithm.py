@@ -16,30 +16,30 @@ from mixinject import (
 from mixinject import RootMixin, NestedMixin
 
 
-def _empty_proxy_definition() -> _NamespaceDefinition:
+def _empty_definition() -> _NamespaceDefinition:
     """Create a minimal empty proxy definition for testing."""
     return _NamespaceDefinition(proxy_class=CachedProxy, underlying=object())
 
 
-def _empty_root_symbol(proxy_definition: _NamespaceDefinition) -> _RootSymbol:
+def _empty_root_symbol(definition: _NamespaceDefinition) -> _RootSymbol:
     """Create a minimal root symbol for testing."""
-    return _RootSymbol(proxy_definition=proxy_definition)
+    return _RootSymbol(definition=definition)
 
 
 def _empty_nested_symbol(
-    outer: "_RootSymbol", proxy_definition: _NamespaceDefinition
+    outer: "_RootSymbol", definition: _NamespaceDefinition
 ) -> _NestedMixinSymbol:
     """Create a minimal nested symbol for testing."""
     return _NestedMixinSymbol(
         outer=outer,
         name="__test__",
-        proxy_definition=proxy_definition,
+        definition=definition,
     )
 
 
 def _empty_mixin() -> NestedMixin:
     """Create a minimal dependency graph for testing."""
-    proxy_def = _empty_proxy_definition()
+    proxy_def = _empty_definition()
     root_symbol = _empty_root_symbol(proxy_def)
     nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
     root_mixin = RootMixin(symbol=root_symbol)
@@ -55,12 +55,21 @@ def _empty_proxy() -> CachedProxy:
     return CachedProxy(mixins={}, mixin=_empty_mixin())
 
 
+class _MockDefinition:
+    """Mock definition for testing."""
+    pass
+
+
+_MOCK_DEFINITION = _MockDefinition()
+
+
 @dataclass(kw_only=True, slots=True, weakref_slot=True)
 class _TestSymbol(_Symbol):
     """Test symbol that uses getitem-based access."""
 
     _depth: Final[int]
     _resource_name: Final[str]
+    definition: Any = _MOCK_DEFINITION  # type: ignore[misc]
 
     def __post_init__(self) -> None:
         # Create a getitem-based getter instead of attribute-based
@@ -127,7 +136,7 @@ def test_symbol_table_extension_consistency():
         a = _make_mock_definition("a")
 
     mock_outer_def = _NamespaceDefinition(proxy_class=CachedProxy, underlying=_MockOuterNamespace())
-    root_symbol = _RootSymbol(proxy_definition=mock_outer_def)
+    root_symbol = _RootSymbol(definition=mock_outer_def)
     st_jit = root_symbol.symbol_table
 
     # Test outer scope resolution
@@ -154,7 +163,7 @@ def test_symbol_table_extension_consistency():
     nested_symbol = _NestedMixinSymbol(
         outer=root_symbol,
         name="inner",
-        proxy_definition=mock_inner_def,
+        definition=mock_inner_def,
     )
     st_jit_inner = nested_symbol.symbol_table
 
@@ -181,7 +190,7 @@ def test_jit_factory_invalid_identifier():
         not_identifier = _make_mock_definition("not_identifier")
 
     mock_def = _NamespaceDefinition(proxy_class=CachedProxy, underlying=_MockNamespace())
-    root_symbol = _RootSymbol(proxy_definition=mock_def)
+    root_symbol = _RootSymbol(definition=mock_def)
     symbol_table_jit = root_symbol.symbol_table
     assert symbol_table_jit["not_identifier"].getter(lexical_scope) == "value"
 
