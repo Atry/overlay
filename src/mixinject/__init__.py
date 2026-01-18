@@ -764,7 +764,7 @@ class Proxy(Mapping[TKey, "Node"], ABC):
         def generate_resource() -> Iterator[Evaluator]:
             for mixin in self.mixins.values():
                 try:
-                    factory_or_patch = mixin[key]
+                    factory_or_patch = _mixin_getitem(mixin, key)
                 except KeyError:
                     continue
                 yield factory_or_patch(self)
@@ -869,7 +869,7 @@ class InstanceProxy(Proxy[TKey | str], Generic[TKey]):
                 # Also collect any Patchers from mixins
                 for mixin in self.mixins.values():
                     try:
-                        factory_or_patch = mixin[key]
+                        factory_or_patch = _mixin_getitem(mixin, key)
                     except KeyError:
                         continue
                     yield factory_or_patch(self)
@@ -1041,10 +1041,9 @@ class _EndofunctionMerger(
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class Mixin(Mapping[TKey, Callable[["Proxy[TKey]"], Evaluator]], Hashable):
+class Mixin(Hashable, Generic[TKey]):
     """
-    Abstract base class for mixins.
-    Mixins are mappings from resource names to factory functions.
+    Mixin holds a jit_cache and lexical_scope for resource resolution.
     They must compare by identity to allow storage in sets.
 
     .. todo:: 添加 ``dependency_graph: StaticChildDependencyGraph`` 字段。
@@ -1061,23 +1060,22 @@ class Mixin(Mapping[TKey, Callable[["Proxy[TKey]"], Evaluator]], Hashable):
     jit_cache: Final[_JitCache]
     lexical_scope: Final[LexicalScope]
 
-    def __getitem__(self, key: TKey, /) -> Callable[[Proxy[TKey]], Evaluator]:
-        """
-        .. todo:: Phase 8: 调用 ``self.jit_cache[key](self.dependency_graph)`` 获得第二层 callable
-        """
-        resolved_function = self.jit_cache[key]
 
-        def bind_proxy(proxy: Proxy[TKey]) -> Evaluator:
-            inner_lexical_scope: LexicalScope = (*self.lexical_scope, proxy)
-            return resolved_function(inner_lexical_scope)
+def _mixin_getitem(
+    mixin: Mixin[TKey], key: TKey, /
+) -> Callable[["Proxy[TKey]"], Evaluator]:
+    """
+    Get a factory function from a mixin by key.
 
-        return bind_proxy
+    .. todo:: Phase 8: 调用 ``mixin.jit_cache[key](mixin.dependency_graph)`` 获得第二层 callable
+    """
+    resolved_function = mixin.jit_cache[key]
 
-    def __iter__(self) -> Iterator[TKey]:
-        return iter(self.jit_cache)
+    def bind_proxy(proxy: "Proxy[TKey]") -> Evaluator:
+        inner_lexical_scope: LexicalScope = (*mixin.lexical_scope, proxy)
+        return resolved_function(inner_lexical_scope)
 
-    def __len__(self) -> int:
-        return len(self.jit_cache)
+    return bind_proxy
 
 
 @dataclass(kw_only=True, slots=True, frozen=True, weakref_slot=True)
