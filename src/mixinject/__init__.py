@@ -1488,14 +1488,6 @@ class PatcherDefinition(Definition, Generic[TPatch_co]):
         raise NotImplementedError()
 
 
-class MixinDefinition(Definition):
-    """Base class for definitions that resolve to nested mixin symbols."""
-
-    @abstractmethod
-    def resolve(self, outer: "_MixinSymbol", name: str, /) -> _NestedSymbol:
-        raise NotImplementedError()
-
-
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
 class _MergerDefinition(MergerDefinition[TPatch_contra, TResult_co]):
     """Definition for merge decorator."""
@@ -1737,7 +1729,7 @@ def _resolve_resource_reference(
 @dataclass(frozen=True, kw_only=True)
 class _MixinDefinition(
     Mapping[Hashable, Definition],
-    MixinDefinition,
+    Definition,
 ):
     """Base class for proxy definitions that create Proxy instances from underlying objects."""
 
