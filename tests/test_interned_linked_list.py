@@ -10,7 +10,7 @@ from mixinject import (
     scope,
     CachedProxy,
     _NamespaceDefinition,
-    _MixinSymbol,
+    _NestedMixinSymbol,
     ChainMapSentinel,
 )
 
@@ -20,9 +20,9 @@ def _empty_proxy_definition() -> _NamespaceDefinition:
     return _NamespaceDefinition(proxy_class=CachedProxy, underlying=object())
 
 
-def _empty_symbol(proxy_definition: _NamespaceDefinition) -> _MixinSymbol:
+def _empty_symbol(proxy_definition: _NamespaceDefinition) -> _NestedMixinSymbol:
     """Create a minimal symbol for testing."""
-    return _MixinSymbol(
+    return _NestedMixinSymbol(
         name="__test__",
         proxy_definition=proxy_definition,
         symbol_table=ChainMapSentinel.EMPTY,

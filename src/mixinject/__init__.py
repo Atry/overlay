@@ -1075,8 +1075,13 @@ def _mixin_getitem(
     return bind_proxy
 
 
-@dataclass(kw_only=True, slots=True, weakref_slot=True)
-class _Symbol(ABC):
+@dataclass(kw_only=True)
+class _Symbol:
+    pass
+
+
+@dataclass(kw_only=True)
+class _NestedSymbol(_Symbol):
     @property
     @abstractmethod
     def depth(self) -> int:
@@ -1088,20 +1093,22 @@ class _Symbol(ABC):
 
     @property
     @abstractmethod
-    def resource_name(self) -> str:
+    def resource_name(self) -> Hashable:
         """
         The resource name associated with this symbol.
         """
         ...
 
-    getter: Callable[[LexicalScope], "Node"] = field(init=False)
+    @cached_property
+    def getter(self) -> Callable[[LexicalScope], "Node"]:
+        """
+        A JIT-compiled getter function for retrieving the resource from a lexical scope.
+        """
+        return _make_jit_getter(self.resource_name, self.depth)
 
-    def __post_init__(self) -> None:
-        self.getter = _make_jit_getter(self.resource_name, self.depth)
 
-
-@dataclass(kw_only=True, slots=True, weakref_slot=True)
-class _SimpleSymbol(_Symbol):
+@dataclass(kw_only=True)
+class _SimpleSymbol(_NestedSymbol):
     """
     Concrete implementation of _Symbol for individual resource entries in SymbolTable.
     """
@@ -1120,10 +1127,10 @@ class _SimpleSymbol(_Symbol):
         return self._resource_name
 
 
-@dataclass(kw_only=True, slots=True, weakref_slot=True)
+@dataclass(kw_only=True)
 class _MixinSymbol(
-    _Symbol,
     Mapping[Hashable, Callable[[Mixin], Callable[[LexicalScope], Evaluator]]],
+    _Symbol,
 ):
     """
     Mapping that caches resolve_symbols results for definitions in a namespace.
@@ -1145,24 +1152,11 @@ class _MixinSymbol(
         in the closure, tied to the definition itself, not to the access path.
     """
 
-    name: Final[str]
     proxy_definition: Final["_MixinDefinition"]
     symbol_table: Final[SymbolTable]
     cache: Final[
         dict[Hashable, Callable[[Mixin], Callable[[LexicalScope], Evaluator]]]
     ] = field(default_factory=dict)
-
-    @property
-    @override
-    def resource_name(self) -> str:
-        return self.name
-
-    @property
-    @override
-    def depth(self) -> int:
-        if self.symbol_table is ChainMapSentinel.EMPTY:
-            return 0
-        return len(self.symbol_table.maps)
 
     def cached_resolve_symbols(
         self, key: Hashable
@@ -1179,9 +1173,32 @@ class _MixinSymbol(
 
     def __len__(self) -> int:
         return sum(1 for _ in self)
-    
-    def __getitem__(self, key: Hashable) -> Callable[[Mixin], Callable[[LexicalScope], Evaluator]]:
+
+    def __getitem__(
+        self, key: Hashable
+    ) -> Callable[[Mixin], Callable[[LexicalScope], Evaluator]]:
         return self.cached_resolve_symbols(key)
+
+
+@dataclass(kw_only=True)
+class _NestedMixinSymbol(_MixinSymbol, _NestedSymbol):
+
+    @property
+    def resource_name(self) -> Hashable:
+        return self.name
+
+    name: Final[str]
+
+    @property
+    def depth(self) -> int:
+        if self.symbol_table is ChainMapSentinel.EMPTY:
+            return 0
+        return len(self.symbol_table.maps)
+
+
+@dataclass(kw_only=True)
+class _RootSymbol(_MixinSymbol):
+    pass
 
 
 def _evaluate_resource(
@@ -1626,7 +1643,7 @@ class _MixinDefinition(
         inner_symbol_table: SymbolTable = _extend_symbol_table_jit(
             outer=symbol_table, names=self.__iter__()
         )
-        symbol = _MixinSymbol(
+        symbol = _NestedMixinSymbol(
             name=name,
             proxy_definition=self,
             symbol_table=inner_symbol_table,
@@ -2045,8 +2062,7 @@ def mount(
         outer=symbol_table,
         names=namespace_definition.__iter__(),
     )
-    symbol = _MixinSymbol(
-        name="__root__",
+    symbol = _RootSymbol(
         proxy_definition=namespace_definition,
         symbol_table=per_namespace_symbol_table,
     )
