@@ -1523,6 +1523,20 @@ class _ProxyDefinition(
         def with_dependency_graph(
             _dependency_graph: DependencyGraph,
         ) -> Callable[[LexicalScope], _ProxySemigroup]:
+            # Memoization: check if StaticChildDependencyGraph already exists
+            # .. todo:: Phase 2: Pass ``jit_cache`` and ``base_jit_caches``
+            #           when creating ``StaticChildDependencyGraph``.
+            intern_pool = _dependency_graph.intern_pool
+            existing = intern_pool.get(resource_name)
+            if existing is not None:
+                proxy_reversed_path = existing
+            else:
+                proxy_reversed_path = StaticChildDependencyGraph(
+                    proxy_definition=self,
+                    parent=_dependency_graph,
+                )
+                intern_pool[resource_name] = proxy_reversed_path
+
             def resolve_lexical_scope(
                 lexical_scope: LexicalScope,
             ) -> _ProxySemigroup:
@@ -1530,21 +1544,6 @@ class _ProxyDefinition(
                     assert (
                         lexical_scope
                     ), "lexical_scope must not be empty when resolving resources"
-                    parent_reversed_path = lexical_scope[-1].dependency_graph
-
-                    # Memoization: check if StaticChildDependencyGraph already exists
-                    # .. todo:: Phase 2: Pass ``jit_cache`` and ``base_jit_caches``
-                    #           when creating ``StaticChildDependencyGraph``.
-                    intern_pool = parent_reversed_path.intern_pool
-                    existing = intern_pool.get(resource_name)
-                    if existing is not None:
-                        proxy_reversed_path = existing
-                    else:
-                        proxy_reversed_path = StaticChildDependencyGraph(
-                            proxy_definition=self,
-                            parent=parent_reversed_path,
-                        )
-                        intern_pool[resource_name] = proxy_reversed_path
 
                     # .. todo:: Phase 9: 用 ``ChainMap`` 替代 ``generate_all_mixin_items``。
                     def generate_all_mixin_items() -> (
