@@ -562,6 +562,10 @@ class DependencyGraph(ABC, Generic[TKey]):
     ] = field(default_factory=weakref.WeakValueDictionary)
 
 
+class JitCacheSentinel(Enum):
+    MERGED = auto()
+
+
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
 class StaticDependencyGraph(DependencyGraph[TKey], Generic[TKey]):
     """
@@ -583,9 +587,7 @@ class StaticDependencyGraph(DependencyGraph[TKey], Generic[TKey]):
     Cache for the corresponding InstanceChildDependencyGraph.
     """
 
-    jit_caches: Mapping["DependencyGraph[Any]", "_JitCache"] = field(
-        default_factory=dict
-    )
+    bases: Sequence["DependencyGraph[Any]"] = field(default_factory=tuple)
     """
     Mapping from dependency graph paths to their corresponding JIT caches.
     Corresponds one-to-one with Proxy.mixins keys.
@@ -974,15 +976,15 @@ A sequence of proxies representing the lexical scope, starting from the outermos
 """
 
 
-class SymbolTableSentinel(Enum):
-    ROOT = auto()
+class ChainMapSentinel(Enum):
+    EMPTY = auto()
     """
-    A sentinel value representing the root symbol table when no scope is provided. This is a workaround for Python's quirk where a ChainMap always has at least one mapping. e.g. `len(ChainMap().maps)` is 1, not 0.
+    This is a workaround for Python's quirk where a ChainMap always has at least one mapping. e.g. `len(ChainMap().maps)` is 1, not 0.
     """
 
 
 SymbolTable: TypeAlias = (
-    ChainMap[str, Callable[[LexicalScope], "Node"]] | Literal[SymbolTableSentinel.ROOT]
+    ChainMap[str, Callable[[LexicalScope], "Node"]] | Literal[ChainMapSentinel.EMPTY]
 )
 """
 A mapping from resource names to functions that take a lexical scope and return a Node.
@@ -1931,7 +1933,7 @@ def mount(
               when creating ``ChildDependencyGraph``.
     """
     lexical_scope: LexicalScope = ()
-    symbol_table: SymbolTable = SymbolTableSentinel.ROOT
+    symbol_table: SymbolTable = ChainMapSentinel.EMPTY
     root_proxy_class: type[StaticProxy[str]] = CachedProxy
 
     def get_module_proxy_class(_module: ModuleType) -> type[StaticProxy[str]]:
@@ -1999,7 +2001,7 @@ def _extend_symbol_table_jit(
     names: Iterable[str],
 ) -> SymbolTable:
     """Extend symbol table by adding a new layer that uses JIT-compiled attribute-based factories."""
-    if outer is SymbolTableSentinel.ROOT:
+    if outer is ChainMapSentinel.EMPTY:
         return ChainMap({name: _make_jit_factory(name, 0) for name in names})
     else:
         index = len(outer.maps)
@@ -2035,7 +2037,7 @@ def _resolve_dependencies_jit(
     has_proxy = False
     p0 = params[0]
     first_param_in_symbol_table = (
-        symbol_table is not SymbolTableSentinel.ROOT and p0.name in symbol_table
+        symbol_table is not ChainMapSentinel.EMPTY and p0.name in symbol_table
     )
     if (p0.kind == p0.POSITIONAL_ONLY) or (
         p0.kind == p0.POSITIONAL_OR_KEYWORD and not first_param_in_symbol_table

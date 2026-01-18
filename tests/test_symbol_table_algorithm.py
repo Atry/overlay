@@ -4,7 +4,7 @@ import pytest
 from mixinject import (
     LexicalScope,
     SymbolTable,
-    SymbolTableSentinel,
+    ChainMapSentinel,
     Node,
     CachedProxy,
     _extend_symbol_table_jit,
@@ -23,7 +23,7 @@ def _empty_jit_cache(proxy_definition: _NamespaceDefinition) -> _JitCache:
     """Create a minimal JIT cache for testing."""
     return _JitCache(
         proxy_definition=proxy_definition,
-        symbol_table=SymbolTableSentinel.ROOT,
+        symbol_table=ChainMapSentinel.EMPTY,
     )
 
 
@@ -55,7 +55,7 @@ def extend_symbol_table_getitem(
     index: int,
 ) -> SymbolTable:
     """Extend symbol table by adding a new layer that uses getitem-based factories."""
-    if symbol_table is SymbolTableSentinel.ROOT:
+    if symbol_table is ChainMapSentinel.EMPTY:
         return ChainMap({name: _make_getitem_factory(name, index) for name in names})
     return symbol_table.new_child(
         {name: _make_getitem_factory(name, index) for name in names}
@@ -71,7 +71,7 @@ def test_symbol_table_extension_consistency():
     # ls_full = (outer, inner)
     ls_full: LexicalScope = (proxy_outer, proxy_inner)
     
-    st_init: SymbolTable = SymbolTableSentinel.ROOT
+    st_init: SymbolTable = ChainMapSentinel.EMPTY
 
     # depth 1: (outer,) -> index = 0
     st_getitem = extend_symbol_table_getitem(st_init, ["c", "a"], 0)
@@ -110,7 +110,7 @@ def test_jit_factory_invalid_identifier():
     proxy = _empty_proxy()(**{"not_identifier": "value"})
     lexical_scope: LexicalScope = (proxy,)
 
-    symbol_table_jit = _extend_symbol_table_jit(SymbolTableSentinel.ROOT, ["not_identifier"])
+    symbol_table_jit = _extend_symbol_table_jit(ChainMapSentinel.EMPTY, ["not_identifier"])
     assert symbol_table_jit["not_identifier"](lexical_scope) == "value"
 
     # If we use a name that is not a valid identifier
@@ -119,7 +119,7 @@ def test_jit_factory_invalid_identifier():
     lexical_scope_invalid: LexicalScope = (proxy_invalid,)
 
     try:
-        symbol_table_jit_invalid = _extend_symbol_table_jit(SymbolTableSentinel.ROOT, [invalid_name])
+        symbol_table_jit_invalid = _extend_symbol_table_jit(ChainMapSentinel.EMPTY, [invalid_name])
     except (SyntaxError, ValueError, TypeError):
         # Expected if JIT doesn't support non-identifiers
         return

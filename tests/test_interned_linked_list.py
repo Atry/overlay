@@ -11,7 +11,7 @@ from mixinject import (
     CachedProxy,
     _NamespaceDefinition,
     _JitCache,
-    SymbolTableSentinel,
+    ChainMapSentinel,
 )
 
 
@@ -24,7 +24,7 @@ def _empty_jit_cache(proxy_definition: _NamespaceDefinition) -> _JitCache:
     """Create a minimal JIT cache for testing."""
     return _JitCache(
         proxy_definition=proxy_definition,
-        symbol_table=SymbolTableSentinel.ROOT,
+        symbol_table=ChainMapSentinel.EMPTY,
     )
 
 
