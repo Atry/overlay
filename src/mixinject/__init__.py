@@ -1052,7 +1052,6 @@ class Mixin(Mapping[TKey, Callable[["Proxy[TKey]"], Evaluator]], Hashable):
     They must compare by identity to allow storage in sets.
 
     .. todo:: 添加 ``dependency_graph: StaticChildDependencyGraph`` 字段。
-    .. todo:: 添加 ``lexical_scope: LexicalScope`` 字段。
     .. todo:: ``jit_cache`` 改为 property，返回 ``self.dependency_graph.jit_cache``。
     .. todo:: 添加 ``@final`` 装饰器，禁止子类化。
     """
