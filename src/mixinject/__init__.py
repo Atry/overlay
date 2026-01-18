@@ -1169,13 +1169,13 @@ class _MixinSymbol(
     ) -> Callable[[Mixin], Callable[[LexicalScope], Evaluator]]:
         if key in self.cache:
             return self.cache[key]
-        val = self.proxy_definition.get_definition(key)
+        val = self.proxy_definition.__getitem__(key)
         outer = val.resolve_symbols(self.symbol_table, cast(str, key))
         self.cache[key] = outer
         return outer
 
     def __iter__(self) -> Iterator[str]:
-        return self.proxy_definition.generate_keys()
+        return self.proxy_definition.__iter__()
 
     def __len__(self) -> int:
         return sum(1 for _ in self)
@@ -1572,14 +1572,18 @@ def _resolve_resource_reference(
 
 
 @dataclass(frozen=True, kw_only=True)
-class _MixinDefinition(MergerDefinition[Proxy, Proxy], PatcherDefinition[Proxy]):
+class _MixinDefinition(
+    Mapping[Hashable, Definition],
+    MergerDefinition[Proxy, Proxy],
+    PatcherDefinition[Proxy],
+):
     """Base class for proxy definitions that create Proxy instances from underlying objects."""
 
     proxy_class: type[StaticProxy]
     underlying: object
     extend: tuple["ResourceReference[Hashable]", ...] = ()
 
-    def generate_keys(self) -> Iterator[str]:
+    def __iter__(self) -> Iterator[Hashable]:
         for name in dir(self.underlying):
             try:
                 val = getattr(self.underlying, name)
@@ -1588,7 +1592,10 @@ class _MixinDefinition(MergerDefinition[Proxy, Proxy], PatcherDefinition[Proxy])
             if isinstance(val, Definition):
                 yield name
 
-    def get_definition(self, key: Hashable) -> Definition:
+    def __len__(self) -> int:
+        return sum(1 for _ in self)
+
+    def __getitem__(self, key: Hashable) -> Definition:
         """Get a Definition by key name.
 
         Raises KeyError if the key does not exist or the value is not a Definition.
@@ -1614,7 +1621,7 @@ class _MixinDefinition(MergerDefinition[Proxy, Proxy], PatcherDefinition[Proxy])
                   for inherited symbols from extended scopes.
         """
         inner_symbol_table: SymbolTable = _extend_symbol_table_jit(
-            outer=symbol_table, names=self.generate_keys()
+            outer=symbol_table, names=self.__iter__()
         )
         symbol = _MixinSymbol(
             name=name,
@@ -1672,18 +1679,18 @@ class _PackageDefinition(_MixinDefinition):
     get_module_proxy_class: Callable[[ModuleType], type[StaticProxy]]
     underlying: ModuleType
 
-    def generate_keys(self) -> Iterator[str]:
-        yield from super(_PackageDefinition, self).generate_keys()
+    def __iter__(self) -> Iterator[str]:
+        yield from super(_PackageDefinition, self).__iter__()
 
         for mod_info in pkgutil.iter_modules(self.underlying.__path__):
             yield mod_info.name
 
     @override
-    def get_definition(self, key: Hashable) -> Definition:
+    def __getitem__(self, key: Hashable) -> Definition:
         """Get a Definition by key name, including lazily imported submodules."""
         # 1. Try parent (attributes that are Definition)
         try:
-            return super(_PackageDefinition, self).get_definition(key)
+            return super(_PackageDefinition, self).__getitem__(key)
         except KeyError:
             pass
 
@@ -2033,7 +2040,7 @@ def mount(
 
     per_namespace_symbol_table = _extend_symbol_table_jit(
         outer=symbol_table,
-        names=namespace_definition.generate_keys(),
+        names=namespace_definition.__iter__(),
     )
     symbol = _MixinSymbol(
         name="__root__",
