@@ -11,6 +11,7 @@ from mixinject import (
     CachedProxy,
     _NamespaceDefinition,
     _NestedMixinSymbol,
+    _RootSymbol,
     ChainMapSentinel,
 )
 
@@ -20,12 +21,19 @@ def _empty_proxy_definition() -> _NamespaceDefinition:
     return _NamespaceDefinition(proxy_class=CachedProxy, underlying=object())
 
 
-def _empty_symbol(proxy_definition: _NamespaceDefinition) -> _NestedMixinSymbol:
-    """Create a minimal symbol for testing."""
+def _empty_root_symbol(proxy_definition: _NamespaceDefinition) -> _RootSymbol:
+    """Create a minimal root symbol for testing."""
+    return _RootSymbol(proxy_definition=proxy_definition)
+
+
+def _empty_nested_symbol(
+    outer: "_RootSymbol", proxy_definition: _NamespaceDefinition
+) -> _NestedMixinSymbol:
+    """Create a minimal nested symbol for testing."""
     return _NestedMixinSymbol(
+        outer=outer,
         name="__test__",
         proxy_definition=proxy_definition,
-        symbol_table=ChainMapSentinel.EMPTY,
     )
 
 
@@ -34,17 +42,17 @@ class TestRoot:
 
     def test_root_hasintern_pool(self) -> None:
         proxy_def = _empty_proxy_definition()
-        symbol = _empty_symbol(proxy_def)
-        root = RootMixin(symbol=symbol)
+        root_symbol = _empty_root_symbol(proxy_def)
+        root = RootMixin(symbol=root_symbol)
         assert root.intern_pool is not None
 
     def test_different_roots_have_different_pools(self) -> None:
         proxy_def1 = _empty_proxy_definition()
-        symbol1 = _empty_symbol(proxy_def1)
+        root_symbol1 = _empty_root_symbol(proxy_def1)
         proxy_def2 = _empty_proxy_definition()
-        symbol2 = _empty_symbol(proxy_def2)
-        root1 = RootMixin(symbol=symbol1)
-        root2 = RootMixin(symbol=symbol2)
+        root_symbol2 = _empty_root_symbol(proxy_def2)
+        root1 = RootMixin(symbol=root_symbol1)
+        root2 = RootMixin(symbol=root_symbol2)
         assert root1.intern_pool is not root2.intern_pool
 
 
@@ -58,28 +66,31 @@ class TestInterning:
     def test_direct_instantiation_creates_new_objects(self) -> None:
         """Direct instantiation without going through proxy_factory creates new objects."""
         proxy_def = _empty_proxy_definition()
-        symbol = _empty_symbol(proxy_def)
-        root = RootMixin(symbol=symbol)
-        child1 = NestedMixin(outer=root, symbol=symbol, name="test1")
-        child2 = NestedMixin(outer=root, symbol=symbol, name="test2")
+        root_symbol = _empty_root_symbol(proxy_def)
+        nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
+        root = RootMixin(symbol=root_symbol)
+        child1 = NestedMixin(outer=root, symbol=nested_symbol, name="test1")
+        child2 = NestedMixin(outer=root, symbol=nested_symbol, name="test2")
         # Without interning, these are different objects
         assert child1 is not child2
 
     def test_different_parent_different_object(self) -> None:
         proxy_def = _empty_proxy_definition()
-        symbol = _empty_symbol(proxy_def)
-        root1 = RootMixin(symbol=symbol)
-        root2 = RootMixin(symbol=symbol)
-        child1 = NestedMixin(outer=root1, symbol=symbol, name="test")
-        child2 = NestedMixin(outer=root2, symbol=symbol, name="test")
+        root_symbol = _empty_root_symbol(proxy_def)
+        nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
+        root1 = RootMixin(symbol=root_symbol)
+        root2 = RootMixin(symbol=root_symbol)
+        child1 = NestedMixin(outer=root1, symbol=nested_symbol, name="test")
+        child2 = NestedMixin(outer=root2, symbol=nested_symbol, name="test")
         assert child1 is not child2
 
     def test_each_node_has_ownintern_pool(self) -> None:
         proxy_def = _empty_proxy_definition()
-        symbol = _empty_symbol(proxy_def)
-        root = RootMixin(symbol=symbol)
-        child1 = NestedMixin(outer=root, symbol=symbol, name="child1")
-        child2 = NestedMixin(outer=child1, symbol=symbol, name="child2")
+        root_symbol = _empty_root_symbol(proxy_def)
+        nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
+        root = RootMixin(symbol=root_symbol)
+        child1 = NestedMixin(outer=root, symbol=nested_symbol, name="child1")
+        child2 = NestedMixin(outer=child1, symbol=nested_symbol, name="child2")
         assert child1.intern_pool is not root.intern_pool
         assert child2.intern_pool is not child1.intern_pool
         assert child2.intern_pool is not root.intern_pool
@@ -127,10 +138,11 @@ class TestWeakReference:
     def test_intern_pool_supports_weak_references(self) -> None:
         """The intern pool is a WeakValueDictionary."""
         proxy_def = _empty_proxy_definition()
-        symbol = _empty_symbol(proxy_def)
-        root = RootMixin(symbol=symbol)
+        root_symbol = _empty_root_symbol(proxy_def)
+        nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
+        root = RootMixin(symbol=root_symbol)
         # Add an entry manually to the pool
-        child = NestedMixin(outer=root, symbol=symbol, name="test")
+        child = NestedMixin(outer=root, symbol=nested_symbol, name="test")
         root.intern_pool["test_key"] = child
 
         pool_size_before = len(root.intern_pool)
@@ -154,13 +166,14 @@ class TestSubclass:
 
     def test_root_instance_is_instance_of_mixin(self) -> None:
         proxy_def = _empty_proxy_definition()
-        symbol = _empty_symbol(proxy_def)
-        root = RootMixin(symbol=symbol)
+        root_symbol = _empty_root_symbol(proxy_def)
+        root = RootMixin(symbol=root_symbol)
         assert isinstance(root, Mixin)
 
     def test_child_instance_is_instance_of_mixin(self) -> None:
         proxy_def = _empty_proxy_definition()
-        symbol = _empty_symbol(proxy_def)
-        root = RootMixin(symbol=symbol)
-        child = NestedMixin(outer=root, symbol=symbol, name="test")
+        root_symbol = _empty_root_symbol(proxy_def)
+        nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
+        root = RootMixin(symbol=root_symbol)
+        child = NestedMixin(outer=root, symbol=nested_symbol, name="test")
         assert isinstance(child, Mixin)

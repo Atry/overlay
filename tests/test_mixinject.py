@@ -12,6 +12,7 @@ from mixinject import (
     InstanceChildMixin,
     InstanceProxy,
     _NestedMixinSymbol,
+    _RootSymbol,
     SymbolSentinel,
     LexicalScope,
     _PackageDefinition,
@@ -44,22 +45,31 @@ def _empty_proxy_definition() -> _NamespaceDefinition:
     return _NamespaceDefinition(proxy_class=CachedProxy, underlying=object())
 
 
-def _empty_symbol(proxy_definition: _NamespaceDefinition) -> _NestedMixinSymbol:
-    """Create a minimal symbol for testing."""
+def _empty_root_symbol(proxy_definition: _NamespaceDefinition) -> _RootSymbol:
+    """Create a minimal root symbol for testing."""
+    return _RootSymbol(proxy_definition=proxy_definition)
+
+
+def _empty_nested_symbol(
+    outer: "_RootSymbol", proxy_definition: _NamespaceDefinition
+) -> _NestedMixinSymbol:
+    """Create a minimal nested symbol for testing."""
     return _NestedMixinSymbol(
+        outer=outer,
         name="__test__",
         proxy_definition=proxy_definition,
-        symbol_table=ChainMapSentinel.EMPTY,
     )
 
 
 def _empty_mixin() -> NestedMixin:
     """Create a minimal dependency graph for testing."""
     proxy_def = _empty_proxy_definition()
-    symbol = _empty_symbol(proxy_def)
+    root_symbol = _empty_root_symbol(proxy_def)
+    nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
+    root_mixin = RootMixin(symbol=root_symbol)
     return NestedMixin(
-        outer=RootMixin(symbol=symbol),
-        symbol=symbol,
+        outer=root_mixin,
+        symbol=nested_symbol,
         name="test",
     )
 

@@ -1082,6 +1082,8 @@ class _Symbol:
 
 @dataclass(kw_only=True)
 class _NestedSymbol(_Symbol):
+    outer: Final["_MixinSymbol"]
+
     @property
     @abstractmethod
     def depth(self) -> int:
@@ -1153,10 +1155,15 @@ class _MixinSymbol(
     """
 
     proxy_definition: Final["_MixinDefinition"]
-    symbol_table: Final[SymbolTable]
     cache: Final[
         dict[Hashable, Callable[[Mixin], Callable[[LexicalScope], Evaluator]]]
     ] = field(default_factory=dict)
+
+    @property
+    @abstractmethod
+    def symbol_table(self) -> SymbolTable:
+        """The symbol table for this mixin, providing name resolution."""
+        ...
 
     def cached_resolve_symbols(
         self, key: Hashable
@@ -1195,10 +1202,46 @@ class _NestedMixinSymbol(_MixinSymbol, _NestedSymbol):
             return 0
         return len(self.symbol_table.maps)
 
+    @cached_property
+    def _cached_symbol_table(self) -> SymbolTable:
+        """
+        .. todo:: Replace dict comprehension with ``self`` as the symbol table.
+        """
+        parent_symbol_table = self.outer.symbol_table
+        if parent_symbol_table is ChainMapSentinel.EMPTY:
+            depth = 0
+        else:
+            depth = len(parent_symbol_table.maps)
+        new_symbols: dict[str, _Symbol] = {
+            name: _SimpleSymbol(outer=self, _depth=depth, _resource_name=name)
+            for name in self.proxy_definition.__iter__()
+        }
+        if parent_symbol_table is ChainMapSentinel.EMPTY:
+            return ChainMap(new_symbols)
+        return parent_symbol_table.new_child(new_symbols)
+
+    @property
+    def symbol_table(self) -> SymbolTable:
+        return self._cached_symbol_table
+
 
 @dataclass(kw_only=True)
 class _RootSymbol(_MixinSymbol):
-    pass
+
+    @cached_property
+    def _cached_symbol_table(self) -> SymbolTable:
+        """
+        .. todo:: Replace dict comprehension with ``self`` as the symbol table.
+        """
+        new_symbols: dict[str, _Symbol] = {
+            name: _SimpleSymbol(outer=self, _depth=0, _resource_name=name)
+            for name in self.proxy_definition.__iter__()
+        }
+        return ChainMap(new_symbols)
+
+    @property
+    def symbol_table(self) -> SymbolTable:
+        return self._cached_symbol_table
 
 
 def _evaluate_resource(
@@ -1640,13 +1683,10 @@ class _MixinDefinition(
         .. todo:: Phase 2: Add ``base_symbols`` parameter to ``ChildMixin``
                   for inherited symbols from extended scopes.
         """
-        inner_symbol_table: SymbolTable = _extend_symbol_table_jit(
-            outer=outer.symbol_table, names=self.__iter__()
-        )
         symbol = _NestedMixinSymbol(
+            outer=outer,
             name=name,
             proxy_definition=self,
-            symbol_table=inner_symbol_table,
         )
 
         def with_mixin(
@@ -2041,7 +2081,6 @@ def mount(
               when creating ``ChildMixin``.
     """
     lexical_scope: LexicalScope = ()
-    symbol_table: SymbolTable = ChainMapSentinel.EMPTY
     root_proxy_class: type[StaticProxy] = CachedProxy
 
     def get_module_proxy_class(_module: ModuleType) -> type[StaticProxy]:
@@ -2058,13 +2097,8 @@ def mount(
     else:
         assert_never(namespace)
 
-    per_namespace_symbol_table = _extend_symbol_table_jit(
-        outer=symbol_table,
-        names=namespace_definition.__iter__(),
-    )
     symbol = _RootSymbol(
         proxy_definition=namespace_definition,
-        symbol_table=per_namespace_symbol_table,
     )
 
     root_mixin = RootMixin(
@@ -2102,24 +2136,6 @@ def _make_jit_getter(name: str, depth: int) -> Callable[[LexicalScope], "Node"]:
     code = compile(module_node, filename="<mixinject__make_jit_factory>", mode="eval")
     # No globals needed for this simple lambda
     return eval(code, {})
-
-
-def _extend_symbol_table_jit(
-    outer: SymbolTable,
-    names: Iterable[str],
-) -> SymbolTable:
-    """Extend symbol table by adding a new layer that uses _SimpleSymbol instances."""
-    if outer is ChainMapSentinel.EMPTY:
-        new_symbols: dict[str, _Symbol] = {
-            name: _SimpleSymbol(_depth=0, _resource_name=name) for name in names
-        }
-        return ChainMap(new_symbols)
-    else:
-        depth = len(outer.maps)
-        new_symbols = {
-            name: _SimpleSymbol(_depth=depth, _resource_name=name) for name in names
-        }
-        return outer.new_child(new_symbols)
 
 
 def _resolve_dependencies_jit(
