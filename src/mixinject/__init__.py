@@ -1488,7 +1488,25 @@ def _resolve_resource_reference(
         InstanceProxy).
 
     .. todo:: 添加 ``_resolve_dependency_graph_reference`` 辅助函数，类似本函数，
-              但参数为 ``dependency_graph: DependencyGraph``，返回 ``StaticChildDependencyGraph``。
+              但参数为 ``dependency_graph: DependencyGraph`` 而非 ``lexical_scope: LexicalScope``，
+              返回类型为 ``Callable[[LexicalScope], Merger | Patcher]``
+              （实际上是 ``StaticChildDependencyGraph``，它本质上是特殊的
+              ``Callable[[LexicalScope], Merger | Patcher]``）。
+
+              该函数用于在 dependency graph 中查找静态的 ``Callable[[LexicalScope], Merger | Patcher]``。
+              与 ``_resolve_resource_reference`` 的区别在于：
+
+              - ``_resolve_resource_reference``: 运行时解析，遍历 lexical_scope 中的 Proxy 对象
+              - ``_resolve_dependency_graph_reference``: 编译时解析，遍历 dependency_graph 中的
+                ``StaticChildDependencyGraph``，返回可被 JIT 缓存的 callable
+
+              签名示例::
+
+                  def _resolve_dependency_graph_reference(
+                      reference: ResourceReference[TKey],
+                      dependency_graph: DependencyGraph,
+                  ) -> Callable[[LexicalScope], Merger | Patcher]:
+                      ...
     """
     match reference:
         case RelativeReference(levels_up=levels_up, path=parts):
