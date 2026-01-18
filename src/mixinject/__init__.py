@@ -1075,9 +1075,18 @@ def _mixin_getitem(
     return bind_proxy
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, eq=False)
 class _Symbol(ABC):
     definition: Final["Definition"]
+
+    @property
+    @abstractmethod
+    def depth(self) -> int:
+        """
+        The depth where this symbol is defined.
+
+        The root symbol has depth 0, its direct children have depth 1, and so on.
+        """
 
     @abstractmethod
     def compile(self, mixin: "Mixin", /) -> Any:
@@ -1085,18 +1094,13 @@ class _Symbol(ABC):
         ...
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, eq=False)
 class _NestedSymbol(_Symbol):
     outer: Final["_MixinSymbol"]
 
     @property
-    @abstractmethod
     def depth(self) -> int:
-        """
-        The depth of the symbol in the scope hierarchy.
-        Used for resolving same-name dependencies.
-        """
-        ...
+        return self.outer.depth + 1
 
     @property
     @abstractmethod
@@ -1110,37 +1114,14 @@ class _NestedSymbol(_Symbol):
     def getter(self) -> Callable[[LexicalScope], "Node"]:
         """
         A JIT-compiled getter function for retrieving the resource from a lexical scope.
+
+        Note that the index is depth - 1 because the root proxy itself is not a named referenceable resource, i.e. you can never inject the root proxy itself into any resource.
         """
-        return _make_jit_getter(cast(str, self.resource_name), self.depth)  # type: ignore[arg-type]
+        index = self.depth - 1
+        return _make_jit_getter(cast(str, self.resource_name), index)
 
 
-@dataclass(kw_only=True)
-class _SimpleSymbol(_NestedSymbol):
-    """
-    Concrete implementation of _Symbol for individual resource entries in SymbolTable.
-
-    .. todo:: Delete this class after replacing the dict comprehension in
-              ``_cached_symbol_table`` with ``self`` as the symbol table.
-    """
-
-    _depth: Final[int]
-    _resource_name: Final[Hashable]
-
-    @property
-    @override
-    def depth(self) -> int:
-        return self._depth
-
-    @property
-    @override
-    def resource_name(self) -> Hashable:
-        return self._resource_name
-
-    def compile(self, mixin: "Mixin", /) -> Any:
-        raise NotImplementedError("_SimpleSymbol is not compilable")
-
-
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, eq=False)
 class _MixinSymbol(
     Mapping[Hashable, "_NestedSymbol"],
     _Symbol,
@@ -1191,7 +1172,7 @@ class _MixinSymbol(
         return sum(1 for _ in self)
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, eq=False)
 class _NestedMixinSymbol(_MixinSymbol, _NestedSymbol):
 
     @property
@@ -1200,34 +1181,14 @@ class _NestedMixinSymbol(_MixinSymbol, _NestedSymbol):
 
     name: Final[str]
 
-    @property
-    def depth(self) -> int:
-        if self.symbol_table is ChainMapSentinel.EMPTY:
-            return 0
-        return len(self.symbol_table.maps)
-
     @cached_property
     def _cached_symbol_table(self) -> SymbolTable:
         """
         .. todo:: Replace dict comprehension with ``self`` as the symbol table.
         """
         parent_symbol_table = self.outer.symbol_table
-        if parent_symbol_table is ChainMapSentinel.EMPTY:
-            depth = 0
-        else:
-            depth = len(parent_symbol_table.maps)
-        new_symbols: dict[Hashable, _Symbol] = {  # type: ignore[misc]
-            name: _SimpleSymbol(
-                definition=self.definition[name],
-                outer=self,
-                _depth=depth,
-                _resource_name=name,  # type: ignore[arg-type]
-            )
-            for name in self.definition.__iter__()
-        }
-        if parent_symbol_table is ChainMapSentinel.EMPTY:
-            return ChainMap(new_symbols)  # type: ignore[return-value]
-        return parent_symbol_table.new_child(new_symbols)  # type: ignore[arg-type, return-value]
+        assert parent_symbol_table is not ChainMapSentinel.EMPTY
+        return parent_symbol_table.new_child(self)
 
     @property
     def symbol_table(self) -> SymbolTable:
@@ -1262,24 +1223,19 @@ class _NestedMixinSymbol(_MixinSymbol, _NestedSymbol):
         return proxy_mixin
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, eq=False)
 class _RootSymbol(_MixinSymbol):
+
+    @property
+    def depth(self) -> int:
+        return 0
 
     @cached_property
     def _cached_symbol_table(self) -> SymbolTable:
         """
         .. todo:: Replace dict comprehension with ``self`` as the symbol table.
         """
-        new_symbols: dict[Hashable, _Symbol] = {  # type: ignore[misc]
-            name: _SimpleSymbol(
-                definition=self.definition[name],
-                outer=self,
-                _depth=0,
-                _resource_name=name,  # type: ignore[arg-type]
-            )
-            for name in self.definition.__iter__()
-        }
-        return ChainMap(new_symbols)  # type: ignore[return-value]
+        return ChainMap(self)  # type: ignore[return-value]
 
     @property
     def symbol_table(self) -> SymbolTable:
@@ -1289,19 +1245,12 @@ class _RootSymbol(_MixinSymbol):
         raise NotImplementedError("_RootSymbol is not compilable")
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, eq=False)
 class _MergerSymbol(_NestedSymbol, Generic[TPatch_contra, TResult_co]):
     """Symbol for resolved merger definitions."""
 
     _resource_name: Final[str]
     function: Final[Callable[..., Callable[[Iterator[TPatch_contra]], TResult_co]]]
-
-    @property
-    def depth(self) -> int:
-        symbol_table = self.outer.symbol_table
-        if symbol_table is ChainMapSentinel.EMPTY:
-            return 0
-        return len(symbol_table.maps)
 
     @property
     def resource_name(self) -> str:
@@ -1329,19 +1278,12 @@ class _MergerSymbol(_NestedSymbol, Generic[TPatch_contra, TResult_co]):
         return resolve_lexical_scope
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, eq=False)
 class _ResourceSymbol(_NestedSymbol, Generic[TResult]):
     """Symbol for resolved resource definitions."""
 
     _resource_name: Final[str]
     function: Final[Callable[..., TResult]]
-
-    @property
-    def depth(self) -> int:
-        symbol_table = self.outer.symbol_table
-        if symbol_table is ChainMapSentinel.EMPTY:
-            return 0
-        return len(symbol_table.maps)
 
     @property
     def resource_name(self) -> str:
@@ -1367,19 +1309,12 @@ class _ResourceSymbol(_NestedSymbol, Generic[TResult]):
         return resolve_lexical_scope
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, eq=False)
 class _SinglePatchSymbol(_NestedSymbol, Generic[TPatch_co]):
     """Symbol for resolved single patch definitions."""
 
     _resource_name: Final[str]
     function: Final[Callable[..., TPatch_co]]
-
-    @property
-    def depth(self) -> int:
-        symbol_table = self.outer.symbol_table
-        if symbol_table is ChainMapSentinel.EMPTY:
-            return 0
-        return len(symbol_table.maps)
 
     @property
     def resource_name(self) -> str:
@@ -1405,19 +1340,12 @@ class _SinglePatchSymbol(_NestedSymbol, Generic[TPatch_co]):
         return resolve_lexical_scope
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, eq=False)
 class _MultiplePatchSymbol(_NestedSymbol, Generic[TPatch_co]):
     """Symbol for resolved multiple patch definitions."""
 
     _resource_name: Final[str]
     function: Final[Callable[..., Iterable[TPatch_co]]]
-
-    @property
-    def depth(self) -> int:
-        symbol_table = self.outer.symbol_table
-        if symbol_table is ChainMapSentinel.EMPTY:
-            return 0
-        return len(symbol_table.maps)
 
     @property
     def resource_name(self) -> str:
@@ -2218,7 +2146,7 @@ def mount(
     )
 
 
-def _make_jit_getter(name: str, depth: int) -> Callable[[LexicalScope], "Node"]:
+def _make_jit_getter(name: str, index: int) -> Callable[[LexicalScope], "Node"]:
     """Create a factory that retrieves a resource from lexical scope using JIT-compiled attribute access."""
     # lambda lexical_scope: lexical_scope[index].{name}
     lambda_node = ast.Lambda(
@@ -2232,7 +2160,7 @@ def _make_jit_getter(name: str, depth: int) -> Callable[[LexicalScope], "Node"]:
         body=ast.Attribute(
             value=ast.Subscript(
                 value=ast.Name(id="lexical_scope", ctx=ast.Load()),
-                slice=ast.Constant(value=depth),
+                slice=ast.Constant(value=index),
                 ctx=ast.Load(),
             ),
             attr=name,
