@@ -469,7 +469,7 @@ modules can access these values via symbol table lookup::
         @extern
         def db_config(): ...
 
-    outer_proxy = mount("config", Config)(db_config={"host": "localhost", "port": "5432"})
+    outer_proxy = mount(Config)(db_config={"host": "localhost", "port": "5432"})
 
     outer_scope: LexicalScope = (outer_proxy,)
 
@@ -541,7 +541,7 @@ TStrKey = TypeVar("TStrKey", bound=str)
 
 
 @dataclass(kw_only=True, slots=True, weakref_slot=False, eq=False)
-class DependencyGraph(ABC, Generic[TKey]):
+class DependencyGraph(Generic[TKey]):
     """Base class for dependency graphs supporting O(1) equality comparison.
 
     Equal graphs are interned to the same object instance within the same root,
@@ -576,6 +576,12 @@ class DependencyGraph(ABC, Generic[TKey]):
 
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
 class StaticDependencyGraph(DependencyGraph[TKey], Generic[TKey]):
+    """
+    .. todo:: 添加 ``proxy_definition: _ProxyDefinition`` 字段。
+    .. todo:: 实现 ``__getitem__`` 用于懒创建子依赖图。
+    .. todo:: 实现 ``__call__(lexical_scope: LexicalScope) -> _ProxySemigroup``，
+              使 ``StaticChildDependencyGraph`` 成为 ``Callable[[LexicalScope], _ProxySemigroup]``。
+    """
 
     _cached_instance_dependency_graph: (
         weakref.ReferenceType[InstanceChildDependencyGraph[TKey]] | None
@@ -597,16 +603,14 @@ class StaticDependencyGraph(DependencyGraph[TKey], Generic[TKey]):
 
 
 @final
-@dataclass(kw_only=True, slots=True, weakref_slot=False, eq=False)
-class RootDependencyGraph(DependencyGraph[T]):
+@dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
+class RootDependencyGraph(StaticDependencyGraph[T]):
     """
-    Root of a dependency graph, representing an empty dependency chain.
+    Root of a dependency graph.
 
     Each RootDependencyGraph instance has its own intern pool for interning
     StaticChildDependencyGraph nodes within that dependency graph.
 
-    .. todo:: 不实现 ``Mapping`` 的抽象方法 (``__getitem__``, ``__iter__``, ``__len__``)，
-              保持抽象，让用户自行实现。
     """
 
 
@@ -618,10 +622,6 @@ class StaticChildDependencyGraph(StaticDependencyGraph[TKey], Generic[TKey]):
     This works because interned graphs with equal head within the same parent
     are the same object.
 
-    .. todo:: 添加 ``proxy_definition: _ProxyDefinition`` 字段。
-    .. todo:: 实现 ``__getitem__`` 用于懒创建子依赖图。
-    .. todo:: 实现 ``__call__(lexical_scope: LexicalScope) -> _ProxySemigroup``，
-              使 ``StaticChildDependencyGraph`` 成为 ``Callable[[LexicalScope], _ProxySemigroup]``。
     """
 
     head: Final[TKey]
@@ -777,8 +777,8 @@ class StaticProxy(Proxy[TKey], ABC):
     InstanceProxy with additional kwargs.
     """
 
-    mixins: Mapping[StaticChildDependencyGraph[TKey], "Mixin[TKey]"]  # type: ignore[misc]
-    dependency_graph: StaticChildDependencyGraph[TKey]  # type: ignore[misc]
+    mixins: Mapping[StaticDependencyGraph[TKey], "Mixin[TKey]"]  # type: ignore[misc]
+    dependency_graph: StaticDependencyGraph[TKey]  # type: ignore[misc]
 
     def __call__(self, **kwargs: object) -> InstanceProxy[Any]:  # type: ignore[type-var]
         """
@@ -1917,28 +1917,26 @@ def local(definition: TMergerDefinition) -> TMergerDefinition:
 
 
 def mount(
-    name: TKey,
     namespace: ModuleType | _NamespaceDefinition,
-) -> StaticProxy[TKey]:
+) -> StaticProxy[str]:
     """
     Resolves a Proxy from the given object using the provided lexical scope.
 
-    :param name: The name of the mounted proxy.
     :param namespace: Module or namespace definition (decorated with @scope) to resolve resources from.
     :return: An instance of the cls type with resolved mixins.
 
     Example::
 
-        root = mount("root", MyNamespace)
+        root = mount(MyNamespace)
 
     .. todo:: Phase 2: Pass ``jit_cache`` and ``base_jit_caches``
               when creating ``StaticChildDependencyGraph``.
     """
     lexical_scope: LexicalScope = ()
     symbol_table: SymbolTable = SymbolTableSentinel.ROOT
-    root_proxy_class: type[StaticProxy] = CachedProxy
+    root_proxy_class: type[StaticProxy[str]] = CachedProxy
 
-    def get_module_proxy_class(_module: ModuleType) -> type[StaticProxy]:
+    def get_module_proxy_class(_module: ModuleType) -> type[StaticProxy[str]]:
         return CachedProxy
 
     namespace_definition: _ProxyDefinition
@@ -1965,27 +1963,10 @@ def mount(
         jit_cache=jit_cache,
     )
 
-    # Determine parent path based on lexical_scope
-    if lexical_scope:
-        parent_reversed_path: DependencyGraph[TKey] = lexical_scope[-1].dependency_graph
-    else:
-        parent_reversed_path = RootDependencyGraph()
-
-    # Memoization: check if StaticChildDependencyGraph already exists
-    intern_pool = parent_reversed_path.intern_pool
-    existing = intern_pool.get(name)
-    if existing is not None:
-        root_path = existing
-    else:
-        root_path = StaticChildDependencyGraph(
-            head=name,
-            parent=parent_reversed_path,
-        )
-        intern_pool[name] = root_path
-
+    root_dependency_graph = RootDependencyGraph[str]()
     return root_proxy_class(
-        mixins={root_path: mixin},
-        dependency_graph=root_path,
+        mixins={root_dependency_graph: mixin},
+        dependency_graph=root_dependency_graph,
     )
 
 

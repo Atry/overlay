@@ -47,7 +47,7 @@ class TestSimpleResource:
             def greeting() -> str:
                 return "Hello"
 
-        root = mount("root", Namespace)
+        root = mount(Namespace)
         assert root.greeting == "Hello"
 
     def test_resource_with_dependency(self) -> None:
@@ -61,7 +61,7 @@ class TestSimpleResource:
             def greeting(name: str) -> str:
                 return f"Hello, {name}!"
 
-        root = mount("root", Namespace)
+        root = mount(Namespace)
         assert root.greeting == "Hello, World!"
 
     def test_multiple_dependencies(self) -> None:
@@ -79,7 +79,7 @@ class TestSimpleResource:
             def combined(first: str, second: str) -> str:
                 return f"{first} and {second}"
 
-        root = mount("root", Namespace)
+        root = mount(Namespace)
         assert root.combined == "First and Second"
 
 
@@ -108,7 +108,7 @@ class TestPatch:
             class Combined:
                 pass
 
-        root = mount("root", Root)
+        root = mount(Root)
         assert root.Combined.value == 20
 
     def test_multiple_patches(self) -> None:
@@ -140,7 +140,7 @@ class TestPatch:
             class Combined:
                 pass
 
-        root = mount("root", Root)
+        root = mount(Root)
         assert root.Combined.value == 18
 
 
@@ -169,7 +169,7 @@ class TestPatches:
             class Combined:
                 pass
 
-        root = mount("root", Root)
+        root = mount(Root)
         assert root.Combined.value == 18
 
 
@@ -189,7 +189,7 @@ class TestLexicalScope:
                 def counter(counter: int) -> int:
                     return counter + 1
 
-        root = mount("root", Outer)
+        root = mount(Outer)
         assert root.counter == 0
         assert root.Inner.counter == 1
 
@@ -244,7 +244,7 @@ class TestMerger:
             class Combined:
                 pass
 
-        root = mount("root", Root)
+        root = mount(Root)
         assert root.Combined.tags == frozenset({"tag1", "tag2"})
 
 
@@ -273,7 +273,7 @@ class TestUnionMount:
             class Combined:
                 pass
 
-        root = mount("root", Root)
+        root = mount(Root)
         assert root.Combined.foo == "foo_value"
         assert root.Combined.bar == "bar_value"
 
@@ -297,7 +297,7 @@ class TestUnionMount:
                 def combined(base_value: str) -> str:
                     return f"{base_value}_combined"
 
-        root = mount("root", Root)
+        root = mount(Root)
         assert root.Namespace2.combined == "base_combined"
 
     def test_deduplicated_tags_from_docstring(self) -> None:
@@ -337,7 +337,7 @@ class TestUnionMount:
             class Combined:
                 pass
 
-        root = mount("root", Root)
+        root = mount(Root)
         assert root.Combined.deduplicated_tags == frozenset(
             {"tag1", "tag2_dependency_value"}
         )
@@ -368,7 +368,7 @@ class TestUnionMount:
             class Combined:
                 pass
 
-        root = mount("root", Root)
+        root = mount(Root)
         assert root.Combined.foo == "foo"
         assert root.Combined.bar == "foo_bar"
 
@@ -401,7 +401,7 @@ class TestExtendInstanceProxyProhibition:
                 pass
 
         with pytest.raises(TypeError, match="Cannot extend through InstanceProxy"):
-            root = mount("root", Root)
+            root = mount(Root)
             _ = root.Invalid.foo
 
     def test_extend_path_through_instance_proxy_raises_type_error(self) -> None:
@@ -432,7 +432,7 @@ class TestExtendInstanceProxyProhibition:
                 pass
 
         with pytest.raises(TypeError, match="Cannot extend through InstanceProxy"):
-            root = mount("root", Root)
+            root = mount(Root)
             _ = root.Invalid.foo
 
     def test_extend_within_instance_proxy_sibling_allowed(self) -> None:
@@ -471,7 +471,7 @@ class TestExtendInstanceProxyProhibition:
             def my_instance(MyOuter: Proxy) -> Proxy:
                 return MyOuter(i=42)
 
-        root = mount("root", Root)
+        root = mount(Root)
 
         # Accessing via InstanceProxy should work because the extend reference
         # ("Inner2",) is a sibling reference that doesn't traverse through InstanceProxy
@@ -568,7 +568,7 @@ class TestScalaStylePathDependentTypes:
                 def foo() -> Callable[[int], int]:
                     return lambda x: 100 + x
 
-        root = mount("root", Root)
+        root = mount(Root)
 
         # dependency_graph is the runtime access path:
         #   root.object1.MyInner.dependency_graph == ("MyInner", "object1", "root")
@@ -605,7 +605,7 @@ class TestInstanceProxyReversedPath:
             def my_instance(MyOuter: Proxy) -> Proxy:
                 return MyOuter(i=42)
 
-        root = mount("root", Root)
+        root = mount(Root)
 
         # Access MyInner through the InstanceProxy
         my_instance = root.my_instance
@@ -636,7 +636,7 @@ class TestJitCacheSharing:
                     def value(arg: str) -> str:
                         return f"value_{arg}"
 
-        root = mount("root", Root)
+        root = mount(Root)
 
         inner1 = root.Outer(arg="v1").Inner
         inner2 = root.Outer(arg="v2").Inner
@@ -662,7 +662,7 @@ class TestJitCacheSharing:
                     def value(arg: str) -> str:
                         return f"value_{arg}"
 
-        root = mount("root", Root)
+        root = mount(Root)
 
         instance_inner = root.Outer(arg="v1").Inner
         static_inner = root.Outer.Inner
@@ -693,7 +693,7 @@ class TestJitCacheSharing:
                 @extern
                 def arg() -> str: ...
 
-        root = mount("root", Root)
+        root = mount(Root)
 
         outer_inner = root.Outer(arg="v1").Inner
         object1_inner = root.object1(arg="v2").Inner
@@ -719,7 +719,7 @@ class TestProxyAsSymlink:
             def linked() -> Proxy:
                 return inner_proxy
 
-        root = mount("root", Namespace)
+        root = mount(Namespace)
         assert root.linked.inner_value == "inner"
 
 
@@ -746,7 +746,7 @@ class TestModuleParsing:
         try:
             import regular_pkg
 
-            root = mount("root", regular_pkg)
+            root = mount(regular_pkg)
             assert "regular_pkg.child" not in sys.modules
             _ = root.child
             assert "regular_pkg.child" in sys.modules
@@ -760,7 +760,7 @@ class TestModuleParsing:
         try:
             import regular_pkg
 
-            root = mount("root", regular_pkg)
+            root = mount(regular_pkg)
             assert root.pkg_value == "from_pkg"
             assert root.child.child_value == "from_child"
         finally:
@@ -795,7 +795,7 @@ class TestModuleParsing:
             )
             assert isinstance(scope_def, _PackageDefinition)
 
-            root = mount("root", ns_pkg)
+            root = mount(ns_pkg)
             assert root.mod_a.value_a == "a"
             assert root.mod_b.base == "base"
         finally:
@@ -809,7 +809,7 @@ class TestModuleParsing:
         try:
             import ns_pkg
 
-            root = mount("root", ns_pkg)
+            root = mount(ns_pkg)
             assert root.mod_b.base == "base"
             assert root.mod_b.derived == "base_derived"
         finally:
@@ -838,7 +838,7 @@ class TestModuleParsing:
                 )
                 assert isinstance(scope_def, _PackageDefinition)
 
-                root = mount("root", ns_pkg)
+                root = mount(ns_pkg)
                 assert root.mod_a.value_a == "a"
                 assert root.mod_b.base == "base"
                 assert root.mod_c.value_c == "c"
@@ -908,7 +908,7 @@ class TestProxyCallable:
                 """Depends on db_config parameter"""
                 return f"{db_config['host']}:{db_config['port']}"
 
-        root = mount("root", Config)(db_config={"host": "localhost", "port": "5432"})
+        root = mount(Config)(db_config={"host": "localhost", "port": "5432"})
         assert root.db_config == {"host": "localhost", "port": "5432"}
         assert root.connection_string == "localhost:5432"
 
@@ -967,7 +967,7 @@ class TestProxyDir:
             def foo() -> str:
                 return "foo"
 
-        root = mount("root", Namespace)
+        root = mount(Namespace)
         result = dir(root)
         assert isinstance(result, list)
 
@@ -988,7 +988,7 @@ class TestProxyDir:
             def resource3() -> str:
                 return "r3"
 
-        root = mount("root", Namespace)
+        root = mount(Namespace)
         result = dir(root)
         assert "resource1" in result
         assert "resource2" in result
@@ -1003,7 +1003,7 @@ class TestProxyDir:
             def foo() -> str:
                 return "foo"
 
-        root = mount("root", Namespace)
+        root = mount(Namespace)
         result = dir(root)
         assert "__class__" in result
         assert "__getitem__" in result
@@ -1026,7 +1026,7 @@ class TestProxyDir:
             def middle() -> str:
                 return "m"
 
-        root = mount("root", Namespace)
+        root = mount(Namespace)
         result = dir(root)
         assert result == sorted(result)
 
@@ -1054,7 +1054,7 @@ class TestProxyDir:
             class Combined:
                 pass
 
-        root = mount("root", Root)
+        root = mount(Root)
         result = dir(root.Combined)
         assert "foo" in result
         assert "bar" in result
@@ -1083,7 +1083,7 @@ class TestProxyDir:
             class Combined:
                 pass
 
-        root = mount("root", Root)
+        root = mount(Root)
         result = dir(root.Combined)
         assert result.count("shared") == 1
 
@@ -1096,7 +1096,7 @@ class TestProxyDir:
             def cached_resource() -> str:
                 return "cached"
 
-        root = mount("root", Namespace)
+        root = mount(Namespace)
         result = dir(root)
         assert "cached_resource" in result
 
@@ -1109,7 +1109,7 @@ class TestProxyDir:
             def weak_resource() -> str:
                 return "weak"
 
-        root = mount("root", Namespace)
+        root = mount(Namespace)
         result = dir(root)
         assert "weak_resource" in result
 
@@ -1126,7 +1126,7 @@ class TestProxyDir:
             def accessible2() -> str:
                 return "a2"
 
-        root = mount("root", Namespace)
+        root = mount(Namespace)
         assert "accessible1" in dir(root)
         assert "accessible2" in dir(root)
         assert getattr(root, "accessible1") == "a1"
@@ -1148,7 +1148,7 @@ class TestParameter:
             def connection_string(database_url: str) -> str:
                 return f"Connected to: {database_url}"
 
-        root = mount("root", Config)(database_url="postgresql://localhost/mydb")
+        root = mount(Config)(database_url="postgresql://localhost/mydb")
         assert root.connection_string == "Connected to: postgresql://localhost/mydb"
 
     def test_parameter_with_dependencies(self) -> None:
@@ -1169,7 +1169,7 @@ class TestParameter:
             def connection_string(database_url: str) -> str:
                 return f"Connected to: {database_url}"
 
-        root = mount("root", Config)(database_url="postgresql://prod-server/mydb")
+        root = mount(Config)(database_url="postgresql://prod-server/mydb")
         assert root.connection_string == "Connected to: postgresql://prod-server/mydb"
 
     def test_parameter_without_base_value_raises_error(self) -> None:
@@ -1184,7 +1184,7 @@ class TestParameter:
             def connection_string(database_url: str) -> str:
                 return f"Connected to: {database_url}"
 
-        root = mount("root", Config)
+        root = mount(Config)
         try:
             _ = root.connection_string
             assert False, "Expected NotImplementedError"
@@ -1205,8 +1205,8 @@ class TestParameter:
             def value():
                 return ()
 
-        root_param = mount("root", WithParameter)(value=42)
-        root_patches = mount("root", WithEmptyPatches)(value=42)
+        root_param = mount(WithParameter)(value=42)
+        root_patches = mount(WithEmptyPatches)(value=42)
 
         assert root_param.value == 42
         assert root_patches.value == 42
@@ -1226,7 +1226,7 @@ class TestParameter:
             def url(host: str, port: int) -> str:
                 return f"http://{host}:{port}"
 
-        root = mount("root", Config)(host="example.com", port=8080)
+        root = mount(Config)(host="example.com", port=8080)
         assert root.url == "http://example.com:8080"
 
     def test_patch_with_identity_endo_equivalent_to_parameter(self) -> None:
@@ -1260,8 +1260,8 @@ class TestParameter:
                 return value * 2
 
         # Both should work identically when value is injected
-        root_param = mount("root", WithParameter)(value=21)
-        root_patch = mount("root", WithIdentityPatch)(value=21)
+        root_param = mount(WithParameter)(value=21)
+        root_patch = mount(WithIdentityPatch)(value=21)
 
         assert root_param.value == 21
         assert root_patch.value == 21
@@ -1277,7 +1277,7 @@ class TestParameter:
             def config() -> Callable[[dict], dict]:
                 return lambda x: x
 
-        root = mount("root", WithIdentityPatch)
+        root = mount(WithIdentityPatch)
         try:
             _ = root.config
             assert False, "Expected NotImplementedError"

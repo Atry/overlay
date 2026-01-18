@@ -68,8 +68,8 @@ class TestInterning:
             def foo() -> int:
                 return 42
 
-        root1 = mount("root", Root)
-        root2 = mount("root", Root)
+        root1 = mount(Root)
+        root2 = mount(Root)
 
         # Different mount calls create different proxies
         assert root1 is not root2
@@ -85,7 +85,7 @@ class TestInterning:
                 def foo() -> int:
                     return 42
 
-        root = mount("root", Root)
+        root = mount(Root)
         inner1 = root.Inner
         inner2 = root.Inner
 
