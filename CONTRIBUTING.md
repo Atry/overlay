@@ -625,3 +625,27 @@ def process_results(results: list[str]):
 ```
 
 Use `assert` for internal invariants about trusted code paths; use `ValueError` for invalid caller/user inputs. No other exception/handler policy changes are implied.
+
+
+## Logging Best Practices
+
+### Use `logging`, NOT `print`
+
+**Do NOT** use `print()` for output in application code. Use `logging` instead:
+
+### Adding Debug Logs
+
+Use `%(funcName)s` in the log format to automatically include function names. Do not manually prefix log messages with function names.
+
+Use named placeholders instead of positional arguments for better readability:
+
+```python
+# Good - named placeholders
+logger.debug("bytes=%(bytes)d preview=%(preview)r", {"bytes": len(data), "preview": data[:100]})
+
+# Bad - positional arguments
+logger.debug("read returned %d bytes: %r", len(data), data[:100])
+
+# Bad - redundant manual prefix
+logger.debug("[read] read returned %d bytes: %r", len(data), data[:100])
+```
