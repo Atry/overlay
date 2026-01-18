@@ -11,7 +11,7 @@ from mixinject import (
     _NamespaceDefinition,
     _Symbol,
 )
-from mixinject import RootDependencyGraph, ChildDependencyGraph
+from mixinject import RootMixin, ChildMixin
 
 
 def _empty_proxy_definition() -> _NamespaceDefinition:
@@ -27,12 +27,12 @@ def _empty_symbol(proxy_definition: _NamespaceDefinition) -> _Symbol:
     )
 
 
-def _empty_dependency_graph() -> ChildDependencyGraph[str]:
+def _empty_mixin() -> ChildMixin[str]:
     """Create a minimal dependency graph for testing."""
     proxy_def = _empty_proxy_definition()
     symbol = _empty_symbol(proxy_def)
-    return ChildDependencyGraph(
-        outer=RootDependencyGraph(symbol=symbol),
+    return ChildMixin(
+        outer=RootMixin(symbol=symbol),
         symbol=symbol,
         resource_name="test",
     )
@@ -40,7 +40,7 @@ def _empty_dependency_graph() -> ChildDependencyGraph[str]:
 
 def _empty_proxy() -> CachedProxy:
     """Create an empty proxy for testing."""
-    return CachedProxy(mixins={}, dependency_graph=_empty_dependency_graph())
+    return CachedProxy(mixins={}, mixin=_empty_mixin())
 
 def _make_getitem_factory(
     name: str, index: int

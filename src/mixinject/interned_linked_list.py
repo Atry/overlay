@@ -17,7 +17,7 @@ T_co = TypeVar("T_co", covariant=True)
 
 
 @dataclass(kw_only=True, slots=True, frozen=True, weakref_slot=False, eq=False)
-class DependencyGraph(ABC, Generic[T]):
+class Mixin(ABC, Generic[T]):
     """Base class for dependency graphs supporting O(1) equality comparison.
 
     Equal graphs are interned to the same object instance within the same root,
@@ -27,9 +27,9 @@ class DependencyGraph(ABC, Generic[T]):
 
     Example::
 
-        >>> root = RootDependencyGraph()
-        >>> graph1 = ChildDependencyGraph(head=1, outer=root)
-        >>> graph2 = ChildDependencyGraph(head=1, outer=root)
+        >>> root = RootMixin()
+        >>> graph1 = ChildMixin(head=1, outer=root)
+        >>> graph2 = ChildMixin(head=1, outer=root)
         >>> graph1 is graph2  # Same object due to interning within same root
         True
 
@@ -43,25 +43,25 @@ class DependencyGraph(ABC, Generic[T]):
         'cached_value'
     """
 
-    intern_pool: Final[weakref.WeakValueDictionary[T, "ChildDependencyGraph[T]"]] = (
+    intern_pool: Final[weakref.WeakValueDictionary[T, "ChildMixin[T]"]] = (
         field(default_factory=weakref.WeakValueDictionary)
     )
 
 
 @final
 @dataclass(kw_only=True, slots=True, frozen=True, weakref_slot=False, eq=False)
-class RootDependencyGraph(DependencyGraph[T]):
+class RootMixin(Mixin[T]):
     """
     Root of a dependency graph, representing an empty dependency chain.
 
-    Each RootDependencyGraph instance has its own intern pool for interning
-    ChildDependencyGraph nodes within that dependency graph.
+    Each RootMixin instance has its own intern pool for interning
+    ChildMixin nodes within that dependency graph.
     """
 
 
 @final
 @dataclass(kw_only=True, slots=True, frozen=True, weakref_slot=True, eq=False)
-class ChildDependencyGraph(DependencyGraph[T]):
+class ChildMixin(Mixin[T]):
     """Non-empty dependency graph node.
 
     Uses object.__eq__ and object.__hash__ (identity-based) for O(1) comparison.
@@ -73,7 +73,7 @@ class ChildDependencyGraph(DependencyGraph[T]):
     """
     .. todo:: Remove this field. It's legacy and useless now.
     """
-    outer: Final[DependencyGraph[T]]
+    outer: Final[Mixin[T]]
     """
     .. todo:: Remove this todo since this field has been renamed to ``outer``.
     """
@@ -83,7 +83,7 @@ def _replace_init():
     """
     Replace dataclass-generated ``__init__`` with a custom ``__new__`` for interning.
 
-    This function patches :class:`ChildDependencyGraph` to support the
+    This function patches :class:`ChildMixin` to support the
     flyweight/interning pattern with a frozen dataclass.
 
     Why delete ``__init__``?
@@ -122,26 +122,26 @@ def _replace_init():
 
     This ensures ``__init__`` is only called once per unique instance.
     """
-    original_init = ChildDependencyGraph.__init__
-    ChildDependencyGraph.__init__ = lambda self, *args, **kwargs: None
+    original_init = ChildMixin.__init__
+    ChildMixin.__init__ = lambda self, *args, **kwargs: None
 
     def __new__(
-        cls: Type[ChildDependencyGraph[T]],
+        cls: Type[ChildMixin[T]],
         *,
         head: T,
-        outer: DependencyGraph[T],
-    ) -> ChildDependencyGraph[T]:
+        outer: Mixin[T],
+    ) -> ChildMixin[T]:
         intern_pool = outer.intern_pool
         existing = intern_pool.get(head)
         if existing is not None:
             return existing
         else:
-            instance = super(ChildDependencyGraph, cls).__new__(cls)
+            instance = super(ChildMixin, cls).__new__(cls)
             original_init(instance, head=head, outer=outer)
             intern_pool[head] = instance
             return instance
 
-    ChildDependencyGraph.__new__ = __new__
+    ChildMixin.__new__ = __new__
 
 
 _replace_init()

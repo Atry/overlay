@@ -9,7 +9,7 @@ from mixinject import (
     _MergerDefinition,
     Merger,
     CachedProxy,
-    InstanceChildDependencyGraph,
+    InstanceChildMixin,
     InstanceProxy,
     _Symbol,
     SymbolSentinel,
@@ -32,7 +32,7 @@ from mixinject import (
     _parse_package,
     WeakCachedScope,
 )
-from mixinject import RootDependencyGraph, ChildDependencyGraph
+from mixinject import RootMixin, ChildMixin
 
 R = RelativeReference
 
@@ -52,12 +52,12 @@ def _empty_symbol(proxy_definition: _NamespaceDefinition) -> _Symbol:
     )
 
 
-def _empty_dependency_graph() -> ChildDependencyGraph[str]:
+def _empty_mixin() -> ChildMixin[str]:
     """Create a minimal dependency graph for testing."""
     proxy_def = _empty_proxy_definition()
     symbol = _empty_symbol(proxy_def)
-    return ChildDependencyGraph(
-        outer=RootDependencyGraph(symbol=symbol),
+    return ChildMixin(
+        outer=RootMixin(symbol=symbol),
         symbol=symbol,
         resource_name="test",
     )
@@ -230,13 +230,13 @@ class TestInstanceProxy:
     """Test InstanceProxy created via StaticProxy.__call__."""
 
     def test_instance_proxy_single_value(self) -> None:
-        base_proxy = CachedProxy(mixins={}, dependency_graph=_empty_dependency_graph())
+        base_proxy = CachedProxy(mixins={}, mixin=_empty_mixin())
         proxy = base_proxy(foo="bar")
         assert isinstance(proxy, InstanceProxy)
         assert proxy.foo == "bar"
 
     def test_instance_proxy_multiple_values(self) -> None:
-        base_proxy = CachedProxy(mixins={}, dependency_graph=_empty_dependency_graph())
+        base_proxy = CachedProxy(mixins={}, mixin=_empty_mixin())
         proxy = base_proxy(foo="bar", count=42, flag=True)
         assert isinstance(proxy, InstanceProxy)
         assert proxy.foo == "bar"
@@ -618,24 +618,24 @@ class TestScalaStylePathDependentTypes:
 
         root = mount(Root)
 
-        # dependency_graph is the runtime access path:
-        #   root.object1.MyInner.dependency_graph == ("MyInner", "object1", "root")
-        #   root.object2.MyInner.dependency_graph == ("MyInner", "object2", "root")
+        # mixin is the runtime access path:
+        #   root.object1.MyInner.mixin == ("MyInner", "object1", "root")
+        #   root.object2.MyInner.mixin == ("MyInner", "object2", "root")
         object1_inner = root.object1.MyInner
         object2_inner = root.object2.MyInner
-        assert object1_inner.dependency_graph != object2_inner.dependency_graph
+        assert object1_inner.mixin != object2_inner.mixin
 
         # foo = 10 (Base) + 1 (object1.MyInner) + 2 (object2.MyInner) + 100 (MyObjectA) = 113
         assert root.MyObjectA.foo == 113
 
 
 class TestInstanceProxyReversedPath:
-    """Test that InstanceProxy has correct dependency_graph with InstanceChildDependencyGraph."""
+    """Test that InstanceProxy has correct mixin with InstanceChildMixin."""
 
-    def test_instance_proxy_nested_access_has_instance_dependency_graph_in_path(
+    def test_instance_proxy_nested_access_has_instance_mixin_in_path(
         self,
     ) -> None:
-        """When accessing nested proxy through InstanceProxy, path should use InstanceChildDependencyGraph."""
+        """When accessing nested proxy through InstanceProxy, path should use InstanceChildMixin."""
 
         @scope()
         class Root:
@@ -660,8 +660,8 @@ class TestInstanceProxyReversedPath:
         my_instance = root.my_instance
         my_inner = my_instance.MyInner
 
-        # The dependency_graph should be InstanceChildDependencyGraph to distinguish from static path
-        assert isinstance(my_instance.dependency_graph, InstanceChildDependencyGraph)
+        # The mixin should be InstanceChildMixin to distinguish from static path
+        assert isinstance(my_instance.mixin, InstanceChildMixin)
 
         # Verify the resource works correctly
         assert my_inner.foo == "foo_42"
@@ -691,15 +691,15 @@ class TestSymbolSharing:
         inner1 = root.Outer(arg="v1").Inner
         inner2 = root.Outer(arg="v2").Inner
 
-        # Use the dependency_graph's symbol directly
-        symbol1 = inner1.dependency_graph.symbol
-        symbol2 = inner2.dependency_graph.symbol
+        # Use the mixin's symbol directly
+        symbol1 = inner1.mixin.symbol
+        symbol2 = inner2.mixin.symbol
 
         assert symbol1 is symbol2
 
     @pytest.mark.xfail(
-        reason="BUG: InstanceChildDependencyGraph and ChildDependencyGraph have separate intern_pools, "
-        "causing instance path to create new ChildDependencyGraph with SymbolSentinel.MERGED "
+        reason="BUG: InstanceChildMixin and ChildMixin have separate intern_pools, "
+        "causing instance path to create new ChildMixin with SymbolSentinel.MERGED "
         "instead of reusing the one created via static path."
     )
     def test_symbol_shared_between_instance_and_static_access(self) -> None:
@@ -708,14 +708,14 @@ class TestSymbolSharing:
         .. todo:: Fix _ProxySemigroup.create to share symbol between instance and static paths.
 
             Currently when accessing Inner via instance path (root.Outer(arg="v1").Inner),
-            the access_path_outer is an InstanceChildDependencyGraph which has its own
+            the access_path_outer is an InstanceChildMixin which has its own
             intern_pool. When _ProxySemigroup.create checks this intern_pool, it doesn't
-            find the existing ChildDependencyGraph (created via resolve_symbols for static
+            find the existing ChildMixin (created via resolve_symbols for static
             path), so it creates a new one with symbol=SymbolSentinel.MERGED.
 
-            The fix should ensure that InstanceChildDependencyGraph delegates to its
+            The fix should ensure that InstanceChildMixin delegates to its
             prototype's intern_pool, or that _ProxySemigroup.create uses the prototype's
-            intern_pool when access_path_outer is an InstanceChildDependencyGraph.
+            intern_pool when access_path_outer is an InstanceChildMixin.
         """
 
         @scope()
@@ -736,15 +736,15 @@ class TestSymbolSharing:
         instance_inner = root.Outer(arg="v1").Inner
         static_inner = root.Outer.Inner
 
-        # Use the dependency_graph's symbol directly
-        instance_symbol = instance_inner.dependency_graph.symbol
-        static_symbol = static_inner.dependency_graph.symbol
+        # Use the mixin's symbol directly
+        instance_symbol = instance_inner.mixin.symbol
+        static_symbol = static_inner.mixin.symbol
 
         assert instance_symbol is static_symbol
 
     @pytest.mark.xfail(
         reason="BUG: Same issue as test_symbol_shared_between_instance_and_static_access. "
-        "InstanceChildDependencyGraph has separate intern_pool from ChildDependencyGraph, "
+        "InstanceChildMixin has separate intern_pool from ChildMixin, "
         "causing different symbol values for the same underlying scope definition."
     )
     def test_symbol_shared_when_scope_extends_another(self) -> None:
@@ -754,8 +754,8 @@ class TestSymbolSharing:
 
             When object1 extends Outer, accessing Inner through both paths should yield
             the same symbol since they refer to the same Python class definition
-            (Root.Outer.Inner). Currently, each InstanceChildDependencyGraph has its own
-            intern_pool, leading to separate ChildDependencyGraph instances with different
+            (Root.Outer.Inner). Currently, each InstanceChildMixin has its own
+            intern_pool, leading to separate ChildMixin instances with different
             symbol values (SymbolSentinel.MERGED vs real _Symbol).
 
             The fix should ensure that all access paths to the same scope definition
@@ -785,9 +785,9 @@ class TestSymbolSharing:
         outer_inner = root.Outer(arg="v1").Inner
         object1_inner = root.object1(arg="v2").Inner
 
-        # Use the dependency_graph's symbol directly
-        outer_symbol = outer_inner.dependency_graph.symbol
-        object1_symbol = object1_inner.dependency_graph.symbol
+        # Use the mixin's symbol directly
+        outer_symbol = outer_inner.mixin.symbol
+        object1_symbol = object1_inner.mixin.symbol
 
         # Both should share the same symbol since they access the same Inner definition
         assert outer_symbol is object1_symbol
@@ -800,7 +800,7 @@ class TestProxyAsSymlink:
     """Test Proxy return values acting as symlinks."""
 
     def test_proxy_symlink(self) -> None:
-        base_proxy = CachedProxy(mixins={}, dependency_graph=_empty_dependency_graph())
+        base_proxy = CachedProxy(mixins={}, mixin=_empty_mixin())
         inner_proxy = base_proxy(inner_value="inner")
 
         @scope()
@@ -946,7 +946,7 @@ class TestProxyCallable:
 
     def test_proxy_call_single_kwarg(self) -> None:
         """Test calling Proxy to inject a single new value."""
-        base_proxy = CachedProxy(mixins={}, dependency_graph=_empty_dependency_graph())
+        base_proxy = CachedProxy(mixins={}, mixin=_empty_mixin())
         proxy = base_proxy(foo="foo_value")
 
         # Call proxy with new kwargs to add additional values
@@ -957,7 +957,7 @@ class TestProxyCallable:
 
     def test_proxy_call_multiple_kwargs(self) -> None:
         """Test calling Proxy with multiple new kwargs."""
-        base_proxy = CachedProxy(mixins={}, dependency_graph=_empty_dependency_graph())
+        base_proxy = CachedProxy(mixins={}, mixin=_empty_mixin())
         proxy = base_proxy(x=1, y=2)
 
         # Call to add new values (z and w)
@@ -971,7 +971,7 @@ class TestProxyCallable:
     def test_proxy_call_injected_values_accessible(self) -> None:
         """Test that values injected via Proxy call are accessible as resources."""
         # Create empty proxy and inject values via call
-        proxy = CachedProxy(mixins={}, dependency_graph=_empty_dependency_graph())(
+        proxy = CachedProxy(mixins={}, mixin=_empty_mixin())(
             config={"db": "postgres"}
         )(timeout=30)
 
@@ -1013,7 +1013,7 @@ class TestProxyCallable:
         v1, v2 = Value(), Value()
 
         # CachedProxy.__call__ should return InstanceProxy
-        cached = CachedProxy(mixins={}, dependency_graph=_empty_dependency_graph())
+        cached = CachedProxy(mixins={}, mixin=_empty_mixin())
         instance1 = cached(x=v1)
         assert isinstance(instance1, InstanceProxy)
         assert instance1.x is v1
@@ -1025,14 +1025,14 @@ class TestProxyCallable:
         assert instance2.y is v2
 
         # WeakCachedScope.__call__ should also return InstanceProxy
-        weak = WeakCachedScope(mixins={}, dependency_graph=_empty_dependency_graph())
+        weak = WeakCachedScope(mixins={}, mixin=_empty_mixin())
         weak_instance = weak(x=v1)
         assert isinstance(weak_instance, InstanceProxy)
         assert weak_instance.x is v1
 
     def test_proxy_call_creates_fresh_instance(self) -> None:
         """Test that calling a Proxy creates a new instance without modifying the original."""
-        base_proxy = CachedProxy(mixins={}, dependency_graph=_empty_dependency_graph())
+        base_proxy = CachedProxy(mixins={}, mixin=_empty_mixin())
         proxy1 = base_proxy(a=1)
 
         # Call to create a new proxy
@@ -1381,14 +1381,14 @@ class TestParameter:
             pass
 
 
-class TestProxySemigroupDependencyGraph:
-    """Test _ProxySemigroup.create correctly assigns dependency_graph."""
+class TestProxySemigroupMixin:
+    """Test _ProxySemigroup.create correctly assigns mixin."""
 
-    def test_extended_proxy_has_distinct_dependency_graph(self) -> None:
-        """Extended proxy should have its own dependency_graph, not primary's.
+    def test_extended_proxy_has_distinct_mixin(self) -> None:
+        """Extended proxy should have its own mixin, not primary's.
 
-        When scope B extends scope A via extend=, B.dependency_graph should be
-        distinct from A.dependency_graph because they represent different
+        When scope B extends scope A via extend=, B.mixin should be
+        distinct from A.mixin because they represent different
         positions in the topology (B is accessed as "B", not "A").
         """
 
@@ -1408,25 +1408,25 @@ class TestProxySemigroupDependencyGraph:
 
         root = mount(Root)
 
-        # The extended proxy should have its own unique dependency_graph
+        # The extended proxy should have its own unique mixin
         # that represents its access path ("Extended", "Root"), not Base's path
-        base_dependency_graph = root.Base.dependency_graph
-        extended_dependency_graph = root.Extended.dependency_graph
+        base_mixin = root.Base.mixin
+        extended_mixin = root.Extended.mixin
 
-        # This should pass - Extended has its own dependency_graph
-        assert extended_dependency_graph is not base_dependency_graph, (
-            "Extended proxy should have its own dependency_graph, "
+        # This should pass - Extended has its own mixin
+        assert extended_mixin is not base_mixin, (
+            "Extended proxy should have its own mixin, "
             "not share with Base proxy"
         )
 
-    def test_nested_scope_in_extended_has_distinct_dependency_graph(self) -> None:
-        """Nested scope in Extended should have different dependency_graph than in Base.
+    def test_nested_scope_in_extended_has_distinct_mixin(self) -> None:
+        """Nested scope in Extended should have different mixin than in Base.
 
         Expected behavior:
-        - base_another.dependency_graph.resource_name == "Another"
-        - extended_another.dependency_graph.resource_name == "Another"
-        - base_another.dependency_graph.outer.resource_name == "Base"
-        - extended_another.dependency_graph.outer.resource_name == "Extended"
+        - base_another.mixin.resource_name == "Another"
+        - extended_another.mixin.resource_name == "Another"
+        - base_another.mixin.outer.resource_name == "Base"
+        - extended_another.mixin.outer.resource_name == "Extended"
         """
 
         @scope()
@@ -1477,25 +1477,25 @@ class TestProxySemigroupDependencyGraph:
 
         # Print actual values for debugging
         print(
-            f"\nbase_another.dependency_graph.resource_name = {base_another.dependency_graph.resource_name!r}"
+            f"\nbase_another.mixin.resource_name = {base_another.mixin.resource_name!r}"
         )
         print(
-            f"extended_another.dependency_graph.resource_name = {extended_another.dependency_graph.resource_name!r}"
+            f"extended_another.mixin.resource_name = {extended_another.mixin.resource_name!r}"
         )
         print(
-            f"base_another.dependency_graph.outer.resource_name = {base_another.dependency_graph.outer.resource_name!r}"
+            f"base_another.mixin.outer.resource_name = {base_another.mixin.outer.resource_name!r}"
         )
         print(
-            f"extended_another.dependency_graph.outer.resource_name = {extended_another.dependency_graph.outer.resource_name!r}"
+            f"extended_another.mixin.outer.resource_name = {extended_another.mixin.outer.resource_name!r}"
         )
 
         # Verify resource_name for both
-        assert base_another.dependency_graph.resource_name == "Another"
-        assert extended_another.dependency_graph.resource_name == "Another"
+        assert base_another.mixin.resource_name == "Another"
+        assert extended_another.mixin.resource_name == "Another"
 
         # Verify outer.resource_name
-        assert base_another.dependency_graph.outer.resource_name == "Base"
-        assert extended_another.dependency_graph.outer.resource_name == "Extended"
+        assert base_another.mixin.outer.resource_name == "Base"
+        assert extended_another.mixin.outer.resource_name == "Extended"
 
         # Verify the nested resource is still accessible (with patch applied)
         assert extended_another.nested_value == "nestednestednested"

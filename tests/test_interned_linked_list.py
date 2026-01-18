@@ -1,10 +1,10 @@
 import gc
 
 from mixinject import (
-    ChildDependencyGraph,
-    DependencyGraph,
+    ChildMixin,
+    Mixin,
     Proxy,
-    RootDependencyGraph,
+    RootMixin,
     mount,
     resource,
     scope,
@@ -34,7 +34,7 @@ class TestRoot:
     def test_root_hasintern_pool(self) -> None:
         proxy_def = _empty_proxy_definition()
         symbol = _empty_symbol(proxy_def)
-        root = RootDependencyGraph(symbol=symbol)
+        root = RootMixin(symbol=symbol)
         assert root.intern_pool is not None
 
     def test_different_roots_have_different_pools(self) -> None:
@@ -42,8 +42,8 @@ class TestRoot:
         symbol1 = _empty_symbol(proxy_def1)
         proxy_def2 = _empty_proxy_definition()
         symbol2 = _empty_symbol(proxy_def2)
-        root1 = RootDependencyGraph(symbol=symbol1)
-        root2 = RootDependencyGraph(symbol=symbol2)
+        root1 = RootMixin(symbol=symbol1)
+        root2 = RootMixin(symbol=symbol2)
         assert root1.intern_pool is not root2.intern_pool
 
 
@@ -58,27 +58,27 @@ class TestInterning:
         """Direct instantiation without going through proxy_factory creates new objects."""
         proxy_def = _empty_proxy_definition()
         symbol = _empty_symbol(proxy_def)
-        root = RootDependencyGraph(symbol=symbol)
-        child1 = ChildDependencyGraph(outer=root, symbol=symbol, resource_name="test1")
-        child2 = ChildDependencyGraph(outer=root, symbol=symbol, resource_name="test2")
+        root = RootMixin(symbol=symbol)
+        child1 = ChildMixin(outer=root, symbol=symbol, resource_name="test1")
+        child2 = ChildMixin(outer=root, symbol=symbol, resource_name="test2")
         # Without interning, these are different objects
         assert child1 is not child2
 
     def test_different_parent_different_object(self) -> None:
         proxy_def = _empty_proxy_definition()
         symbol = _empty_symbol(proxy_def)
-        root1 = RootDependencyGraph(symbol=symbol)
-        root2 = RootDependencyGraph(symbol=symbol)
-        child1 = ChildDependencyGraph(outer=root1, symbol=symbol, resource_name="test")
-        child2 = ChildDependencyGraph(outer=root2, symbol=symbol, resource_name="test")
+        root1 = RootMixin(symbol=symbol)
+        root2 = RootMixin(symbol=symbol)
+        child1 = ChildMixin(outer=root1, symbol=symbol, resource_name="test")
+        child2 = ChildMixin(outer=root2, symbol=symbol, resource_name="test")
         assert child1 is not child2
 
     def test_each_node_has_ownintern_pool(self) -> None:
         proxy_def = _empty_proxy_definition()
         symbol = _empty_symbol(proxy_def)
-        root = RootDependencyGraph(symbol=symbol)
-        child1 = ChildDependencyGraph(outer=root, symbol=symbol, resource_name="child1")
-        child2 = ChildDependencyGraph(outer=child1, symbol=symbol, resource_name="child2")
+        root = RootMixin(symbol=symbol)
+        child1 = ChildMixin(outer=root, symbol=symbol, resource_name="child1")
+        child2 = ChildMixin(outer=child1, symbol=symbol, resource_name="child2")
         assert child1.intern_pool is not root.intern_pool
         assert child2.intern_pool is not child1.intern_pool
         assert child2.intern_pool is not root.intern_pool
@@ -96,10 +96,10 @@ class TestInterning:
 
         # Different mount calls create different proxies
         assert root1 is not root2
-        # But they should have different dependency_graphs since each mount creates a new root
+        # But they should have different mixins since each mount creates a new root
 
     def test_interning_via_nested_scope_access(self) -> None:
-        """Accessing the same nested scope multiple times returns proxies with the same dependency_graph."""
+        """Accessing the same nested scope multiple times returns proxies with the same mixin."""
         @scope()
         class Root:
             @scope()
@@ -114,10 +114,10 @@ class TestInterning:
 
         # Cached proxy should return the same object
         assert inner1 is inner2
-        # Therefore same dependency_graph
+        # Therefore same mixin
         assert isinstance(inner1, Proxy)
         assert isinstance(inner2, Proxy)
-        assert inner1.dependency_graph is inner2.dependency_graph
+        assert inner1.mixin is inner2.mixin
 
 
 class TestWeakReference:
@@ -127,9 +127,9 @@ class TestWeakReference:
         """The intern pool is a WeakValueDictionary."""
         proxy_def = _empty_proxy_definition()
         symbol = _empty_symbol(proxy_def)
-        root = RootDependencyGraph(symbol=symbol)
+        root = RootMixin(symbol=symbol)
         # Add an entry manually to the pool
-        child = ChildDependencyGraph(outer=root, symbol=symbol, resource_name="test")
+        child = ChildMixin(outer=root, symbol=symbol, resource_name="test")
         root.intern_pool["test_key"] = child
 
         pool_size_before = len(root.intern_pool)
@@ -145,21 +145,21 @@ class TestWeakReference:
 class TestSubclass:
     """Test isinstance/issubclass behavior."""
 
-    def test_root_is_subclass_of_dependency_graph(self) -> None:
-        assert issubclass(RootDependencyGraph, DependencyGraph)
+    def test_root_is_subclass_of_mixin(self) -> None:
+        assert issubclass(RootMixin, Mixin)
 
-    def test_child_is_subclass_of_dependency_graph(self) -> None:
-        assert issubclass(ChildDependencyGraph, DependencyGraph)
+    def test_child_is_subclass_of_mixin(self) -> None:
+        assert issubclass(ChildMixin, Mixin)
 
-    def test_root_instance_is_instance_of_dependency_graph(self) -> None:
+    def test_root_instance_is_instance_of_mixin(self) -> None:
         proxy_def = _empty_proxy_definition()
         symbol = _empty_symbol(proxy_def)
-        root = RootDependencyGraph(symbol=symbol)
-        assert isinstance(root, DependencyGraph)
+        root = RootMixin(symbol=symbol)
+        assert isinstance(root, Mixin)
 
-    def test_child_instance_is_instance_of_dependency_graph(self) -> None:
+    def test_child_instance_is_instance_of_mixin(self) -> None:
         proxy_def = _empty_proxy_definition()
         symbol = _empty_symbol(proxy_def)
-        root = RootDependencyGraph(symbol=symbol)
-        child = ChildDependencyGraph(outer=root, symbol=symbol, resource_name="test")
-        assert isinstance(child, DependencyGraph)
+        root = RootMixin(symbol=symbol)
+        child = ChildMixin(outer=root, symbol=symbol, resource_name="test")
+        assert isinstance(child, Mixin)
