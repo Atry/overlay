@@ -1224,6 +1224,36 @@ class _NestedMixinSymbol(_MixinSymbol, _NestedSymbol):
     def symbol_table(self) -> SymbolTable:
         return self._cached_symbol_table
 
+    def __call__(self, outer_mixin: Mixin) -> "NestedMixin":
+        """
+        Create or retrieve a memoized NestedMixin for the given outer mixin.
+
+        Memoization ensures that the same NestedMixin instance is reused
+        for the same (outer_mixin, name) pair, enabling O(1) identity-based
+        equality comparison.
+        """
+        intern_pool = outer_mixin.intern_pool
+        existing = intern_pool.get(self.name)
+        if existing is not None:
+            return existing
+        proxy_mixin = NestedMixin(
+            outer=outer_mixin,
+            symbol=self,
+            name=self.name,
+        )
+        intern_pool[self.name] = proxy_mixin
+        _logger.debug(
+            "name=%(name)r "
+            "underlying=%(underlying)r "
+            "outer_name=%(outer_name)r",
+            {
+                "name": self.name,
+                "underlying": self.proxy_definition.underlying,
+                "outer_name": getattr(outer_mixin, "name", "ROOT"),
+            },
+        )
+        return proxy_mixin
+
 
 @dataclass(kw_only=True)
 class _RootSymbol(_MixinSymbol):
@@ -1673,55 +1703,20 @@ class _MixinDefinition(
 
     def resolve_symbols(
         self, outer: "_MixinSymbol", name: str, /
-    ) -> Callable[[Mixin], NestedMixin]:
+    ) -> _NestedMixinSymbol:
         """
         Resolve symbols for this definition given the symbol table and resource name.
 
-        Returns a function that takes an outer Mixin and returns a
-        ChildMixin that implements ``Callable[[LexicalScope], _ProxySemigroup]``.
+        Returns a _NestedMixinSymbol that implements ``Callable[[Mixin], NestedMixin]``.
 
         .. todo:: Phase 2: Add ``base_symbols`` parameter to ``ChildMixin``
                   for inherited symbols from extended scopes.
         """
-        symbol = _NestedMixinSymbol(
+        return _NestedMixinSymbol(
             outer=outer,
             name=name,
             proxy_definition=self,
         )
-
-        def with_mixin(
-            outer_mixin: Mixin,
-        ) -> NestedMixin:
-            """
-            Create or retrieve a memoized ChildMixin for the given outer dependency graph.
-
-            Memoization ensures that the same ChildMixin instance is reused
-            for the same (outer_mixin, name) pair, enabling O(1) identity-based
-            equality comparison.
-            """
-            intern_pool = outer_mixin.intern_pool
-            existing = intern_pool.get(name)
-            if existing is not None:
-                return existing
-            proxy_mixin = NestedMixin(
-                outer=outer_mixin,
-                symbol=symbol,
-                name=name,
-            )
-            intern_pool[name] = proxy_mixin
-            _logger.debug(
-                "name=%(name)r "
-                "underlying=%(underlying)r "
-                "outer_name=%(outer_name)r",
-                {
-                    "name": name,
-                    "underlying": self.underlying,
-                    "outer_name": getattr(outer_mixin, "name", "ROOT"),
-                },
-            )
-            return proxy_mixin
-
-        return with_mixin
 
 
 @dataclass(frozen=True, kw_only=True)
