@@ -575,7 +575,7 @@ class StaticMixin(Mixin):
               使 ``NestedMixin`` 成为 ``Callable[[LexicalScope], _ProxySemigroup]``。
     """
 
-    symbol: Final["_MixinSymbol | SymbolSentinel"]
+    symbol: Final["_SymbolMapping | SymbolSentinel"]
     """
     The symbol for this dependency graph, providing cached symbol resolution.
     Subclasses (RootMixin, NestedMixin) must define this field.
@@ -598,7 +598,7 @@ class StaticMixin(Mixin):
     """
 
     @property
-    def definition(self) -> "_MixinDefinition":
+    def definition(self) -> "_DefinitionMapping":
         """The definition that describes resources, patches, and nested scopes for this dependency graph."""
         if isinstance(self.symbol, SymbolSentinel):
             raise ValueError(
@@ -1096,7 +1096,7 @@ class _Symbol(ABC):
 
 @dataclass(kw_only=True, eq=False)
 class _NestedSymbol(_Symbol):
-    outer: Final["_MixinSymbol"]
+    outer: Final["_SymbolMapping"]
 
     @property
     def depth(self) -> int:
@@ -1132,7 +1132,7 @@ class _NestedSymbol(_Symbol):
 
 
 @dataclass(kw_only=True, eq=False)
-class _MixinSymbol(
+class _SymbolMapping(
     Mapping[Hashable, "_NestedSymbol"],
     _Symbol,
 ):
@@ -1143,20 +1143,20 @@ class _MixinSymbol(
 
     .. todo:: Also compiles the proxy class into Python bytecode.
 
-    .. note:: _MixinSymbol instances are shared among all mixins created from the same
-        _MixinDefinition (the Python class decorated with @scope()). For example::
+    .. note:: _SymbolMapping instances are shared among all mixins created from the same
+        _DefinitionMapping (the Python class decorated with @scope()). For example::
 
             root.Outer(arg="v1").Inner.mixins[...].symbol
             root.Outer(arg="v2").Inner.mixins[...].symbol
             root.Outer.Inner.mixins[...].symbol
             root.object1(arg="v").Inner.mixins[...].symbol  # object1 extends Outer
 
-        All share the same _MixinSymbol because they reference the same ``Inner`` class.
-        The _MixinSymbol is created once in _MixinDefinition.resolve and captured
+        All share the same _SymbolMapping because they reference the same ``Inner`` class.
+        The _SymbolMapping is created once in _DefinitionMapping.resolve and captured
         in the closure, tied to the definition itself, not to the access path.
     """
 
-    definition: Final["_MixinDefinition"]  # type: ignore[misc]  # Narrowed from base class
+    definition: Final["_DefinitionMapping"]  # type: ignore[misc]  # Narrowed from base class
     _intern_pool: Final[WeakValueDictionary[Hashable, "_NestedSymbol"]] = field(
         default_factory=WeakValueDictionary
     )
@@ -1172,7 +1172,7 @@ class _MixinSymbol(
         Get or create a nested symbol for the given key.
 
         Symbols are interned: the same key always returns the same symbol instance
-        within this ``_MixinSymbol``. This enables O(1) path equality checks using
+        within this ``_SymbolMapping``. This enables O(1) path equality checks using
         reference equality (``symbol1 is symbol2``) instead of structural comparison.
 
         For example, ``root_symbol["Inner"]["foo"] is root_symbol["Inner"]["foo"]``
@@ -1201,7 +1201,7 @@ class _MixinSymbol(
 
 
 @dataclass(kw_only=True, eq=False)
-class _NestedMixinSymbol(_MixinSymbol, _NestedSymbol):
+class _NestedSymbolMapping(_SymbolMapping, _NestedSymbol):
 
     @property
     def resource_name(self) -> Hashable:
@@ -1252,7 +1252,7 @@ class _NestedMixinSymbol(_MixinSymbol, _NestedSymbol):
 
 
 @dataclass(kw_only=True, eq=False)
-class _RootSymbol(_MixinSymbol):
+class _RootSymbol(_SymbolMapping):
 
     @property
     def depth(self) -> int:
@@ -1464,7 +1464,7 @@ def _evaluate_resource(
 
 class Definition(ABC):
     @abstractmethod
-    def resolve(self, outer: "_MixinSymbol", name: str, /) -> _NestedSymbol:
+    def resolve(self, outer: "_SymbolMapping", name: str, /) -> _NestedSymbol:
         """
         Resolve symbols in the definition and return a compiled symbol.
         Call .compile(mixin) on the result to get a LexicalScope resolver.
@@ -1472,9 +1472,9 @@ class Definition(ABC):
         .. warning::
 
             This method creates a **new** symbol instance on each call. Do not call
-            it directly for symbol lookup. Instead, use ``_MixinSymbol.__getitem__``,
+            it directly for symbol lookup. Instead, use ``_SymbolMapping.__getitem__``,
             which triggers this method internally and caches the result in
-            ``_MixinSymbol._intern_pool`` for interning.
+            ``_SymbolMapping._intern_pool`` for interning.
 
             Interning ensures that the same (outer, name) pair always returns the
             same symbol instance, enabling O(1) identity-based equality checks.
@@ -1488,13 +1488,13 @@ class MergerDefinition(Definition, Generic[TPatch_contra, TResult_co]):
     is_local: bool = False
 
     @abstractmethod
-    def resolve(self, outer: "_MixinSymbol", name: str, /) -> _NestedSymbol:
+    def resolve(self, outer: "_SymbolMapping", name: str, /) -> _NestedSymbol:
         raise NotImplementedError()
 
 
 class PatcherDefinition(Definition, Generic[TPatch_co]):
     @abstractmethod
-    def resolve(self, outer: "_MixinSymbol", name: str, /) -> _NestedSymbol:
+    def resolve(self, outer: "_SymbolMapping", name: str, /) -> _NestedSymbol:
         raise NotImplementedError()
 
 
@@ -1505,7 +1505,7 @@ class _MergerDefinition(MergerDefinition[TPatch_contra, TResult_co]):
     function: Callable[..., Callable[[Iterator[TPatch_contra]], TResult_co]]
 
     def resolve(
-        self, outer: "_MixinSymbol", name: str, /
+        self, outer: "_SymbolMapping", name: str, /
     ) -> _MergerSymbol[TPatch_contra, TResult_co]:
         return _MergerSymbol(
             definition=self,
@@ -1523,7 +1523,9 @@ class _ResourceDefinition(
 
     function: Callable[..., TResult]
 
-    def resolve(self, outer: "_MixinSymbol", name: str, /) -> _ResourceSymbol[TResult]:
+    def resolve(
+        self, outer: "_SymbolMapping", name: str, /
+    ) -> _ResourceSymbol[TResult]:
         return _ResourceSymbol(
             definition=self,
             outer=outer,
@@ -1539,7 +1541,7 @@ class _SinglePatchDefinition(PatcherDefinition[TPatch_co]):
     function: Callable[..., TPatch_co]
 
     def resolve(
-        self, outer: "_MixinSymbol", name: str, /
+        self, outer: "_SymbolMapping", name: str, /
     ) -> _SinglePatchSymbol[TPatch_co]:
         return _SinglePatchSymbol(
             definition=self,
@@ -1556,7 +1558,7 @@ class _MultiplePatchDefinition(PatcherDefinition[TPatch_co]):
     function: Callable[..., Iterable[TPatch_co]]
 
     def resolve(
-        self, outer: "_MixinSymbol", name: str, /
+        self, outer: "_SymbolMapping", name: str, /
     ) -> _MultiplePatchSymbol[TPatch_co]:
         return _MultiplePatchSymbol(
             definition=self,
@@ -1735,7 +1737,7 @@ def _resolve_resource_reference(
 
 
 @dataclass(frozen=True, kw_only=True)
-class _MixinDefinition(
+class _DefinitionMapping(
     Mapping[Hashable, Definition],
     Definition,
 ):
@@ -1770,7 +1772,7 @@ class _MixinDefinition(
             raise KeyError(key)
         return val
 
-    def resolve(self, outer: "_MixinSymbol", name: str, /) -> _NestedMixinSymbol:
+    def resolve(self, outer: "_SymbolMapping", name: str, /) -> _NestedSymbolMapping:
         """
         Resolve symbols for this definition given the symbol table and resource name.
 
@@ -1779,7 +1781,7 @@ class _MixinDefinition(
         .. todo:: Phase 2: Add ``base_symbols`` parameter to ``NestedMixin``
                   for inherited symbols from extended scopes.
         """
-        return _NestedMixinSymbol(
+        return _NestedSymbolMapping(
             outer=outer,
             name=name,
             definition=self,
@@ -1787,14 +1789,14 @@ class _MixinDefinition(
 
 
 @dataclass(frozen=True, kw_only=True)
-class _PackageDefinition(_MixinDefinition):
+class _PackageDefinitionMapping(_DefinitionMapping):
     """A definition for packages that discovers submodules via pkgutil."""
 
     get_module_proxy_class: Callable[[ModuleType], type[StaticProxy]]
     underlying: ModuleType
 
     def __iter__(self) -> Iterator[str]:
-        yield from super(_PackageDefinition, self).__iter__()
+        yield from super(_PackageDefinitionMapping, self)
 
         for mod_info in pkgutil.iter_modules(self.underlying.__path__):
             yield mod_info.name
@@ -1804,7 +1806,7 @@ class _PackageDefinition(_MixinDefinition):
         """Get a Definition by key name, including lazily imported submodules."""
         # 1. Try parent (attributes that are Definition)
         try:
-            return super(_PackageDefinition, self).__getitem__(key)
+            return super(_PackageDefinitionMapping, self).__getitem__(key)
         except KeyError:
             pass
 
@@ -1822,13 +1824,13 @@ class _PackageDefinition(_MixinDefinition):
 
         # Create and return definition
         if hasattr(submod, "__path__"):
-            return _PackageDefinition(
+            return _PackageDefinitionMapping(
                 underlying=submod,
                 proxy_class=self.get_module_proxy_class(submod),
                 get_module_proxy_class=self.get_module_proxy_class,
             )
         else:
-            return _MixinDefinition(
+            return _DefinitionMapping(
                 underlying=submod,
                 proxy_class=self.get_module_proxy_class(submod),
             )
@@ -1838,7 +1840,7 @@ def scope(
     *,
     proxy_class: type[StaticProxy] = CachedProxy,
     extend: Iterable["ResourceReference[Hashable]"] = (),
-) -> Callable[[object], _MixinDefinition]:
+) -> Callable[[object], _DefinitionMapping]:
     """
     Decorator that converts a class into a NamespaceDefinition.
     Nested classes MUST be decorated with @scope() to be included as sub-scopes.
@@ -1894,8 +1896,8 @@ def scope(
     """
     extend_tuple = tuple(extend)
 
-    def wrapper(c: object) -> _MixinDefinition:
-        return _MixinDefinition(
+    def wrapper(c: object) -> _DefinitionMapping:
+        return _DefinitionMapping(
             underlying=c,
             proxy_class=proxy_class,
             extend=extend_tuple,
@@ -1907,7 +1909,7 @@ def scope(
 def _parse_package(
     module: ModuleType,
     get_module_proxy_class: Callable[[ModuleType], type[StaticProxy]],
-) -> _MixinDefinition:
+) -> _DefinitionMapping:
     """
     Parses a module into a NamespaceDefinition.
 
@@ -1922,12 +1924,12 @@ def _parse_package(
     """
     proxy_class = get_module_proxy_class(module)
     if hasattr(module, "__path__"):
-        return _PackageDefinition(
+        return _PackageDefinitionMapping(
             underlying=module,
             proxy_class=proxy_class,
             get_module_proxy_class=get_module_proxy_class,
         )
-    return _MixinDefinition(underlying=module, proxy_class=proxy_class)
+    return _DefinitionMapping(underlying=module, proxy_class=proxy_class)
 
 
 Endofunction = Callable[[TResult], TResult]
@@ -2119,7 +2121,7 @@ def local(definition: TMergerDefinition) -> TMergerDefinition:
 
 
 def evaluate(
-    namespace: ModuleType | _MixinDefinition,
+    namespace: ModuleType | _DefinitionMapping,
 ) -> StaticProxy:
     """
     Resolves a Proxy from the given object using the provided lexical scope.
@@ -2140,8 +2142,8 @@ def evaluate(
     def get_module_proxy_class(_module: ModuleType) -> type[StaticProxy]:
         return CachedProxy
 
-    namespace_definition: _MixinDefinition
-    if isinstance(namespace, _MixinDefinition):
+    namespace_definition: _DefinitionMapping
+    if isinstance(namespace, _DefinitionMapping):
         namespace_definition = namespace
     elif isinstance(namespace, ModuleType):
         namespace_definition = _parse_package(

@@ -9,28 +9,28 @@ from mixinject import (
     resource,
     scope,
     CachedProxy,
-    _MixinDefinition,
-    _NestedMixinSymbol,
+    _DefinitionMapping,
+    _NestedSymbolMapping,
     _RootSymbol,
     ChainMapSentinel,
 )
 
 
-def _empty_definition() -> _MixinDefinition:
+def _empty_definition() -> _DefinitionMapping:
     """Create a minimal empty proxy definition for testing."""
-    return _MixinDefinition(proxy_class=CachedProxy, underlying=object())
+    return _DefinitionMapping(proxy_class=CachedProxy, underlying=object())
 
 
-def _empty_root_symbol(definition: _MixinDefinition) -> _RootSymbol:
+def _empty_root_symbol(definition: _DefinitionMapping) -> _RootSymbol:
     """Create a minimal root symbol for testing."""
     return _RootSymbol(definition=definition)
 
 
 def _empty_nested_symbol(
-    outer: "_RootSymbol", definition: _MixinDefinition
-) -> _NestedMixinSymbol:
+    outer: "_RootSymbol", definition: _DefinitionMapping
+) -> _NestedSymbolMapping:
     """Create a minimal nested symbol for testing."""
-    return _NestedMixinSymbol(
+    return _NestedSymbolMapping(
         outer=outer,
         name="__test__",
         definition=definition,

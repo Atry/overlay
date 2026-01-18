@@ -11,12 +11,12 @@ from mixinject import (
     CachedProxy,
     InstanceMixin,
     InstanceProxy,
-    _NestedMixinSymbol,
+    _NestedSymbolMapping,
     _RootSymbol,
     SymbolSentinel,
     LexicalScope,
-    _PackageDefinition,
-    _MixinDefinition,
+    _PackageDefinitionMapping,
+    _DefinitionMapping,
     Proxy,
     RelativeReference,
     StaticProxy,
@@ -40,21 +40,21 @@ R = RelativeReference
 FIXTURES_DIR = str(Path(__file__).parent / "fixtures")
 
 
-def _empty_definition() -> _MixinDefinition:
+def _empty_definition() -> _DefinitionMapping:
     """Create a minimal empty proxy definition for testing."""
-    return _MixinDefinition(proxy_class=CachedProxy, underlying=object())
+    return _DefinitionMapping(proxy_class=CachedProxy, underlying=object())
 
 
-def _empty_root_symbol(definition: _MixinDefinition) -> _RootSymbol:
+def _empty_root_symbol(definition: _DefinitionMapping) -> _RootSymbol:
     """Create a minimal root symbol for testing."""
     return _RootSymbol(definition=definition)
 
 
 def _empty_nested_symbol(
-    outer: "_RootSymbol", definition: _MixinDefinition
-) -> _NestedMixinSymbol:
+    outer: "_RootSymbol", definition: _DefinitionMapping
+) -> _NestedSymbolMapping:
     """Create a minimal nested symbol for testing."""
-    return _NestedMixinSymbol(
+    return _NestedSymbolMapping(
         outer=outer,
         name="__test__",
         definition=definition,
@@ -679,7 +679,7 @@ class TestInstanceProxyReversedPath:
 
 
 class TestSymbolSharing:
-    """Test that _Symbol instances are shared among mixins from the same _MixinDefinition."""
+    """Test that _Symbol instances are shared among mixins from the same _DefinitionMapping."""
 
     def test_symbol_shared_across_different_instance_args(self) -> None:
         """_Symbol should be shared when accessing Inner through different Outer instances."""
@@ -836,7 +836,7 @@ class TestModuleParsing:
                 regular_pkg,
                 get_module_proxy_class=lambda _: CachedProxy,
             )
-            assert isinstance(scope_def, _PackageDefinition)
+            assert isinstance(scope_def, _PackageDefinitionMapping)
         finally:
             sys.path.remove(FIXTURES_DIR)
             sys.modules.pop("regular_pkg", None)
@@ -878,8 +878,8 @@ class TestModuleParsing:
                 regular_mod,
                 get_module_proxy_class=lambda _: CachedProxy,
             )
-            assert isinstance(scope_def, _MixinDefinition)
-            assert not isinstance(scope_def, _PackageDefinition)
+            assert isinstance(scope_def, _DefinitionMapping)
+            assert not isinstance(scope_def, _PackageDefinitionMapping)
         finally:
             sys.path.remove(FIXTURES_DIR)
             sys.modules.pop("regular_mod", None)
@@ -894,7 +894,7 @@ class TestModuleParsing:
                 ns_pkg,
                 get_module_proxy_class=lambda _: CachedProxy,
             )
-            assert isinstance(scope_def, _PackageDefinition)
+            assert isinstance(scope_def, _PackageDefinitionMapping)
 
             root = evaluate(ns_pkg)
             assert root.mod_a.value_a == "a"
@@ -937,7 +937,7 @@ class TestModuleParsing:
                     ns_pkg,
                     get_module_proxy_class=lambda _: CachedProxy,
                 )
-                assert isinstance(scope_def, _PackageDefinition)
+                assert isinstance(scope_def, _PackageDefinitionMapping)
 
                 root = evaluate(ns_pkg)
                 assert root.mod_a.value_a == "a"

@@ -8,29 +8,29 @@ from mixinject import (
     ChainMapSentinel,
     Node,
     CachedProxy,
-    _MixinDefinition,
-    _NestedMixinSymbol,
+    _DefinitionMapping,
+    _NestedSymbolMapping,
     _RootSymbol,
     _Symbol,
 )
 from mixinject import RootMixin, NestedMixin
 
 
-def _empty_definition() -> _MixinDefinition:
+def _empty_definition() -> _DefinitionMapping:
     """Create a minimal empty proxy definition for testing."""
-    return _MixinDefinition(proxy_class=CachedProxy, underlying=object())
+    return _DefinitionMapping(proxy_class=CachedProxy, underlying=object())
 
 
-def _empty_root_symbol(definition: _MixinDefinition) -> _RootSymbol:
+def _empty_root_symbol(definition: _DefinitionMapping) -> _RootSymbol:
     """Create a minimal root symbol for testing."""
     return _RootSymbol(definition=definition)
 
 
 def _empty_nested_symbol(
-    outer: "_RootSymbol", definition: _MixinDefinition
-) -> _NestedMixinSymbol:
+    outer: "_RootSymbol", definition: _DefinitionMapping
+) -> _NestedSymbolMapping:
     """Create a minimal nested symbol for testing."""
-    return _NestedMixinSymbol(
+    return _NestedSymbolMapping(
         outer=outer,
         name="__test__",
         definition=definition,
@@ -135,7 +135,7 @@ def test_symbol_table_extension_consistency():
         c = _make_mock_definition("c")
         a = _make_mock_definition("a")
 
-    mock_outer_def = _MixinDefinition(proxy_class=CachedProxy, underlying=_MockOuterNamespace())
+    mock_outer_def = _DefinitionMapping(proxy_class=CachedProxy, underlying=_MockOuterNamespace())
     root_symbol = _RootSymbol(definition=mock_outer_def)
     st_jit = root_symbol.symbol_table
 
@@ -159,8 +159,8 @@ def test_symbol_table_extension_consistency():
         a = _make_mock_definition("a")
         b = _make_mock_definition("b")
 
-    mock_inner_def = _MixinDefinition(proxy_class=CachedProxy, underlying=_MockInnerNamespace())
-    nested_symbol = _NestedMixinSymbol(
+    mock_inner_def = _DefinitionMapping(proxy_class=CachedProxy, underlying=_MockInnerNamespace())
+    nested_symbol = _NestedSymbolMapping(
         outer=root_symbol,
         name="inner",
         definition=mock_inner_def,
@@ -189,7 +189,7 @@ def test_jit_factory_invalid_identifier():
     class _MockNamespace:
         not_identifier = _make_mock_definition("not_identifier")
 
-    mock_def = _MixinDefinition(proxy_class=CachedProxy, underlying=_MockNamespace())
+    mock_def = _DefinitionMapping(proxy_class=CachedProxy, underlying=_MockNamespace())
     root_symbol = _RootSymbol(definition=mock_def)
     symbol_table_jit = root_symbol.symbol_table
     assert symbol_table_jit["not_identifier"].getter(lexical_scope) == "value"
@@ -202,7 +202,7 @@ def test_jit_factory_invalid_identifier():
 def test_symbol_interning_identity_equality():
     """Test that symbols are interned and can be compared by identity.
 
-    Symbols returned by _MixinSymbol.__getitem__ should be interned:
+    Symbols returned by _SymbolMapping.__getitem__ should be interned:
     - Same key returns the same instance (reference equality)
     - Different keys return different instances
     - This enables O(1) path equality checks using 'is' instead of '=='
@@ -213,12 +213,12 @@ def test_symbol_interning_identity_equality():
         bar = _make_mock_definition("bar")
 
     class _MockOuterNamespace:
-        Inner = _MixinDefinition(
+        Inner = _DefinitionMapping(
             proxy_class=CachedProxy, underlying=_MockInnerNamespace()
         )
         baz = _make_mock_definition("baz")
 
-    mock_outer_def = _MixinDefinition(
+    mock_outer_def = _DefinitionMapping(
         proxy_class=CachedProxy, underlying=_MockOuterNamespace()
     )
     root_symbol = _RootSymbol(definition=mock_outer_def)
@@ -237,7 +237,7 @@ def test_symbol_interning_identity_equality():
     baz = root_symbol["baz"]
     assert inner1 is not baz, "Different keys should return different instances"
 
-    # Test 4: _MixinSymbol uses identity equality, not content equality
+    # Test 4: _SymbolMapping uses identity equality, not content equality
     # This is important because Mapping defines __eq__ based on content
     another_root = _RootSymbol(definition=mock_outer_def)
     another_inner = another_root["Inner"]
@@ -245,22 +245,22 @@ def test_symbol_interning_identity_equality():
     # Even though both have the same "content", they should not be equal
     # because we use identity-based equality
     assert inner1 is not another_inner, "Different root symbols should produce different nested symbols"
-    assert inner1 != another_inner, "_MixinSymbol should use identity equality, not Mapping content equality"
+    assert inner1 != another_inner, "_SymbolMapping should use identity equality, not Mapping content equality"
 
 
 def test_symbol_hashability():
-    """Test that _MixinSymbol instances are hashable for use as dict keys.
+    """Test that _SymbolMapping instances are hashable for use as dict keys.
 
-    Since _MixinSymbol inherits from Mapping (which sets __hash__ = None),
+    Since _SymbolMapping inherits from Mapping (which sets __hash__ = None),
     we need to explicitly define __hash__ to make instances hashable.
     """
     class _MockNamespace:
         foo = _make_mock_definition("foo")
 
-    mock_def = _MixinDefinition(proxy_class=CachedProxy, underlying=_MockNamespace())
+    mock_def = _DefinitionMapping(proxy_class=CachedProxy, underlying=_MockNamespace())
     root_symbol = _RootSymbol(definition=mock_def)
 
-    # _MixinSymbol (root_symbol) should be hashable
+    # _SymbolMapping (root_symbol) should be hashable
     try:
         hash(root_symbol)
     except TypeError:
@@ -270,10 +270,10 @@ def test_symbol_hashability():
     class _MockNestedNamespace:
         bar = _make_mock_definition("bar")
 
-    nested_def = _MixinDefinition(
+    nested_def = _DefinitionMapping(
         proxy_class=CachedProxy, underlying=_MockNestedNamespace()
     )
-    nested_symbol = _NestedMixinSymbol(
+    nested_symbol = _NestedSymbolMapping(
         outer=root_symbol,
         name="nested",
         definition=nested_def,
