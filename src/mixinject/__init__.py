@@ -1164,9 +1164,9 @@ class _MixinSymbol(
         if key in self.cache:
             return self.cache[key]
         val = self.proxy_definition.__getitem__(key)
-        outer = val.resolve_symbols(self.symbol_table, cast(str, key))
-        self.cache[key] = outer
-        return outer
+        resolved = val.resolve_symbols(self, cast(str, key))
+        self.cache[key] = resolved
+        return resolved
 
     def __iter__(self) -> Iterator[str]:
         return self.proxy_definition.__iter__()
@@ -1267,7 +1267,7 @@ def _evaluate_resource(
 class Definition(ABC):
     @abstractmethod
     def resolve_symbols(
-        self, symbol_table: "SymbolTable", name: str, /
+        self, outer: "_MixinSymbol", name: str, /
     ) -> Callable[[Mixin], Callable[[LexicalScope], Evaluator]]:
         """
         Resolve symbols in the definition and return a two-layer callable.
@@ -1283,7 +1283,7 @@ class MergerDefinition(Definition, Generic[TPatch_contra, TResult_co]):
 
     @abstractmethod
     def resolve_symbols(
-        self, symbol_table: "SymbolTable", name: str, /
+        self, outer: "_MixinSymbol", name: str, /
     ) -> Callable[[Mixin], Callable[[LexicalScope], Merger]]:
         raise NotImplementedError()
 
@@ -1291,7 +1291,7 @@ class MergerDefinition(Definition, Generic[TPatch_contra, TResult_co]):
 class PatcherDefinition(Definition, Generic[TPatch_co]):
     @abstractmethod
     def resolve_symbols(
-        self, symbol_table: "SymbolTable", name: str, /
+        self, outer: "_MixinSymbol", name: str, /
     ) -> Callable[[Mixin], Callable[[LexicalScope], Patcher]]:
         raise NotImplementedError()
 
@@ -1304,10 +1304,10 @@ class _MergerDefinition(MergerDefinition[TPatch_contra, TResult_co]):
 
     @override
     def resolve_symbols(
-        self, symbol_table: "SymbolTable", name: str, /
+        self, outer: "_MixinSymbol", name: str, /
     ) -> Callable[[Mixin], Callable[[LexicalScope], Merger[TPatch_contra, TResult_co]]]:
         jit_compiled_function = _resolve_dependencies_jit(
-            symbol_table=symbol_table,
+            symbol_table=outer.symbol_table,
             function=self.function,
             name=name,
         )
@@ -1335,12 +1335,12 @@ class _ResourceDefinition(
     function: Callable[..., TResult]
 
     @override
-    def resolve_symbols(self, symbol_table: "SymbolTable", name: str, /) -> Callable[
+    def resolve_symbols(self, outer: "_MixinSymbol", name: str, /) -> Callable[
         [Mixin],
         Callable[[LexicalScope], Merger[Callable[[TResult], TResult], TResult]],
     ]:
         jit_compiled_function = _resolve_dependencies_jit(
-            symbol_table=symbol_table,
+            symbol_table=outer.symbol_table,
             function=self.function,
             name=name,
         )
@@ -1367,10 +1367,10 @@ class _SinglePatchDefinition(PatcherDefinition[TPatch_co]):
 
     @override
     def resolve_symbols(
-        self, symbol_table: "SymbolTable", name: str, /
+        self, outer: "_MixinSymbol", name: str, /
     ) -> Callable[[Mixin], Callable[[LexicalScope], Patcher[TPatch_co]]]:
         jit_compiled_function = _resolve_dependencies_jit(
-            symbol_table=symbol_table,
+            symbol_table=outer.symbol_table,
             function=self.function,
             name=name,
         )
@@ -1399,10 +1399,10 @@ class _MultiplePatchDefinition(PatcherDefinition[TPatch_co]):
 
     @override
     def resolve_symbols(
-        self, symbol_table: "SymbolTable", name: str, /
+        self, outer: "_MixinSymbol", name: str, /
     ) -> Callable[[Mixin], Callable[[LexicalScope], Patcher[TPatch_co]]]:
         jit_compiled_function = _resolve_dependencies_jit(
-            symbol_table=symbol_table,
+            symbol_table=outer.symbol_table,
             function=self.function,
             name=name,
         )
@@ -1629,7 +1629,7 @@ class _MixinDefinition(
         return val
 
     def resolve_symbols(
-        self, symbol_table: SymbolTable, name: str, /
+        self, outer: "_MixinSymbol", name: str, /
     ) -> Callable[[Mixin], NestedMixin]:
         """
         Resolve symbols for this definition given the symbol table and resource name.
@@ -1641,7 +1641,7 @@ class _MixinDefinition(
                   for inherited symbols from extended scopes.
         """
         inner_symbol_table: SymbolTable = _extend_symbol_table_jit(
-            outer=symbol_table, names=self.__iter__()
+            outer=outer.symbol_table, names=self.__iter__()
         )
         symbol = _NestedMixinSymbol(
             name=name,
