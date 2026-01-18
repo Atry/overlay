@@ -444,12 +444,15 @@ creating an :class:`InstanceProxy` that stores kwargs directly for lookup.
 
 Example::
 
-    # Create a Proxy with a name and inject values
-    from mixinject import StaticChildDependencyGraph, RootDependencyGraph
-    proxy = CachedProxy(
-        mixins={},
-        dependency_graph=StaticChildDependencyGraph(head="my_proxy", parent=RootDependencyGraph()),
-    )
+    # Create a Proxy and inject values using mount
+    @scope()
+    class Config:
+        @extern
+        def setting(): ...
+        @extern
+        def count(): ...
+
+    proxy = mount(Config)
     new_proxy = proxy(setting="value", count=42)
 
     # Access injected values
@@ -540,31 +543,14 @@ TKey = TypeVar("TKey", bound=Hashable)
 TStrKey = TypeVar("TStrKey", bound=str)
 
 
-@dataclass(kw_only=True, slots=True, weakref_slot=False, eq=False)
-class DependencyGraph(Generic[TKey]):
+@dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
+class DependencyGraph(ABC, Generic[TKey]):
     """Base class for dependency graphs supporting O(1) equality comparison.
 
     Equal graphs are interned to the same object instance within the same root,
     making equality comparison a simple identity check (O(1) instead of O(n)).
 
     This class is immutable and hashable, suitable for use as dictionary keys.
-
-    Example::
-
-        >>> root = RootDependencyGraph()
-        >>> graph1 = StaticChildDependencyGraph(head=1, parent=root)
-        >>> graph2 = StaticChildDependencyGraph(head=1, parent=root)
-        >>> graph1 is graph2  # Same object due to interning within same root
-        True
-
-        >>> # O(1) equality comparison via identity
-        >>> graph1 == graph2
-        True
-
-        >>> # Suitable as dict key
-        >>> cache = {graph1: "cached_value"}
-        >>> cache[graph2]  # Same key due to interning
-        'cached_value'
 
     .. todo:: 继承 ``Mapping[TKey, StaticChildDependencyGraph]``。
     """
@@ -577,10 +563,14 @@ class DependencyGraph(Generic[TKey]):
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
 class StaticDependencyGraph(DependencyGraph[TKey], Generic[TKey]):
     """
-    .. todo:: 添加 ``proxy_definition: _ProxyDefinition`` 字段。
     .. todo:: 实现 ``__getitem__`` 用于懒创建子依赖图。
     .. todo:: 实现 ``__call__(lexical_scope: LexicalScope) -> _ProxySemigroup``，
               使 ``StaticChildDependencyGraph`` 成为 ``Callable[[LexicalScope], _ProxySemigroup]``。
+    """
+
+    proxy_definition: Final["_ProxyDefinition"]
+    """
+    The definition that describes resources, patches, and nested scopes for this dependency graph.
     """
 
     _cached_instance_dependency_graph: (
@@ -1559,6 +1549,7 @@ class _ProxyDefinition(
                         proxy_reversed_path = existing
                     else:
                         proxy_reversed_path = StaticChildDependencyGraph(
+                            proxy_definition=self,
                             head=resource_name,
                             parent=parent_reversed_path,
                         )
@@ -1963,7 +1954,9 @@ def mount(
         jit_cache=jit_cache,
     )
 
-    root_dependency_graph = RootDependencyGraph[str]()
+    root_dependency_graph = RootDependencyGraph[str](
+        proxy_definition=namespace_definition,
+    )
     return root_proxy_class(
         mixins={root_dependency_graph: mixin},
         dependency_graph=root_dependency_graph,

@@ -8,19 +8,26 @@ from mixinject import (
     mount,
     resource,
     scope,
+    CachedProxy,
+    _NamespaceDefinition,
 )
+
+
+def _empty_proxy_definition() -> _NamespaceDefinition:
+    """Create a minimal empty proxy definition for testing."""
+    return _NamespaceDefinition(proxy_class=CachedProxy, underlying=object())
 
 
 class TestRoot:
     """Test root dependency graph behavior."""
 
     def test_root_hasintern_pool(self) -> None:
-        root = RootDependencyGraph()
+        root = RootDependencyGraph(proxy_definition=_empty_proxy_definition())
         assert root.intern_pool is not None
 
     def test_different_roots_have_different_pools(self) -> None:
-        root1 = RootDependencyGraph()
-        root2 = RootDependencyGraph()
+        root1 = RootDependencyGraph(proxy_definition=_empty_proxy_definition())
+        root2 = RootDependencyGraph(proxy_definition=_empty_proxy_definition())
         assert root1.intern_pool is not root2.intern_pool
 
 
@@ -33,29 +40,33 @@ class TestInterning:
 
     def test_direct_instantiation_creates_new_objects(self) -> None:
         """Direct instantiation without going through proxy_factory creates new objects."""
-        root = RootDependencyGraph()
-        child1 = StaticChildDependencyGraph(head=1, parent=root)
-        child2 = StaticChildDependencyGraph(head=1, parent=root)
+        proxy_def = _empty_proxy_definition()
+        root = RootDependencyGraph(proxy_definition=proxy_def)
+        child1 = StaticChildDependencyGraph(proxy_definition=proxy_def, head=1, parent=root)
+        child2 = StaticChildDependencyGraph(proxy_definition=proxy_def, head=1, parent=root)
         # Without interning, these are different objects
         assert child1 is not child2
 
     def test_different_head_same_root_different_object(self) -> None:
-        root = RootDependencyGraph()
-        child1 = StaticChildDependencyGraph(head=1, parent=root)
-        child2 = StaticChildDependencyGraph(head=2, parent=root)
+        proxy_def = _empty_proxy_definition()
+        root = RootDependencyGraph(proxy_definition=proxy_def)
+        child1 = StaticChildDependencyGraph(proxy_definition=proxy_def, head=1, parent=root)
+        child2 = StaticChildDependencyGraph(proxy_definition=proxy_def, head=2, parent=root)
         assert child1 is not child2
 
     def test_same_head_different_root_different_object(self) -> None:
-        root1 = RootDependencyGraph()
-        root2 = RootDependencyGraph()
-        child1 = StaticChildDependencyGraph(head=1, parent=root1)
-        child2 = StaticChildDependencyGraph(head=1, parent=root2)
+        proxy_def = _empty_proxy_definition()
+        root1 = RootDependencyGraph(proxy_definition=proxy_def)
+        root2 = RootDependencyGraph(proxy_definition=proxy_def)
+        child1 = StaticChildDependencyGraph(proxy_definition=proxy_def, head=1, parent=root1)
+        child2 = StaticChildDependencyGraph(proxy_definition=proxy_def, head=1, parent=root2)
         assert child1 is not child2
 
     def test_each_node_has_ownintern_pool(self) -> None:
-        root = RootDependencyGraph()
-        child1 = StaticChildDependencyGraph(head=1, parent=root)
-        child2 = StaticChildDependencyGraph(head=2, parent=child1)
+        proxy_def = _empty_proxy_definition()
+        root = RootDependencyGraph(proxy_definition=proxy_def)
+        child1 = StaticChildDependencyGraph(proxy_definition=proxy_def, head=1, parent=root)
+        child2 = StaticChildDependencyGraph(proxy_definition=proxy_def, head=2, parent=child1)
         assert child1.intern_pool is not root.intern_pool
         assert child2.intern_pool is not child1.intern_pool
         assert child2.intern_pool is not root.intern_pool
@@ -102,9 +113,10 @@ class TestWeakReference:
 
     def test_intern_pool_supports_weak_references(self) -> None:
         """The intern pool is a WeakValueDictionary."""
-        root = RootDependencyGraph()
+        proxy_def = _empty_proxy_definition()
+        root = RootDependencyGraph(proxy_definition=proxy_def)
         # Add an entry manually to the pool
-        child = StaticChildDependencyGraph(head=100, parent=root)
+        child = StaticChildDependencyGraph(proxy_definition=proxy_def, head=100, parent=root)
         root.intern_pool[100] = child
 
         pool_size_before = len(root.intern_pool)
@@ -127,10 +139,11 @@ class TestSubclass:
         assert issubclass(StaticChildDependencyGraph, DependencyGraph)
 
     def test_root_instance_is_instance_of_dependency_graph(self) -> None:
-        root = RootDependencyGraph()
+        root = RootDependencyGraph(proxy_definition=_empty_proxy_definition())
         assert isinstance(root, DependencyGraph)
 
     def test_child_instance_is_instance_of_dependency_graph(self) -> None:
-        root = RootDependencyGraph()
-        child = StaticChildDependencyGraph(head=1, parent=root)
+        proxy_def = _empty_proxy_definition()
+        root = RootDependencyGraph(proxy_definition=proxy_def)
+        child = StaticChildDependencyGraph(proxy_definition=proxy_def, head=1, parent=root)
         assert isinstance(child, DependencyGraph)

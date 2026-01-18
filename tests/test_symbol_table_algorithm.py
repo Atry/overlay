@@ -8,13 +8,29 @@ from mixinject import (
     Node,
     CachedProxy,
     _extend_symbol_table_jit,
+    _NamespaceDefinition,
 )
 from mixinject import RootDependencyGraph, StaticChildDependencyGraph
 
 
+def _empty_proxy_definition() -> _NamespaceDefinition:
+    """Create a minimal empty proxy definition for testing."""
+    return _NamespaceDefinition(proxy_class=CachedProxy, underlying=object())
+
+
+def _empty_dependency_graph() -> StaticChildDependencyGraph[str]:
+    """Create a minimal dependency graph for testing."""
+    proxy_def = _empty_proxy_definition()
+    return StaticChildDependencyGraph(
+        proxy_definition=proxy_def,
+        head="test",
+        parent=RootDependencyGraph(proxy_definition=proxy_def),
+    )
+
+
 def _empty_proxy() -> CachedProxy:
     """Create an empty proxy for testing."""
-    return CachedProxy(mixins={}, dependency_graph=StaticChildDependencyGraph(head="test", parent=RootDependencyGraph()))
+    return CachedProxy(mixins={}, dependency_graph=_empty_dependency_graph())
 
 def _make_getitem_factory(
     name: str, index: int
