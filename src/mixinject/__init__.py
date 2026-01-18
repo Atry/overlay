@@ -1274,6 +1274,84 @@ class _RootSymbol(_MixinSymbol):
         return self._cached_symbol_table
 
 
+@dataclass(kw_only=True)
+class _MergerSymbol(_Symbol, Generic[TPatch_contra, TResult_co]):
+    """Symbol for resolved merger definitions."""
+
+    jit_compiled_function: Final[
+        Callable[[LexicalScope], Callable[[Iterator[TPatch_contra]], TResult_co]]
+    ]
+
+    def __call__(
+        self, _mixin: Mixin
+    ) -> Callable[[LexicalScope], Merger[TPatch_contra, TResult_co]]:
+        def resolve_lexical_scope(
+            lexical_scope: LexicalScope,
+        ) -> Merger[TPatch_contra, TResult_co]:
+            aggregation_function = self.jit_compiled_function(lexical_scope)
+            return FunctionMerger(aggregation_function=aggregation_function)
+
+        return resolve_lexical_scope
+
+
+@dataclass(kw_only=True)
+class _ResourceSymbol(_Symbol, Generic[TResult]):
+    """Symbol for resolved resource definitions."""
+
+    jit_compiled_function: Final[Callable[[LexicalScope], TResult]]
+
+    def __call__(
+        self, _mixin: Mixin
+    ) -> Callable[[LexicalScope], Merger[Callable[[TResult], TResult], TResult]]:
+        def resolve_lexical_scope(
+            lexical_scope: LexicalScope,
+        ) -> Merger[Callable[[TResult], TResult], TResult]:
+            base_value = self.jit_compiled_function(lexical_scope)
+            return _EndofunctionMerger(base_value=base_value)
+
+        return resolve_lexical_scope
+
+
+@dataclass(kw_only=True)
+class _SinglePatchSymbol(_Symbol, Generic[TPatch_co]):
+    """Symbol for resolved single patch definitions."""
+
+    jit_compiled_function: Final[Callable[[LexicalScope], TPatch_co]]
+
+    def __call__(
+        self, _mixin: Mixin
+    ) -> Callable[[LexicalScope], Patcher[TPatch_co]]:
+        def resolve_lexical_scope(
+            lexical_scope: LexicalScope,
+        ) -> Patcher[TPatch_co]:
+            def patch_generator() -> Iterator[TPatch_co]:
+                yield self.jit_compiled_function(lexical_scope)
+
+            return FunctionPatcher(patch_generator=patch_generator)
+
+        return resolve_lexical_scope
+
+
+@dataclass(kw_only=True)
+class _MultiplePatchSymbol(_Symbol, Generic[TPatch_co]):
+    """Symbol for resolved multiple patch definitions."""
+
+    jit_compiled_function: Final[Callable[[LexicalScope], Iterable[TPatch_co]]]
+
+    def __call__(
+        self, _mixin: Mixin
+    ) -> Callable[[LexicalScope], Patcher[TPatch_co]]:
+        def resolve_lexical_scope(
+            lexical_scope: LexicalScope,
+        ) -> Patcher[TPatch_co]:
+            def patch_generator() -> Iterator[TPatch_co]:
+                return (yield from self.jit_compiled_function(lexical_scope))
+
+            return FunctionPatcher(patch_generator=patch_generator)
+
+        return resolve_lexical_scope
+
+
 def _evaluate_resource(
     resource_generator: Callable[[], Iterator[Evaluator]],
 ) -> Node:
@@ -1375,28 +1453,15 @@ class _MergerDefinition(MergerDefinition[TPatch_contra, TResult_co]):
 
     function: Callable[..., Callable[[Iterator[TPatch_contra]], TResult_co]]
 
-    @override
     def resolve_symbols(
         self, outer: "_MixinSymbol", name: str, /
-    ) -> Callable[[Mixin], Callable[[LexicalScope], Merger[TPatch_contra, TResult_co]]]:
+    ) -> _MergerSymbol[TPatch_contra, TResult_co]:
         jit_compiled_function = _resolve_dependencies_jit(
             symbol_table=outer.symbol_table,
             function=self.function,
             name=name,
         )
-
-        def with_mixin(
-            _mixin: Mixin,
-        ) -> Callable[[LexicalScope], Merger[TPatch_contra, TResult_co]]:
-            def resolve_lexical_scope(
-                lexical_scope: LexicalScope,
-            ) -> Merger[TPatch_contra, TResult_co]:
-                aggregation_function = jit_compiled_function(lexical_scope)
-                return FunctionMerger(aggregation_function=aggregation_function)
-
-            return resolve_lexical_scope
-
-        return with_mixin
+        return _MergerSymbol(jit_compiled_function=jit_compiled_function)
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
@@ -1407,29 +1472,15 @@ class _ResourceDefinition(
 
     function: Callable[..., TResult]
 
-    @override
-    def resolve_symbols(self, outer: "_MixinSymbol", name: str, /) -> Callable[
-        [Mixin],
-        Callable[[LexicalScope], Merger[Callable[[TResult], TResult], TResult]],
-    ]:
+    def resolve_symbols(
+        self, outer: "_MixinSymbol", name: str, /
+    ) -> _ResourceSymbol[TResult]:
         jit_compiled_function = _resolve_dependencies_jit(
             symbol_table=outer.symbol_table,
             function=self.function,
             name=name,
         )
-
-        def with_mixin(
-            _mixin: Mixin,
-        ) -> Callable[[LexicalScope], Merger[Callable[[TResult], TResult], TResult]]:
-            def resolve_lexical_scope(
-                lexical_scope: LexicalScope,
-            ) -> Merger[Callable[[TResult], TResult], TResult]:
-                base_value = jit_compiled_function(lexical_scope)
-                return _EndofunctionMerger(base_value=base_value)
-
-            return resolve_lexical_scope
-
-        return with_mixin
+        return _ResourceSymbol(jit_compiled_function=jit_compiled_function)
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
@@ -1438,30 +1489,15 @@ class _SinglePatchDefinition(PatcherDefinition[TPatch_co]):
 
     function: Callable[..., TPatch_co]
 
-    @override
     def resolve_symbols(
         self, outer: "_MixinSymbol", name: str, /
-    ) -> Callable[[Mixin], Callable[[LexicalScope], Patcher[TPatch_co]]]:
+    ) -> _SinglePatchSymbol[TPatch_co]:
         jit_compiled_function = _resolve_dependencies_jit(
             symbol_table=outer.symbol_table,
             function=self.function,
             name=name,
         )
-
-        def with_mixin(
-            _mixin: Mixin,
-        ) -> Callable[[LexicalScope], Patcher[TPatch_co]]:
-            def resolve_lexical_scope(
-                lexical_scope: LexicalScope,
-            ) -> Patcher[TPatch_co]:
-                def patch_generator() -> Iterator[TPatch_co]:
-                    yield jit_compiled_function(lexical_scope)
-
-                return FunctionPatcher(patch_generator=patch_generator)
-
-            return resolve_lexical_scope
-
-        return with_mixin
+        return _SinglePatchSymbol(jit_compiled_function=jit_compiled_function)
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
@@ -1470,30 +1506,15 @@ class _MultiplePatchDefinition(PatcherDefinition[TPatch_co]):
 
     function: Callable[..., Iterable[TPatch_co]]
 
-    @override
     def resolve_symbols(
         self, outer: "_MixinSymbol", name: str, /
-    ) -> Callable[[Mixin], Callable[[LexicalScope], Patcher[TPatch_co]]]:
+    ) -> _MultiplePatchSymbol[TPatch_co]:
         jit_compiled_function = _resolve_dependencies_jit(
             symbol_table=outer.symbol_table,
             function=self.function,
             name=name,
         )
-
-        def with_mixin(
-            _mixin: Mixin,
-        ) -> Callable[[LexicalScope], Patcher[TPatch_co]]:
-            def resolve_lexical_scope(
-                lexical_scope: LexicalScope,
-            ) -> Patcher[TPatch_co]:
-                def patch_generator() -> Iterator[TPatch_co]:
-                    return (yield from jit_compiled_function(lexical_scope))
-
-                return FunctionPatcher(patch_generator=patch_generator)
-
-            return resolve_lexical_scope
-
-        return with_mixin
+        return _MultiplePatchSymbol(jit_compiled_function=jit_compiled_function)
 
 
 DefinitionMapping: TypeAlias = Mapping[
