@@ -603,6 +603,8 @@ class RootDependencyGraph(StaticDependencyGraph[T]):
 
     """
 
+    jit_cache: Final["_JitCache"]
+
 
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
 class StaticChildDependencyGraph(StaticDependencyGraph[TKey], Generic[TKey]):
@@ -777,17 +779,14 @@ class Proxy(Mapping[TKey, "Node"], ABC):
 
     def __iter__(self) -> Iterator[TKey]:
         visited: set[TKey] = set()
-        for mixin in self.mixins.values():
-            for key in mixin:
+        for dependency_graph in self.mixins.keys():
+            for key in dependency_graph.jit_cache.keys():
                 if key not in visited:
                     visited.add(key)
                     yield key
 
     def __len__(self) -> int:
-        keys: set[TKey] = set()
-        for mixin in self.mixins.values():
-            keys.update(mixin)
-        return len(keys)
+        return sum(1 for _ in self)
 
     @override
     def __dir__(self) -> Sequence[str]:
@@ -888,10 +887,7 @@ class InstanceProxy(Proxy[TKey | str], Generic[TKey]):
 
     @override
     def __len__(self) -> int:
-        base_keys: set[TKey | str] = set()
-        for mixin in self.mixins.values():
-            base_keys.update(mixin)
-        return len(base_keys | set(self.kwargs))  # type: ignore[arg-type]
+        return sum(1 for _ in self)
 
     def __call__(self, **kwargs: object) -> InstanceProxy[TKey | str]:
         merged_kwargs: Mapping[str, object] = {**self.kwargs, **kwargs}
@@ -1950,6 +1946,7 @@ def mount(
 
     root_dependency_graph = RootDependencyGraph[str](
         proxy_definition=namespace_definition,
+        jit_cache=jit_cache,
     )
     return root_proxy_class(
         mixins={root_dependency_graph: mixin},

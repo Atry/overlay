@@ -33,7 +33,7 @@ def _empty_dependency_graph() -> StaticChildDependencyGraph[str]:
     jit_cache = _empty_jit_cache(proxy_def)
     return StaticChildDependencyGraph(
         proxy_definition=proxy_def,
-        outer=RootDependencyGraph(proxy_definition=proxy_def),
+        outer=RootDependencyGraph(proxy_definition=proxy_def, jit_cache=jit_cache),
         jit_cache=jit_cache,
     )
 
