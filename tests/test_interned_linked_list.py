@@ -77,7 +77,7 @@ class TestInterning:
 
         # Different mount calls create different proxies
         assert root1 is not root2
-        # But they should have different reversed_paths since each mount creates a new root
+        # But they should have different dependency_graphs since each mount creates a new root
 
     def test_interning_via_nested_scope_access(self) -> None:
         """Accessing the same nested scope multiple times returns proxies with the same dependency_graph."""

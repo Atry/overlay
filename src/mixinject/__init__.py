@@ -704,7 +704,7 @@ class Proxy(Mapping[TKey, "Node"], ABC):
 
     This path reflects how the proxy was accessed at runtime, not where
     it was statically defined. For example, root.object1.MyInner and
-    root.object2.MyInner should have different reversed_paths even if
+    root.object2.MyInner should have different dependency_graphs even if
     MyInner is defined in the same place.
     """
 
@@ -1521,21 +1521,21 @@ class _ProxyDefinition(
         )
 
         def with_dependency_graph(
-            _dependency_graph: DependencyGraph,
+            outer_dependency_graph: DependencyGraph,
         ) -> Callable[[LexicalScope], _ProxySemigroup]:
             # Memoization: check if StaticChildDependencyGraph already exists
             # .. todo:: Phase 2: Pass ``jit_cache`` and ``base_jit_caches``
             #           when creating ``StaticChildDependencyGraph``.
-            intern_pool = _dependency_graph.intern_pool
+            intern_pool = outer_dependency_graph.intern_pool
             existing = intern_pool.get(resource_name)
             if existing is not None:
-                proxy_reversed_path = existing
+                proxy_dependency_graph = existing
             else:
-                proxy_reversed_path = StaticChildDependencyGraph(
+                proxy_dependency_graph = StaticChildDependencyGraph(
                     proxy_definition=self,
-                    parent=_dependency_graph,
+                    parent=outer_dependency_graph,
                 )
-                intern_pool[resource_name] = proxy_reversed_path
+                intern_pool[resource_name] = proxy_dependency_graph
 
             def resolve_lexical_scope(
                 lexical_scope: LexicalScope,
@@ -1551,7 +1551,7 @@ class _ProxyDefinition(
                     ):
                         # Include mixin from this definition, keyed by proxy's path
                         yield (
-                            proxy_reversed_path,
+                            proxy_dependency_graph,
                             self.create_mixin(
                                 lexical_scope=lexical_scope,
                                 jit_cache=jit_cache,
@@ -1568,7 +1568,7 @@ class _ProxyDefinition(
 
                     return self.proxy_class(
                         mixins=dict(generate_all_mixin_items()),
-                        dependency_graph=proxy_reversed_path,
+                        dependency_graph=proxy_dependency_graph,
                     )
 
                 return _ProxySemigroup(proxy_factory=proxy_factory)
