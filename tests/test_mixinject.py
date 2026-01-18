@@ -11,8 +11,8 @@ from mixinject import (
     CachedProxy,
     InstanceChildDependencyGraph,
     InstanceProxy,
-    _JitCache,
-    JitCacheSentinel,
+    _Symbol,
+    SymbolSentinel,
     LexicalScope,
     _PackageDefinition,
     _NamespaceDefinition,
@@ -44,9 +44,9 @@ def _empty_proxy_definition() -> _NamespaceDefinition:
     return _NamespaceDefinition(proxy_class=CachedProxy, underlying=object())
 
 
-def _empty_jit_cache(proxy_definition: _NamespaceDefinition) -> _JitCache:
-    """Create a minimal JIT cache for testing."""
-    return _JitCache(
+def _empty_symbol(proxy_definition: _NamespaceDefinition) -> _Symbol:
+    """Create a minimal symbol for testing."""
+    return _Symbol(
         proxy_definition=proxy_definition,
         symbol_table=ChainMapSentinel.EMPTY,
     )
@@ -55,10 +55,10 @@ def _empty_jit_cache(proxy_definition: _NamespaceDefinition) -> _JitCache:
 def _empty_dependency_graph() -> ChildDependencyGraph[str]:
     """Create a minimal dependency graph for testing."""
     proxy_def = _empty_proxy_definition()
-    jit_cache = _empty_jit_cache(proxy_def)
+    symbol = _empty_symbol(proxy_def)
     return ChildDependencyGraph(
-        outer=RootDependencyGraph(jit_cache=jit_cache),
-        jit_cache=jit_cache,
+        outer=RootDependencyGraph(symbol=symbol),
+        symbol=symbol,
         resource_name="test",
     )
 
@@ -667,11 +667,11 @@ class TestInstanceProxyReversedPath:
         assert my_inner.foo == "foo_42"
 
 
-class TestJitCacheSharing:
-    """Test that _JitCache instances are shared among mixins from the same _ProxyDefinition."""
+class TestSymbolSharing:
+    """Test that _Symbol instances are shared among mixins from the same _ProxyDefinition."""
 
-    def test_jit_cache_shared_across_different_instance_args(self) -> None:
-        """_JitCache should be shared when accessing Inner through different Outer instances."""
+    def test_symbol_shared_across_different_instance_args(self) -> None:
+        """_Symbol should be shared when accessing Inner through different Outer instances."""
 
         @scope()
         class Root:
@@ -691,27 +691,27 @@ class TestJitCacheSharing:
         inner1 = root.Outer(arg="v1").Inner
         inner2 = root.Outer(arg="v2").Inner
 
-        # Use the dependency_graph's jit_cache directly
-        jit_cache1 = inner1.dependency_graph.jit_cache
-        jit_cache2 = inner2.dependency_graph.jit_cache
+        # Use the dependency_graph's symbol directly
+        symbol1 = inner1.dependency_graph.symbol
+        symbol2 = inner2.dependency_graph.symbol
 
-        assert jit_cache1 is jit_cache2
+        assert symbol1 is symbol2
 
     @pytest.mark.xfail(
         reason="BUG: InstanceChildDependencyGraph and ChildDependencyGraph have separate intern_pools, "
-        "causing instance path to create new ChildDependencyGraph with JitCacheSentinel.MERGED "
+        "causing instance path to create new ChildDependencyGraph with SymbolSentinel.MERGED "
         "instead of reusing the one created via static path."
     )
-    def test_jit_cache_shared_between_instance_and_static_access(self) -> None:
-        """_JitCache should be shared between InstanceProxy and StaticProxy access paths.
+    def test_symbol_shared_between_instance_and_static_access(self) -> None:
+        """_Symbol should be shared between InstanceProxy and StaticProxy access paths.
 
-        .. todo:: Fix _ProxySemigroup.create to share jit_cache between instance and static paths.
+        .. todo:: Fix _ProxySemigroup.create to share symbol between instance and static paths.
 
             Currently when accessing Inner via instance path (root.Outer(arg="v1").Inner),
             the access_path_outer is an InstanceChildDependencyGraph which has its own
             intern_pool. When _ProxySemigroup.create checks this intern_pool, it doesn't
             find the existing ChildDependencyGraph (created via resolve_symbols for static
-            path), so it creates a new one with jit_cache=JitCacheSentinel.MERGED.
+            path), so it creates a new one with symbol=SymbolSentinel.MERGED.
 
             The fix should ensure that InstanceChildDependencyGraph delegates to its
             prototype's intern_pool, or that _ProxySemigroup.create uses the prototype's
@@ -736,30 +736,30 @@ class TestJitCacheSharing:
         instance_inner = root.Outer(arg="v1").Inner
         static_inner = root.Outer.Inner
 
-        # Use the dependency_graph's jit_cache directly
-        instance_jit_cache = instance_inner.dependency_graph.jit_cache
-        static_jit_cache = static_inner.dependency_graph.jit_cache
+        # Use the dependency_graph's symbol directly
+        instance_symbol = instance_inner.dependency_graph.symbol
+        static_symbol = static_inner.dependency_graph.symbol
 
-        assert instance_jit_cache is static_jit_cache
+        assert instance_symbol is static_symbol
 
     @pytest.mark.xfail(
-        reason="BUG: Same issue as test_jit_cache_shared_between_instance_and_static_access. "
+        reason="BUG: Same issue as test_symbol_shared_between_instance_and_static_access. "
         "InstanceChildDependencyGraph has separate intern_pool from ChildDependencyGraph, "
-        "causing different jit_cache values for the same underlying scope definition."
+        "causing different symbol values for the same underlying scope definition."
     )
-    def test_jit_cache_shared_when_scope_extends_another(self) -> None:
-        """_JitCache should be shared when accessing Inner through extending scopes.
+    def test_symbol_shared_when_scope_extends_another(self) -> None:
+        """_Symbol should be shared when accessing Inner through extending scopes.
 
-        .. todo:: Fix _ProxySemigroup.create to share jit_cache across extending scopes.
+        .. todo:: Fix _ProxySemigroup.create to share symbol across extending scopes.
 
             When object1 extends Outer, accessing Inner through both paths should yield
-            the same jit_cache since they refer to the same Python class definition
+            the same symbol since they refer to the same Python class definition
             (Root.Outer.Inner). Currently, each InstanceChildDependencyGraph has its own
             intern_pool, leading to separate ChildDependencyGraph instances with different
-            jit_cache values (JitCacheSentinel.MERGED vs real _JitCache).
+            symbol values (SymbolSentinel.MERGED vs real _Symbol).
 
             The fix should ensure that all access paths to the same scope definition
-            share the same _JitCache instance.
+            share the same _Symbol instance.
         """
 
         @scope()
@@ -785,15 +785,15 @@ class TestJitCacheSharing:
         outer_inner = root.Outer(arg="v1").Inner
         object1_inner = root.object1(arg="v2").Inner
 
-        # Use the dependency_graph's jit_cache directly
-        outer_jit_cache = outer_inner.dependency_graph.jit_cache
-        object1_jit_cache = object1_inner.dependency_graph.jit_cache
+        # Use the dependency_graph's symbol directly
+        outer_symbol = outer_inner.dependency_graph.symbol
+        object1_symbol = object1_inner.dependency_graph.symbol
 
-        # Both should share the same jit_cache since they access the same Inner definition
-        assert outer_jit_cache is object1_jit_cache
-        # Neither should be MERGED sentinel - they should have real _JitCache
-        assert outer_jit_cache is not JitCacheSentinel.MERGED
-        assert object1_jit_cache is not JitCacheSentinel.MERGED
+        # Both should share the same symbol since they access the same Inner definition
+        assert outer_symbol is object1_symbol
+        # Neither should be MERGED sentinel - they should have real _Symbol
+        assert outer_symbol is not SymbolSentinel.SYNTHETIC
+        assert object1_symbol is not SymbolSentinel.SYNTHETIC
 
 
 class TestProxyAsSymlink:

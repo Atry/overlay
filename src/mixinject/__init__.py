@@ -562,10 +562,10 @@ class DependencyGraph(ABC, Generic[TKey]):
     ] = field(default_factory=weakref.WeakValueDictionary)
 
 
-class JitCacheSentinel(Enum):
-    MERGED = auto()
+class SymbolSentinel(Enum):
+    SYNTHETIC = auto()
     """
-    Sentinel indicating that the JIT cache does not exist because the dependency graph is merged from multiple bases, without its own definition.
+    Sentinel indicating that the dependency graph is synthetic and does not correspond to a real symbol.
     """
 
 
@@ -577,9 +577,9 @@ class StaticDependencyGraph(DependencyGraph[TKey], Generic[TKey]):
               使 ``ChildDependencyGraph`` 成为 ``Callable[[LexicalScope], _ProxySemigroup]``。
     """
 
-    jit_cache: Final["_JitCache | JitCacheSentinel"]
+    symbol: Final["_Symbol | SymbolSentinel"]
     """
-    The JIT cache for this dependency graph, providing cached symbol resolution.
+    The symbol for this dependency graph, providing cached symbol resolution.
     Subclasses (RootDependencyGraph, ChildDependencyGraph) must define this field.
     """
 
@@ -592,21 +592,21 @@ class StaticDependencyGraph(DependencyGraph[TKey], Generic[TKey]):
 
     bases: Sequence["DependencyGraph[Any]"] = field(default_factory=tuple)
     """
-    Mapping from dependency graph paths to their corresponding JIT caches.
+    Mapping from dependency graph paths to their corresponding symbols.
     Corresponds one-to-one with Proxy.mixins keys.
 
-    .. todo:: 拆分为 ``jit_cache: _JitCache`` (单个) + ``base_jit_caches: ChainMap[ChildDependencyGraph, _JitCache]``，
-              ``jit_caches`` 改为 ``cached_property`` 合并两者。
+    .. todo:: 拆分为 ``symbol: _Symbol`` (单个) + ``base_symbols: ChainMap[ChildDependencyGraph, _Symbol]``，
+              ``symbols`` 改为 ``cached_property`` 合并两者。
     """
 
     @property
     def proxy_definition(self) -> "_ProxyDefinition":
         """The definition that describes resources, patches, and nested scopes for this dependency graph."""
-        if isinstance(self.jit_cache, JitCacheSentinel):
+        if isinstance(self.symbol, SymbolSentinel):
             raise ValueError(
-                f"proxy_definition is not available for merged dependency graphs (jit_cache={self.jit_cache})"
+                f"proxy_definition is not available for merged dependency graphs (symbol={self.symbol})"
             )
-        return self.jit_cache.proxy_definition
+        return self.symbol.proxy_definition
 
 
 Evaluator: TypeAlias = "Merger | Patcher"
@@ -721,7 +721,7 @@ class Proxy(Mapping[TKey, "Node"], ABC):
     .. todo::
         我希望把Proxy/CachedProxy/WeakCachedProxy合并成一个类，按需提供ResourceConfig的26种组合行为。
 
-        我希望可以通过新增的一些decorator提供 ResourceConfig 的配置。注意这个配置是静态的不依赖于 Proxy 和 Scope，且可能将来会被JitCache编译进字节码里。
+        我希望可以通过新增的一些decorator提供 ResourceConfig 的配置。注意这个配置是静态的不依赖于 Proxy 和 Scope，且可能将来会被Symbol编译进字节码里。
         ```
         @dataclass
         class BuilderDefinition:
@@ -802,10 +802,10 @@ class Proxy(Mapping[TKey, "Node"], ABC):
     def __iter__(self) -> Iterator[TKey]:
         visited: set[TKey] = set()
         for dependency_graph in self.mixins.keys():
-            if isinstance(dependency_graph.jit_cache, JitCacheSentinel):
+            if isinstance(dependency_graph.symbol, SymbolSentinel):
                 # Merged dependency graphs don't have their own keys
                 continue
-            for key in dependency_graph.jit_cache.keys():
+            for key in dependency_graph.symbol.keys():
                 if key not in visited:
                     visited.add(key)
                     yield key
@@ -840,7 +840,7 @@ class StaticProxy(Proxy[TKey], ABC):
         """
         Create an InstanceProxy with the given kwargs.
 
-        .. todo:: Phase 2: Pass ``jit_cache`` and ``base_jit_caches``
+        .. todo:: Phase 2: Pass ``symbol`` and ``base_symbols``
                   when creating ``InstanceChildDependencyGraph``.
         """
         # Get or create InstanceChildDependencyGraph (memoized via weak reference)
@@ -1069,11 +1069,11 @@ def _mixin_getitem(
     """
     Get a factory function from a dependency graph by key.
 
-    Calls ``dependency_graph.jit_cache[key](dependency_graph)`` to get the
+    Calls ``dependency_graph.symbol[key](dependency_graph)`` to get the
     second-level callable, passing the mixin's dependency_graph (not the
     proxy's dependency_graph from lexical_scope).
     """
-    first_level = dependency_graph.jit_cache[key]
+    first_level = dependency_graph.symbol[key]
     resolved_function = first_level(dependency_graph)
 
     def bind_proxy(proxy: "Proxy[TKey]") -> Evaluator:
@@ -1088,7 +1088,7 @@ def _mixin_getitem(
 
 
 @dataclass(kw_only=True, slots=True, frozen=True, weakref_slot=True)
-class _JitCache(
+class _Symbol(
     Mapping[TKey, Callable[[DependencyGraph], Callable[[LexicalScope], Evaluator]]],
     Generic[TKey],
 ):
@@ -1097,16 +1097,16 @@ class _JitCache(
 
     .. todo:: Also compiles the proxy class into Python bytecode.
 
-    .. note:: _JitCache instances are shared among all mixins created from the same
+    .. note:: _Symbol instances are shared among all mixins created from the same
         _ProxyDefinition (the Python class decorated with @scope()). For example::
 
-            root.Outer(arg="v1").Inner.mixins[...].jit_cache
-            root.Outer(arg="v2").Inner.mixins[...].jit_cache
-            root.Outer.Inner.mixins[...].jit_cache
-            root.object1(arg="v").Inner.mixins[...].jit_cache  # object1 extends Outer
+            root.Outer(arg="v1").Inner.mixins[...].symbol
+            root.Outer(arg="v2").Inner.mixins[...].symbol
+            root.Outer.Inner.mixins[...].symbol
+            root.object1(arg="v").Inner.mixins[...].symbol  # object1 extends Outer
 
-        All share the same _JitCache because they reference the same ``Inner`` class.
-        The _JitCache is created once in _ProxyDefinition.resolve_symbols and captured
+        All share the same _Symbol because they reference the same ``Inner`` class.
+        The _Symbol is created once in _ProxyDefinition.resolve_symbols and captured
         in the closure, tied to the definition itself, not to the access path.
     """
 
@@ -1408,7 +1408,7 @@ class _ProxySemigroup(Merger[StaticProxy, StaticProxy], Patcher[StaticProxy]):
                 else:
                     dependency_graph = ChildDependencyGraph(
                         outer=self.access_path_outer,
-                        jit_cache=JitCacheSentinel.MERGED,
+                        symbol=SymbolSentinel.SYNTHETIC,
                         resource_name=self.resource_name,
                     )
                     self.access_path_outer.intern_pool[self.resource_name] = (
@@ -1572,13 +1572,13 @@ class _ProxyDefinition(
         Returns a function that takes an outer DependencyGraph and returns a
         ChildDependencyGraph that implements ``Callable[[LexicalScope], _ProxySemigroup]``.
 
-        .. todo:: Phase 2: Add ``base_jit_caches`` parameter to ``ChildDependencyGraph``
-                  for inherited JIT caches from extended scopes.
+        .. todo:: Phase 2: Add ``base_symbols`` parameter to ``ChildDependencyGraph``
+                  for inherited symbols from extended scopes.
         """
         inner_symbol_table: SymbolTable = _extend_symbol_table_jit(
             outer=symbol_table, names=self.generate_keys()
         )
-        jit_cache = _JitCache(
+        symbol = _Symbol(
             proxy_definition=self,
             symbol_table=inner_symbol_table,
         )
@@ -1599,7 +1599,7 @@ class _ProxyDefinition(
                 return existing
             proxy_dependency_graph = ChildDependencyGraph(
                 outer=outer_dependency_graph,
-                jit_cache=jit_cache,
+                symbol=symbol,
                 resource_name=resource_name,
             )
             intern_pool[resource_name] = proxy_dependency_graph
@@ -1973,7 +1973,7 @@ def mount(
 
         root = mount(MyNamespace)
 
-    .. todo:: Phase 2: Pass ``jit_cache`` and ``base_jit_caches``
+    .. todo:: Phase 2: Pass ``symbol`` and ``base_symbols``
               when creating ``ChildDependencyGraph``.
     """
     lexical_scope: LexicalScope = ()
@@ -1998,13 +1998,13 @@ def mount(
         outer=symbol_table,
         names=namespace_definition.generate_keys(),
     )
-    jit_cache = _JitCache(
+    symbol = _Symbol(
         proxy_definition=namespace_definition,
         symbol_table=per_namespace_symbol_table,
     )
 
     root_dependency_graph = RootDependencyGraph[str](
-        jit_cache=jit_cache,
+        symbol=symbol,
     )
     return root_proxy_class(
         mixins={root_dependency_graph: lexical_scope},

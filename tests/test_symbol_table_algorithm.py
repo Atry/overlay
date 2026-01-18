@@ -9,7 +9,7 @@ from mixinject import (
     CachedProxy,
     _extend_symbol_table_jit,
     _NamespaceDefinition,
-    _JitCache,
+    _Symbol,
 )
 from mixinject import RootDependencyGraph, ChildDependencyGraph
 
@@ -19,9 +19,9 @@ def _empty_proxy_definition() -> _NamespaceDefinition:
     return _NamespaceDefinition(proxy_class=CachedProxy, underlying=object())
 
 
-def _empty_jit_cache(proxy_definition: _NamespaceDefinition) -> _JitCache:
-    """Create a minimal JIT cache for testing."""
-    return _JitCache(
+def _empty_symbol(proxy_definition: _NamespaceDefinition) -> _Symbol:
+    """Create a minimal symbol for testing."""
+    return _Symbol(
         proxy_definition=proxy_definition,
         symbol_table=ChainMapSentinel.EMPTY,
     )
@@ -30,10 +30,10 @@ def _empty_jit_cache(proxy_definition: _NamespaceDefinition) -> _JitCache:
 def _empty_dependency_graph() -> ChildDependencyGraph[str]:
     """Create a minimal dependency graph for testing."""
     proxy_def = _empty_proxy_definition()
-    jit_cache = _empty_jit_cache(proxy_def)
+    symbol = _empty_symbol(proxy_def)
     return ChildDependencyGraph(
-        outer=RootDependencyGraph(jit_cache=jit_cache),
-        jit_cache=jit_cache,
+        outer=RootDependencyGraph(symbol=symbol),
+        symbol=symbol,
         resource_name="test",
     )
 
