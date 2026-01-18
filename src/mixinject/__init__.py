@@ -552,7 +552,7 @@ class DependencyGraph(ABC, Generic[TKey]):
 
     This class is immutable and hashable, suitable for use as dictionary keys.
 
-    .. todo:: 继承 ``Mapping[TKey, StaticChildDependencyGraph]``。
+    .. todo:: 继承 ``Mapping[TKey, EvaluatorGetter]``。
     """
 
     intern_pool: Final[
@@ -596,6 +596,13 @@ class StaticDependencyGraph(DependencyGraph[TKey], Generic[TKey]):
     .. todo:: 拆分为 ``jit_cache: _JitCache`` (单个) + ``base_jit_caches: ChainMap[StaticChildDependencyGraph, _JitCache]``，
               ``jit_caches`` 改为 ``cached_property`` 合并两者。
     """
+
+
+Evaluator: TypeAlias = "Merger | Patcher"
+"""A Merger or Patcher that participates in resource evaluation."""
+
+EvaluatorGetter: TypeAlias = Callable[["LexicalScope"], Evaluator]
+"""A callable that retrieves an Evaluator from a LexicalScope context."""
 
 
 @final
@@ -996,13 +1003,6 @@ class Patcher(Iterable[TPatch_co], ABC):
     """
     An Patcher provides extra data to be applied to a Node created by a ``Merger``.
     """
-
-
-Evaluator: TypeAlias = Merger | Patcher
-"""A Merger or Patcher that participates in resource evaluation."""
-
-EvaluatorGetter: TypeAlias = Callable[[LexicalScope], Evaluator]
-"""A callable that retrieves an Evaluator from a LexicalScope context."""
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
