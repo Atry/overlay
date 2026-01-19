@@ -858,11 +858,6 @@ class _DefinedSymbol(ABC):
 
 @dataclass(kw_only=True, frozen=True, eq=False)
 class StaticSymbolMapping(HasDict, SymbolMapping):
-    """
-    .. todo:: Implement ``__getitem__`` for lazy creation of child dependency graphs.
-    .. todo:: Implement ``__call__(captured_scopes: CapturedScopes) -> _ScopeSemigroup``
-              to make ``NestedSymbolMapping`` become ``Callable[[CapturedScopes], _ScopeSemigroup]``.
-    """
 
     @cached_property
     def instance_symbol(self) -> "InstanceSymbolMapping":
@@ -879,19 +874,6 @@ TMixin_co = TypeVar("TMixin_co", bound="Merger | Patcher", covariant=True)
 class MixinGetter(Generic[TMixin_co], ABC):
     """
     ABC for retrieving a Mixin from a CapturedScopes context.
-
-    .. todo::
-
-        After refactoring, ``NestedSymbol`` will inherit from this ABC,
-        and the four ``_XxxMixinGetter`` implementation classes will
-        be replaced by ``NestedSymbol`` subclasses:
-
-        - ``_NestedMergerSymbol`` replaces ``_MergerMixinGetter``
-        - ``_NestedResourceSymbol`` replaces ``_ResourceMixinGetter``
-        - ``_NestedSinglePatchSymbol`` replaces ``_SinglePatchMixinGetter``
-        - ``_NestedMultiplePatchSymbol`` replaces ``_MultiplePatchMixinGetter``
-
-        This unifies the Symbol and MixinGetter hierarchies.
     """
 
     @abstractmethod
@@ -1921,9 +1903,6 @@ class StaticScope(Scope, ABC):
     def __call__(self, **kwargs: object) -> "InstanceScope":
         """
         Create an InstanceScope with the given kwargs.
-
-        .. todo:: Phase 2: Pass ``symbol`` and ``base_symbols``
-                  when creating ``InstanceSymbolMapping``.
         """
         return InstanceScope(
             base_scope=self,
@@ -2060,7 +2039,7 @@ Node: TypeAlias = Resource | Scope
 
 class Merger(Generic[TPatch_contra, TResult_co], ABC):
     @abstractmethod
-    def create(self, patches: Iterator[TPatch_contra]) -> TResult_co: ...
+    def merge(self, patches: Iterator[TPatch_contra]) -> TResult_co: ...
 
 
 class Patcher(Iterable[TPatch_co], ABC):
@@ -2086,7 +2065,7 @@ class FunctionMerger(Merger[TPatch_contra, TResult_co]):
     aggregation_function: Callable[[Iterator[TPatch_contra]], TResult_co]
 
     @override
-    def create(self, patches: Iterator[TPatch_contra]) -> TResult_co:
+    def merge(self, patches: Iterator[TPatch_contra]) -> TResult_co:
         return self.aggregation_function(patches)
 
 
@@ -2103,7 +2082,7 @@ class _EndofunctionMerger(
     base_value: TResult
 
     @override
-    def create(self, patches: Iterator[Callable[[TResult], TResult]]) -> TResult:
+    def merge(self, patches: Iterator[Callable[[TResult], TResult]]) -> TResult:
         return reduce(lambda acc, endo: endo(acc), patches, self.base_value)
 
 
@@ -2207,7 +2186,7 @@ def _evaluate_resource(
         for patch_content in patch_container
     )
 
-    return selected_merger.create(flat_patches)
+    return selected_merger.merge(flat_patches)
 
 
 class Definition(ABC):
@@ -2331,7 +2310,7 @@ class _ScopeSemigroup(Merger[StaticScope, StaticScope], Patcher[StaticScope]):
     key: Final[Hashable]
 
     @override
-    def create(self, patches: Iterator[StaticScope]) -> StaticScope:
+    def merge(self, patches: Iterator[StaticScope]) -> StaticScope:
         """
         Create a merged Scope from factory and patches.
 
@@ -2931,8 +2910,6 @@ def evaluate(
 
         root = mount(MyNamespace)
 
-    .. todo:: Phase 2: Pass ``symbol`` and ``base_symbols``
-              when creating ``NestedSymbolMapping``.
     """
     captured_scopes: CapturedScopes = ()
     root_scope_class: type[StaticScope] = CachedScope

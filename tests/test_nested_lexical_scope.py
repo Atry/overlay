@@ -75,7 +75,7 @@ class Dual(Patcher[Any], Merger[Any, Any]):
         return self._scope_class
 
     @override
-    def create(self, patches: Iterator[Any]) -> Any:
+    def merge(self, patches: Iterator[Any]) -> Any:
         return Result(
             f"merger-{self.value}-" + "-".join(sorted(str(p) for p in patches))
         )
@@ -96,7 +96,7 @@ class PureMerger(Merger[Any, Any]):
         return self._scope_class
 
     @override
-    def create(self, patches: Iterator[Any]) -> Any:
+    def merge(self, patches: Iterator[Any]) -> Any:
         return Result(
             f"pure-{self.value}-" + "-".join(sorted(str(p) for p in patches))
         )
