@@ -543,11 +543,6 @@ class TestExtendInstanceScopeProhibition:
 class TestExtendNameResolution:
     """Test that names from extended scopes can be resolved without @extern."""
 
-    @pytest.mark.xfail(
-        reason="BUG: Symbol table is at Symbol level, not Mixin level. "
-        "SymbolMapping doesn't merge names from extended scopes, "
-        "so dependency resolution fails without explicit @extern declaration."
-    )
     def test_extend_allows_name_resolution_without_extern(self) -> None:
         """Extended scope should be able to resolve names from base scope.
 
@@ -555,8 +550,9 @@ class TestExtendNameResolution:
         to use resources from the extended scope as dependencies without needing
         to declare them with @extern.
 
-        Current behavior: Fails with missing dependency error
-        Expected behavior: base_value should be resolved from Base scope
+        This works because mixin-based dependency resolution (via
+        _resolve_dependencies_jit_using_mixin) uses MixinMapping.__getitem__
+        which handles extends via _compile_synthetic and generate_strict_super().
         """
 
         @scope()
@@ -716,6 +712,53 @@ class TestInstanceScopeReversedPath:
 
         # Verify the resource works correctly
         assert my_inner.foo == "foo_42"
+
+
+class TestInstanceMixinMappingDepth:
+    """Test depth calculation through InstanceMixinMapping chains."""
+
+    @pytest.mark.xfail(
+        reason="BUG: InstanceMixinMapping.__getitem__ delegates to prototype[key], "
+        "returning a mixin with outer=prototype instead of outer=self. "
+        "This causes depth to be computed incorrectly and _find_param_in_mixin_chain "
+        "to fail when traversing through InstanceMixinMapping."
+    )
+    def test_nested_mixin_outer_should_be_instance_mixin_mapping(self) -> None:
+        """When accessing nested scope through InstanceScope, mixin's outer should be InstanceMixinMapping.
+
+        Current bug: InstanceMixinMapping.__getitem__ does:
+            return self.prototype[key]  # Returns mixin with outer=prototype
+
+        Expected: Should return a mixin with outer=self (the InstanceMixinMapping).
+
+        This test verifies the mixin chain is correct when accessing through instance scopes.
+        """
+        from mixinject import InstanceMixinMapping
+
+        @scope()
+        class Root:
+            @scope()
+            class Outer:
+                @extern
+                def arg() -> int: ...
+
+                @scope()
+                class Inner:
+                    @resource
+                    def value(arg: int) -> int:
+                        return arg * 2
+
+        root = evaluate(Root)
+        instance = root.Outer(arg=21)
+
+        # Access Inner through the instance
+        inner = instance.Inner
+
+        # The inner scope's mixin should have outer=InstanceMixinMapping
+        # Currently it has outer=Outer's NestedMixinMapping (from prototype)
+        assert isinstance(inner.mixin.outer, InstanceMixinMapping), (
+            f"Expected outer to be InstanceMixinMapping, got {type(inner.mixin.outer)}"
+        )
 
 
 class TestSymbolSharing:

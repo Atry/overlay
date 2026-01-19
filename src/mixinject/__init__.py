@@ -816,17 +816,11 @@ def _compile_synthetic(
     Validates that all base classes have consistent types using the
     generate_is_mixin_mapping + reduce(assert_equal, ...) pattern.
     """
-    base_indices: dict["NestedMixin", int] = {
-        cast("NestedMixin", item_mixin): i
-        for i, base in enumerate(
-            cast(Iterator["MixinMapping"], outer_mixin.generate_strict_super())
-        )
-        if (item_mixin := base.get(key)) is not None
-    }
+    base_mixins = _collect_base_indices(outer_mixin, key)
 
     def generate_is_mixin_mapping() -> Iterator[bool]:
         """Generate bool indicating whether each base mixin is a MixinMapping."""
-        for mixin in base_indices:
+        for mixin in base_mixins:
             yield isinstance(mixin, MixinMapping)
 
     def assert_equal(a: T, b: T) -> T:
@@ -846,14 +840,12 @@ def _compile_synthetic(
         return SyntheticMixinMapping(
             key=key,
             outer=outer_mixin,
-            base_indices=cast(Mapping["NestedMixinMapping", int], base_indices),
         )
 
     # For leaf resources, create _SyntheticResourceMixin (empty Patcher)
     return _SyntheticResourceMixin(
         key=key,
         outer=outer_mixin,
-        base_indices=base_indices,
     )
 
 
@@ -1103,7 +1095,7 @@ class NestedMixinIndex:
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
-class NestedMixin(Mixin, EvaluatorGetter["Merger | Patcher"]):
+class NestedMixin(HasDict, Mixin, EvaluatorGetter["Merger | Patcher"]):
     """
     Leaf Mixin corresponding to non-Mapping resource definitions.
 
@@ -1122,40 +1114,30 @@ class NestedMixin(Mixin, EvaluatorGetter["Merger | Patcher"]):
             evaluator = nested_mixin.get_evaluator(captured_scopes)  # Merger
         elif isinstance(nested_mixin, PatcherMixin):
             evaluator = nested_mixin.get_evaluator(captured_scopes)  # Patcher
-
-    .. todo:: Add ``depth`` and ``getter`` properties for mixin-based dependency resolution.
-
-        Use mixin instead of symbol_table for dependency resolution, because
-        ``MixinMapping.__getitem__`` already handles extends via ``_compile_synthetic``
-        and ``generate_strict_super()``.
-
-        Add these properties to ``NestedMixin``::
-
-            @cached_property
-            def depth(self) -> int:
-                \"\"\"Compute depth by traversing outer chain.\"\"\"
-                depth = 1
-                current = self.outer
-                while isinstance(current, NestedMixinMapping):
-                    depth += 1
-                    current = current.outer
-                return depth
-
-            @cached_property
-            def getter(self) -> Callable[[CapturedScopes], "Node"]:
-                \"\"\"Create getter function for accessing this resource.\"\"\"
-                index = self.depth - 1
-                if isinstance(self.key, str):
-                    return _make_jit_getter(self.key, index)
-                return lambda captured_scopes: captured_scopes[index][self.key]
-
-        This works for both ``_DefinedMixin`` and ``_SyntheticMixin`` - no special handling needed.
     """
-
-    base_indices: Final[Mapping["NestedMixin", int]]
 
     outer: Final[MixinMapping]
     key: Final[Hashable]
+
+    @cached_property
+    def base_indices(self) -> Mapping["NestedMixin", int]:
+        """Collect base_indices from outer's strict super mixins."""
+        return _collect_base_indices(self.outer, self.key)
+
+    @cached_property
+    def depth(self) -> int:
+        """Compute depth in O(1) by leveraging outer's cached depth."""
+        if isinstance(self.outer, NestedMixinMapping):
+            return self.outer.depth + 1
+        return 1
+
+    @cached_property
+    def getter(self) -> Callable[[CapturedScopes], "Node"]:
+        """Create getter function for accessing this resource."""
+        index = self.depth - 1
+        if isinstance(self.key, str):
+            return _make_jit_getter(self.key, index)
+        return lambda captured_scopes: captured_scopes[index][self.key]
 
     def generate_strict_super(self) -> Iterator[Mixin]:
         """Generate the strict super mixins (all direct and transitive bases, excluding self)."""
@@ -1217,12 +1199,24 @@ class _NestedMergerMixin(
 ):
     """NestedMixin for _MergerSymbol."""
 
+    @cached_property
+    def jit_compiled_function(
+        self,
+    ) -> Callable[[CapturedScopes], Callable[[Iterator[TPatch_contra]], TResult_co]]:
+        """JIT-compiled function using mixin-based dependency resolution."""
+        symbol = cast("_MergerSymbol[TPatch_contra, TResult_co]", self.symbol)
+        assert isinstance(self.key, str), f"Merger key must be a string, got {type(self.key)}"
+        return _resolve_dependencies_jit_using_mixin(
+            self.outer,
+            symbol.function,
+            self.key,
+        )
+
     @override
     def get_evaluator(
         self, captured_scopes: CapturedScopes, /
     ) -> "Merger[TPatch_contra, TResult_co]":
-        symbol = cast("_MergerSymbol[TPatch_contra, TResult_co]", self.symbol)
-        aggregation_function = symbol.jit_compiled_function(captured_scopes)
+        aggregation_function = self.jit_compiled_function(captured_scopes)
         return FunctionMerger(aggregation_function=aggregation_function)
 
 
@@ -1234,28 +1228,24 @@ class _NestedResourceMixin(
     """NestedMixin for _ResourceSymbol.
 
     Returns ``Merger[Endofunction[T], T]`` which accepts endofunction patches.
-
-    .. todo:: (Optional) Move JIT compilation from Symbol to Mixin.
-
-        Add ``jit_compiled_function`` property::
-
-            @cached_property
-            def jit_compiled_function(self) -> Callable[[CapturedScopes], T]:
-                return _resolve_dependencies_jit_using_mixin(
-                    self.outer,
-                    self.symbol.function,
-                    self.key,
-                )
-
-        Update ``get_evaluator`` to use mixin's JIT instead of symbol's JIT.
     """
+
+    @cached_property
+    def jit_compiled_function(self) -> Callable[[CapturedScopes], TResult]:
+        """JIT-compiled function using mixin-based dependency resolution."""
+        symbol = cast("_ResourceSymbol[TResult]", self.symbol)
+        assert isinstance(self.key, str), f"Resource key must be a string, got {type(self.key)}"
+        return _resolve_dependencies_jit_using_mixin(
+            self.outer,
+            symbol.function,
+            self.key,
+        )
 
     @override
     def get_evaluator(
         self, captured_scopes: CapturedScopes, /
     ) -> "Merger[Endofunction[TResult], TResult]":
-        symbol = cast("_ResourceSymbol[TResult]", self.symbol)
-        base_value = symbol.jit_compiled_function(captured_scopes)
+        base_value = self.jit_compiled_function(captured_scopes)
         return _EndofunctionMerger(base_value=base_value)
 
 
@@ -1264,12 +1254,23 @@ class _NestedResourceMixin(
 class _NestedSinglePatchMixin(_DefinedMixin, PatcherMixin[TPatch_co], Generic[TPatch_co]):
     """NestedMixin for _SinglePatchSymbol."""
 
+    @cached_property
+    def jit_compiled_function(self) -> Callable[[CapturedScopes], TPatch_co]:
+        """JIT-compiled function using mixin-based dependency resolution."""
+        symbol = cast("_SinglePatchSymbol[TPatch_co]", self.symbol)
+        assert isinstance(self.key, str), f"Patch key must be a string, got {type(self.key)}"
+        return _resolve_dependencies_jit_using_mixin(
+            self.outer,
+            symbol.function,
+            self.key,
+        )
+
     @override
     def get_evaluator(self, captured_scopes: CapturedScopes, /) -> "Patcher[TPatch_co]":
-        symbol = cast("_SinglePatchSymbol[TPatch_co]", self.symbol)
+        jit_func = self.jit_compiled_function
 
         def patch_generator() -> Iterator[TPatch_co]:
-            yield symbol.jit_compiled_function(captured_scopes)
+            yield jit_func(captured_scopes)
 
         return FunctionPatcher(patch_generator=patch_generator)
 
@@ -1279,12 +1280,23 @@ class _NestedSinglePatchMixin(_DefinedMixin, PatcherMixin[TPatch_co], Generic[TP
 class _NestedMultiplePatchMixin(_DefinedMixin, PatcherMixin[TPatch_co], Generic[TPatch_co]):
     """NestedMixin for _MultiplePatchSymbol."""
 
+    @cached_property
+    def jit_compiled_function(self) -> Callable[[CapturedScopes], Iterable[TPatch_co]]:
+        """JIT-compiled function using mixin-based dependency resolution."""
+        symbol = cast("_MultiplePatchSymbol[TPatch_co]", self.symbol)
+        assert isinstance(self.key, str), f"Patch key must be a string, got {type(self.key)}"
+        return _resolve_dependencies_jit_using_mixin(
+            self.outer,
+            symbol.function,
+            self.key,
+        )
+
     @override
     def get_evaluator(self, captured_scopes: CapturedScopes, /) -> "Patcher[TPatch_co]":
-        symbol = cast("_MultiplePatchSymbol[TPatch_co]", self.symbol)
+        jit_func = self.jit_compiled_function
 
         def patch_generator() -> Iterator[TPatch_co]:
-            return (yield from symbol.jit_compiled_function(captured_scopes))
+            return (yield from jit_func(captured_scopes))
 
         return FunctionPatcher(patch_generator=patch_generator)
 
@@ -1464,13 +1476,31 @@ class NestedMixinMapping(SemigroupMixin, StaticMixinMapping):
         """
         return iter(self.linearized_base_indices.keys())
 
-    base_indices: Final[Mapping["NestedMixinMapping", int]] = field(default_factory=dict)
-    """
-    .. todo:: remove the ``default_factory`` once we have migrated all usages.
-    """
-
     outer: Final[MixinMapping]
     key: Final[Hashable]
+
+    @cached_property
+    def base_indices(self) -> Mapping["NestedMixinMapping", int]:
+        """Collect base_indices from outer's strict super mixins."""
+        return cast(
+            Mapping["NestedMixinMapping", int],
+            _collect_base_indices(self.outer, self.key),
+        )
+
+    @cached_property
+    def depth(self) -> int:
+        """Compute depth in O(1) by leveraging outer's cached depth."""
+        if isinstance(self.outer, NestedMixinMapping):
+            return self.outer.depth + 1
+        return 1
+
+    @cached_property
+    def getter(self) -> Callable[[CapturedScopes], "Node"]:
+        """Create getter function for accessing this nested scope."""
+        index = self.depth - 1
+        if isinstance(self.key, str):
+            return _make_jit_getter(self.key, index)
+        return lambda captured_scopes: captured_scopes[index][self.key]
 
     @cached_property
     def _linearized_outer_base_indices(self) -> Mapping["NestedMixinMapping", NestedMixinIndex]:
@@ -1717,6 +1747,11 @@ class InstanceMixinMapping(MixinMapping):
     def __getitem__(self, key: Hashable) -> "Mixin":
         """Delegate to prototype."""
         return self.prototype[key]
+
+    @property
+    def depth(self) -> int:
+        """Delegate to prototype."""
+        return self.prototype.depth  # type: ignore[attr-defined]
 
 
 Resource = NewType("Resource", object)
@@ -2115,6 +2150,19 @@ class _Symbol(ABC):
         """
 
 
+def _collect_base_indices(
+    outer_mixin: "MixinMapping", key: Hashable, /
+) -> Mapping["NestedMixin", int]:
+    """Collect base_indices from outer_mixin's strict super mixins."""
+    return {
+        cast("NestedMixin", item_mixin): index
+        for index, base in enumerate(
+            cast(Iterator["MixinMapping"], outer_mixin.generate_strict_super())
+        )
+        if (item_mixin := base.get(key)) is not None
+    }
+
+
 @dataclass(kw_only=True, frozen=True, eq=False)
 class _NestedSymbol(HasDict, _Compilable, _Symbol):
     """Nested symbol with a definition."""
@@ -2125,18 +2173,6 @@ class _NestedSymbol(HasDict, _Compilable, _Symbol):
     @abstractmethod
     def compile(self, outer_mixin: "MixinMapping", /) -> "Mixin":
         """Compile this symbol for a given mixin, returning a Mixin (NestedMixin or NestedMixinMapping)."""
-
-    def _collect_base_indices(
-        self, outer_mixin: "MixinMapping", key: Hashable, /
-    ) -> Mapping["NestedMixin", int]:
-        """Collect base_indices from outer_mixin's strict super mixins."""
-        return {
-            cast("NestedMixin", item_mixin): i
-            for i, base in enumerate(
-                cast(Iterator["MixinMapping"], outer_mixin.generate_strict_super())
-            )
-            if (item_mixin := base.get(key)) is not None
-        }
 
     @property
     def depth(self) -> int:
@@ -2269,31 +2305,18 @@ class _NestedSymbolMapping(_SymbolMapping, _NestedSymbol):
 
     def compile(self, outer_mixin: MixinMapping) -> "NestedMixinMapping":
         """
-        Create or retrieve a memoized NestedMixinMapping for the given outer mixin.
+        Create a NestedMixinMapping for the given outer mixin.
 
-        Memoization ensures that the same NestedMixinMapping instance is reused
-        for the same (outer_mixin, name) pair, enabling O(1) identity-based
-        equality comparison.
-
-        Note: This method creates NestedMixinMapping with symbol=self, which is
-        different from MixinMapping.__getitem__ that looks up symbols by key.
-        This distinction is necessary because compile() binds a specific symbol
-        to a mixin, while __getitem__ navigates the mixin hierarchy.
+        This method should ONLY be called by ``MixinMapping.__getitem__``,
+        which handles intern_pool memoization.
         """
-        existing = outer_mixin.intern_pool.get(self.name)
-        if existing is not None:
-            assert isinstance(existing, DefinedMixinMapping)
-            return existing
-        base_indices = self._collect_base_indices(outer_mixin, self.name)
         nested_mixin_mapping = DefinedMixinMapping(
             outer=outer_mixin,
             symbol=self,
             key=self.name,
-            base_indices=cast(Mapping[NestedMixinMapping, int], base_indices),
         )
-        outer_mixin.intern_pool[self.name] = nested_mixin_mapping
         _logger.debug(
-            "key=%(key)r " "underlying=%(underlying)r " "outer_key=%(outer_key)r",
+            "key=%(key)r underlying=%(underlying)r outer_key=%(outer_key)r",
             {
                 "key": self.name,
                 "underlying": self.definition.underlying,
@@ -2347,12 +2370,10 @@ class _MergerSymbol(_NestedSymbol, Generic[TPatch_contra, TResult_co]):
 
     def compile(self, outer_mixin: MixinMapping) -> _NestedMergerMixin:
         """Compile this symbol into a _NestedMergerMixin."""
-        base_indices = self._collect_base_indices(outer_mixin, self.resource_name)
         return _NestedMergerMixin(
             key=self.resource_name,
             outer=outer_mixin,
             symbol=self,
-            base_indices=base_indices,
         )
 
 
@@ -2378,12 +2399,10 @@ class _ResourceSymbol(_NestedSymbol, Generic[TResult]):
 
     def compile(self, outer_mixin: MixinMapping) -> _NestedResourceMixin:
         """Compile this symbol into a _NestedResourceMixin."""
-        base_indices = self._collect_base_indices(outer_mixin, self.resource_name)
         return _NestedResourceMixin(
             key=self.resource_name,
             outer=outer_mixin,
             symbol=self,
-            base_indices=base_indices,
         )
 
 
@@ -2409,12 +2428,10 @@ class _SinglePatchSymbol(_NestedSymbol, Generic[TPatch_co]):
 
     def compile(self, outer_mixin: MixinMapping) -> _NestedSinglePatchMixin:
         """Compile this symbol into a _NestedSinglePatchMixin."""
-        base_indices = self._collect_base_indices(outer_mixin, self.resource_name)
         return _NestedSinglePatchMixin(
             key=self.resource_name,
             outer=outer_mixin,
             symbol=self,
-            base_indices=base_indices,
         )
 
 
@@ -2440,12 +2457,10 @@ class _MultiplePatchSymbol(_NestedSymbol, Generic[TPatch_co]):
 
     def compile(self, outer_mixin: MixinMapping) -> _NestedMultiplePatchMixin:
         """Compile this symbol into a _NestedMultiplePatchMixin."""
-        base_indices = self._collect_base_indices(outer_mixin, self.resource_name)
         return _NestedMultiplePatchMixin(
             key=self.resource_name,
             outer=outer_mixin,
             symbol=self,
-            base_indices=base_indices,
         )
 
 
@@ -3317,22 +3332,11 @@ def _resolve_dependencies_jit(
     :return: A wrapper function that takes a lexical scope (where the last element
              is the current scope) and returns the result of the original function.
 
-    .. todo:: Create ``_resolve_dependencies_jit_using_mixin`` function.
+    .. deprecated::
 
-        Use mixin instead of symbol_table for dependency resolution::
-
-            def _resolve_dependencies_jit_using_mixin(
-                outer_mixin: MixinMapping,
-                function: Callable[P, T],
-                name: str,
-            ) -> Callable[[CapturedScopes], T]:
-                \"\"\"
-                Resolve dependencies using mixin instead of symbol_table.
-
-                For each parameter p:
-                1. param_mixin = outer_mixin[p.name]  # MixinMapping.__getitem__ handles extends!
-                2. Use param_mixin.getter for JIT code generation
-                \"\"\"
+        This function uses symbol_table for dependency resolution, which doesn't
+        handle extends. Use ``_resolve_dependencies_jit_using_mixin`` instead,
+        which handles both extends and lexical scope via the mixin chain.
     """
     sig = signature(function)
     params = tuple(sig.parameters.values())
@@ -3434,6 +3438,160 @@ def _resolve_dependencies_jit(
         {
             "function": function,
             "symbol_table": symbol_table,
+        },
+    )
+
+
+def _find_param_in_mixin_chain(
+    param_name: str, mixin: MixinMapping
+) -> "NestedMixin | NestedMixinMapping":
+    """
+    Find a parameter in the mixin chain (lexical scope + extends).
+
+    Traverses up the outer chain to find the parameter. Each mixin's __getitem__
+    handles extends resolution, so we only need to traverse the lexical scope chain.
+
+    :param param_name: The name of the parameter to find.
+    :param mixin: The starting MixinMapping to search from.
+    :return: The NestedMixin (for leaf resources) or NestedMixinMapping (for scopes).
+    :raises KeyError: If the parameter is not found in the mixin chain.
+    """
+    current: MixinMapping = mixin
+    while True:
+        if param_name in current:
+            param_mixin = current[param_name]
+            assert isinstance(param_mixin, (NestedMixin, NestedMixinMapping)), (
+                f"Parameter '{param_name}' resolved to unexpected mixin type: {type(param_mixin)}"
+            )
+            return param_mixin
+        if isinstance(current, NestedMixinMapping):
+            current = current.outer
+        else:
+            raise KeyError(f"Parameter '{param_name}' not found in mixin chain")
+
+
+def _is_param_in_mixin_chain(param_name: str, mixin: MixinMapping) -> bool:
+    """Check if a parameter is resolvable from the mixin chain."""
+    current: MixinMapping = mixin
+    while True:
+        if param_name in current:
+            return True
+        if isinstance(current, NestedMixinMapping):
+            current = current.outer
+        else:
+            return False
+
+
+def _resolve_dependencies_jit_using_mixin(
+    outer_mixin: MixinMapping,
+    function: Callable[P, T],
+    name: str,
+) -> Callable[[CapturedScopes], T]:
+    """
+    Resolve dependencies using mixin instead of symbol_table.
+
+    For each parameter p:
+    1. param_mixin = _find_param_in_mixin_chain(p.name, outer_mixin)
+    2. Use param_mixin.getter for JIT code generation
+
+    This handles both extends (via MixinMapping.__getitem__) and lexical scope
+    (via traversing the outer chain).
+
+    Special case: when param_name == name, starts search from outer_mixin.outer to
+    avoid self-dependency, mimicking pytest fixture behavior.
+
+    :param outer_mixin: The MixinMapping containing the resource being resolved.
+    :param function: The function for which to resolve dependencies.
+    :param name: The name of the resource being resolved.
+    :return: A wrapper function that takes captured scopes and returns the result.
+    """
+    sig = signature(function)
+    params = tuple(sig.parameters.values())
+
+    if not params:
+        return lambda _captured_scopes: function()  # type: ignore
+
+    # Check if first parameter is a positional-only scope parameter
+    has_scope = False
+    first_param = params[0]
+    first_param_in_mixin = _is_param_in_mixin_chain(first_param.name, outer_mixin)
+    if (first_param.kind == first_param.POSITIONAL_ONLY) or (
+        first_param.kind == first_param.POSITIONAL_OR_KEYWORD and not first_param_in_mixin
+    ):
+        has_scope = True
+        keyword_params = params[1:]
+    else:
+        keyword_params = params
+
+    # Pre-fetch getters at compile time
+    # For same-name parameters, start search from outer_mixin.outer to avoid self-dependency
+    getters: list[Callable[[CapturedScopes], Node]] = []
+    for parameter in keyword_params:
+        if parameter.name == name:
+            # Same-name dependency: start search from outer mixin's parent
+            assert isinstance(outer_mixin, NestedMixinMapping), (
+                f"Same-name dependency '{name}' at root level is not allowed"
+            )
+            param_mixin = _find_param_in_mixin_chain(parameter.name, outer_mixin.outer)
+        else:
+            # Normal dependency: resolve from outer_mixin chain
+            param_mixin = _find_param_in_mixin_chain(parameter.name, outer_mixin)
+        getters.append(param_mixin.getter)
+
+    # Generate JIT code: function(captured_scopes[-1], param0=getters[0](cs), param1=getters[1](cs), ...)
+    # Build keyword arguments
+    keywords = []
+    for index, parameter in enumerate(keyword_params):
+        # Generates: getters[index](captured_scopes)
+        value_expr = ast.Call(
+            func=ast.Subscript(
+                value=ast.Name(id="getters", ctx=ast.Load()),
+                slice=ast.Constant(value=index),
+                ctx=ast.Load(),
+            ),
+            args=[ast.Name(id="captured_scopes", ctx=ast.Load())],
+            keywords=[],
+        )
+        keywords.append(ast.keyword(arg=parameter.name, value=value_expr))
+
+    call_node = ast.Call(
+        func=ast.Name(id="function", ctx=ast.Load()),
+        args=(
+            [
+                ast.Subscript(
+                    value=ast.Name(id="captured_scopes", ctx=ast.Load()),
+                    slice=ast.Constant(value=-1),
+                    ctx=ast.Load(),
+                )
+            ]
+            if has_scope
+            else []
+        ),
+        keywords=keywords,
+    )
+
+    lambda_node = ast.Lambda(
+        args=ast.arguments(
+            posonlyargs=[],
+            args=[ast.arg(arg="captured_scopes")],
+            kwonlyargs=[],
+            kw_defaults=[],
+            defaults=[],
+        ),
+        body=call_node,
+    )
+
+    module_node = ast.Expression(body=lambda_node)
+    ast.fix_missing_locations(module_node)
+    code = compile(
+        module_node, filename="<mixinject__resolve_dependencies_jit_using_mixin>", mode="eval"
+    )
+
+    return eval(
+        code,
+        {
+            "function": function,
+            "getters": getters,
         },
     )
 
