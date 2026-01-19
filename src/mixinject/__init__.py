@@ -894,19 +894,17 @@ class _DefinedMixin(ABC):
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
-class StaticMixinMapping(MixinMapping):
+class StaticMixinMapping(HasDict, MixinMapping):
     """
     .. todo:: Implement ``__getitem__`` for lazy creation of child dependency graphs.
     .. todo:: Implement ``__call__(captured_scopes: CapturedScopes) -> _ScopeSemigroup``
               to make ``NestedMixinMapping`` become ``Callable[[CapturedScopes], _ScopeSemigroup]``.
     """
 
-    _cached_instance_mixin: weakref.ReferenceType["InstanceMixinMapping"] | None = (
-        field(default=None, init=False)
-    )
-    """
-    Cache for the corresponding InstanceMixinMapping.
-    """
+    @cached_property
+    def instance_mixin(self) -> "InstanceMixinMapping":
+        """Cache for the corresponding InstanceMixinMapping."""
+        return InstanceMixinMapping(prototype=self)
 
 
 Evaluator: TypeAlias = "Merger | Patcher"
@@ -1281,7 +1279,7 @@ class SemigroupMixin(ABC):
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
-class NestedMixinMapping(SemigroupMixin, HasDict, StaticMixinMapping):
+class NestedMixinMapping(SemigroupMixin, StaticMixinMapping):
     """
     Non-empty dependency graph node corresponding to nested Scope definitions.
 
@@ -1291,8 +1289,8 @@ class NestedMixinMapping(SemigroupMixin, HasDict, StaticMixinMapping):
     Implements ``Callable[[CapturedScopes], _ScopeSemigroup]`` to resolve resources
     from a lexical scope into a scope semigroup.
 
-    Inherits from ``HasDict`` to enable ``@cached_property`` (which requires
-    ``__dict__``) in a slots-based dataclass.
+    Inherits ``HasDict`` via ``StaticMixinMapping`` to enable ``@cached_property``
+    (which requires ``__dict__``) in a slots-based dataclass.
 
     Subclasses
     ==========
@@ -1838,17 +1836,10 @@ class StaticScope(Scope, ABC):
         .. todo:: Phase 2: Pass ``symbol`` and ``base_symbols``
                   when creating ``InstanceMixinMapping``.
         """
-        # Get or create InstanceMixinMapping (memoized via weak reference)
-        cached_ref = self.mixin._cached_instance_mixin
-        instance_path = cached_ref() if cached_ref is not None else None
-        if instance_path is None:
-            instance_path = InstanceMixinMapping(prototype=self.mixin)
-            object.__setattr__(self.mixin, "_cached_instance_mixin", weakref.ref(instance_path))
-
         return InstanceScope(
             base_scope=self,
             kwargs=kwargs,
-            mixin=instance_path,
+            mixin=self.mixin.instance_mixin,
         )
 
 
