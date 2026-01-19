@@ -1155,7 +1155,15 @@ class NestedMixinMapping(HasDict, StaticMixinMapping):
     """
 
     def generate_linearized_bases(self):
-        """Generate the base mixins that this mixin extends."""
+        """
+        Generate the base mixins that this mixin extends.
+
+        .. todo::
+
+            This method will be used with the new ``Scope.captured_scopes_sequence``
+            (which replaces ``Scope.mixins``) via
+            ``zip(mixin.generate_linearized_bases(), scope.captured_scopes_sequence)``.
+        """
         return iter(self.linearized_base_indices.keys())
 
     base_indices: Final[Mapping[NestedMixinMapping, int]] = field(default_factory=dict)
@@ -1442,6 +1450,19 @@ class StaticScope(Scope, ABC):
     """
 
     mixins: Mapping[StaticMixinMapping, CapturedScopes]  # type: ignore[misc]
+    """
+    .. todo::
+
+        Delete this field and replace with ``captured_scopes_sequence: Sequence[CapturedScopes]``
+        that is isomorphic to ``mixin.generate_linearized_bases()``.
+
+        This enables:
+
+        - Zip with ``generate_linearized_bases()`` to pair each Mixin with its CapturedScopes
+        - O(1) random access outer scope using ``NestedMixinIndex`` to construct
+          ``Sequence[CapturedScopes]``
+    """
+
     mixin: StaticMixinMapping  # type: ignore[misc]
 
     def __call__(self, **kwargs: object) -> "InstanceScope":
