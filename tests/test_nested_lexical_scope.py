@@ -102,6 +102,18 @@ class PureMerger(Merger[Any, Any]):
 
 
 @dataclass
+class _DirectEvaluatorGetter:
+    """EvaluatorGetter that directly returns an item without any dependency resolution."""
+
+    item: Any
+
+    def get_evaluator(
+        self, captured_scopes: CapturedScopes, /
+    ) -> Merger[Any, Any] | Patcher[Any]:
+        return self.item
+
+
+@dataclass
 class _DirectSymbol:
     """Symbol that directly returns an item without any dependency resolution."""
 
@@ -109,8 +121,8 @@ class _DirectSymbol:
 
     def compile(
         self, mixin: MixinMapping, /
-    ) -> Callable[[CapturedScopes], Merger[Any, Any] | Patcher[Any]]:
-        return lambda _captured_scopes: self.item
+    ) -> _DirectEvaluatorGetter:
+        return _DirectEvaluatorGetter(item=self.item)
 
 
 @dataclass

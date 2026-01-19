@@ -859,8 +859,16 @@ class StaticMixinMapping(MixinMapping):
 Evaluator: TypeAlias = "Merger | Patcher"
 """A Merger or Patcher that participates in resource evaluation."""
 
-EvaluatorGetter: TypeAlias = Callable[["CapturedScopes"], Evaluator]
-"""A callable that retrieves an Evaluator from a CapturedScopes context."""
+TEvaluator_co = TypeVar("TEvaluator_co", bound="Merger | Patcher", covariant=True)
+
+
+class EvaluatorGetter(Generic[TEvaluator_co], ABC):
+    """ABC for retrieving an Evaluator from a CapturedScopes context."""
+
+    @abstractmethod
+    def get_evaluator(self, captured_scopes: "CapturedScopes", /) -> TEvaluator_co:
+        """Retrieve the Evaluator for the given captured scopes."""
+        ...
 
 
 @final
@@ -984,7 +992,7 @@ class NestedMixin(Mixin):
 
             def __call__(self, captured_scopes: CapturedScopes) -> Merger:
                 evaluator_getter = self.symbol.compile(self.outer)
-                return evaluator_getter(captured_scopes)  # Returns Merger
+                return evaluator_getter.get_evaluator(captured_scopes)  # Returns Merger
 
     NestedPatcherMixin
     ------------------
@@ -1000,7 +1008,7 @@ class NestedMixin(Mixin):
 
             def __call__(self, captured_scopes: CapturedScopes) -> Patcher:
                 evaluator_getter = self.symbol.compile(self.outer)
-                return evaluator_getter(captured_scopes)  # Returns Patcher
+                return evaluator_getter.get_evaluator(captured_scopes)  # Returns Patcher
 
     ``__call__`` Semantics
     ======================
@@ -1009,7 +1017,7 @@ class NestedMixin(Mixin):
 
     1. Check if ``self.symbol`` is ``SymbolSentinel.SYNTHETIC``
     2. Call ``self.symbol.compile(self.outer)`` to get ``EvaluatorGetter``
-    3. Call ``evaluator_getter(captured_scopes)`` to return ``Evaluator``
+    3. Call ``evaluator_getter.get_evaluator(captured_scopes)`` to return ``Evaluator``
 
     .. todo::
 
@@ -1291,6 +1299,10 @@ class NestedMixinMapping(HasDict, StaticMixinMapping):
             access_path_outer=self.outer,
             name=self.name,
         )
+
+    def get_evaluator(self, captured_scopes: CapturedScopes, /) -> "_ScopeSemigroup":
+        """Implement EvaluatorGetter interface by delegating to __call__."""
+        return self(captured_scopes)
 
 
 @final
@@ -1683,6 +1695,84 @@ class _EndofunctionMerger(
         return reduce(lambda acc, endo: endo(acc), patches, self.base_value)
 
 
+@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
+class _MergerEvaluatorGetter(
+    Generic[TPatch_contra, TResult_co],
+    EvaluatorGetter[Merger[TPatch_contra, TResult_co]],
+):
+    """EvaluatorGetter for _MergerSymbol."""
+
+    outer: Final[MixinMapping]
+    jit_compiled_function: Final[
+        Callable[[CapturedScopes], Callable[[Iterator[TPatch_contra]], TResult_co]]
+    ]
+
+    @override
+    def get_evaluator(
+        self, captured_scopes: CapturedScopes, /
+    ) -> Merger[TPatch_contra, TResult_co]:
+        aggregation_function = self.jit_compiled_function(captured_scopes)
+        return FunctionMerger(aggregation_function=aggregation_function)
+
+
+@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
+class _ResourceEvaluatorGetter(
+    Generic[TResult],
+    EvaluatorGetter[Merger[Callable[[TResult], TResult], TResult]],
+):
+    """EvaluatorGetter for _ResourceSymbol."""
+
+    outer: Final[MixinMapping]
+    jit_compiled_function: Final[Callable[[CapturedScopes], TResult]]
+
+    @override
+    def get_evaluator(
+        self, captured_scopes: CapturedScopes, /
+    ) -> Merger[Callable[[TResult], TResult], TResult]:
+        base_value = self.jit_compiled_function(captured_scopes)
+        return _EndofunctionMerger(base_value=base_value)
+
+
+@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
+class _SinglePatchEvaluatorGetter(
+    Generic[TPatch_co],
+    EvaluatorGetter[Patcher[TPatch_co]],
+):
+    """EvaluatorGetter for _SinglePatchSymbol."""
+
+    outer: Final[MixinMapping]
+    jit_compiled_function: Final[Callable[[CapturedScopes], TPatch_co]]
+
+    @override
+    def get_evaluator(
+        self, captured_scopes: CapturedScopes, /
+    ) -> Patcher[TPatch_co]:
+        def patch_generator() -> Iterator[TPatch_co]:
+            yield self.jit_compiled_function(captured_scopes)
+
+        return FunctionPatcher(patch_generator=patch_generator)
+
+
+@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
+class _MultiplePatchEvaluatorGetter(
+    Generic[TPatch_co],
+    EvaluatorGetter[Patcher[TPatch_co]],
+):
+    """EvaluatorGetter for _MultiplePatchSymbol."""
+
+    outer: Final[MixinMapping]
+    jit_compiled_function: Final[Callable[[CapturedScopes], Iterable[TPatch_co]]]
+
+    @override
+    def get_evaluator(
+        self, captured_scopes: CapturedScopes, /
+    ) -> Patcher[TPatch_co]:
+        def patch_generator() -> Iterator[TPatch_co]:
+            return (yield from self.jit_compiled_function(captured_scopes))
+
+        return FunctionPatcher(patch_generator=patch_generator)
+
+
 def _mixin_getitem(
     mixin: StaticMixinMapping,
     captured_scopes: CapturedScopes,
@@ -1701,7 +1791,7 @@ def _mixin_getitem(
 
     def bind_scope(scope: Scope) -> Evaluator:
         inner_captured_scopes: CapturedScopes = (*captured_scopes, scope)
-        evaluator = resolved_function(inner_captured_scopes)
+        evaluator = resolved_function.get_evaluator(inner_captured_scopes)
         # If evaluator is a _ScopeSemigroup, set access_path_outer to the scope's mixin
         if isinstance(evaluator, _ScopeSemigroup):
             return replace(evaluator, access_path_outer=scope.mixin)
@@ -1931,15 +2021,12 @@ class _MergerSymbol(_NestedSymbol, Generic[TPatch_contra, TResult_co]):
         )
 
     def compile(
-        self, _mixin: MixinMapping
-    ) -> Callable[[CapturedScopes], Merger[TPatch_contra, TResult_co]]:
-        def resolve_captured_scopes(
-            captured_scopes: CapturedScopes,
-        ) -> Merger[TPatch_contra, TResult_co]:
-            aggregation_function = self.jit_compiled_function(captured_scopes)
-            return FunctionMerger(aggregation_function=aggregation_function)
-
-        return resolve_captured_scopes
+        self, outer_mixin: MixinMapping
+    ) -> _MergerEvaluatorGetter[TPatch_contra, TResult_co]:
+        return _MergerEvaluatorGetter(
+            outer=outer_mixin,
+            jit_compiled_function=self.jit_compiled_function,
+        )
 
 
 @dataclass(kw_only=True, eq=False)
@@ -1962,15 +2049,12 @@ class _ResourceSymbol(_NestedSymbol, Generic[TResult]):
         )
 
     def compile(
-        self, _mixin: MixinMapping
-    ) -> Callable[[CapturedScopes], Merger[Callable[[TResult], TResult], TResult]]:
-        def resolve_captured_scopes(
-            captured_scopes: CapturedScopes,
-        ) -> Merger[Callable[[TResult], TResult], TResult]:
-            base_value = self.jit_compiled_function(captured_scopes)
-            return _EndofunctionMerger(base_value=base_value)
-
-        return resolve_captured_scopes
+        self, outer_mixin: MixinMapping
+    ) -> _ResourceEvaluatorGetter[TResult]:
+        return _ResourceEvaluatorGetter(
+            outer=outer_mixin,
+            jit_compiled_function=self.jit_compiled_function,
+        )
 
 
 @dataclass(kw_only=True, eq=False)
@@ -1993,17 +2077,12 @@ class _SinglePatchSymbol(_NestedSymbol, Generic[TPatch_co]):
         )
 
     def compile(
-        self, _mixin: MixinMapping
-    ) -> Callable[[CapturedScopes], Patcher[TPatch_co]]:
-        def resolve_captured_scopes(
-            captured_scopes: CapturedScopes,
-        ) -> Patcher[TPatch_co]:
-            def patch_generator() -> Iterator[TPatch_co]:
-                yield self.jit_compiled_function(captured_scopes)
-
-            return FunctionPatcher(patch_generator=patch_generator)
-
-        return resolve_captured_scopes
+        self, outer_mixin: MixinMapping
+    ) -> _SinglePatchEvaluatorGetter[TPatch_co]:
+        return _SinglePatchEvaluatorGetter(
+            outer=outer_mixin,
+            jit_compiled_function=self.jit_compiled_function,
+        )
 
 
 @dataclass(kw_only=True, eq=False)
@@ -2025,18 +2104,11 @@ class _MultiplePatchSymbol(_NestedSymbol, Generic[TPatch_co]):
             name=self._resource_name,
         )
 
-    def compile(
-        self, _mixin: MixinMapping
-    ) -> Callable[[CapturedScopes], Patcher[TPatch_co]]:
-        def resolve_captured_scopes(
-            captured_scopes: CapturedScopes,
-        ) -> Patcher[TPatch_co]:
-            def patch_generator() -> Iterator[TPatch_co]:
-                return (yield from self.jit_compiled_function(captured_scopes))
-
-            return FunctionPatcher(patch_generator=patch_generator)
-
-        return resolve_captured_scopes
+    def compile(self, outer_mixin: MixinMapping) -> _MultiplePatchEvaluatorGetter[TPatch_co]:
+        return _MultiplePatchEvaluatorGetter(
+            outer=outer_mixin,
+            jit_compiled_function=self.jit_compiled_function,
+        )
 
 
 def _evaluate_resource(
