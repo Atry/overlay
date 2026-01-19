@@ -491,30 +491,29 @@ Callables can be used not only to define resources but also to define and transf
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 import ast
+from dataclasses import dataclass, field, replace
 from enum import Enum, auto
+from functools import cached_property, reduce
 import importlib
+import importlib.util
+from inspect import signature
 import logging
 import os
-import importlib.util
-import pkgutil
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, replace
-from functools import cached_property, reduce
-from inspect import signature
 from pathlib import PurePath
-from types import MappingProxyType, ModuleType
+import pkgutil
+from types import ModuleType
 from typing import (
     Any,
     AsyncContextManager,
     Awaitable,
     Callable,
     ChainMap,
-    Concatenate,
     ContextManager,
     Final,
-    Hashable,
     Generic,
+    Hashable,
     Iterable,
     Iterator,
     Literal,
@@ -550,12 +549,18 @@ class Mixin(ABC):
     """
 
     @abstractmethod
-    def generate_bases(self) -> Iterator[Mixin]:
+    def generate_linearized_bases(self) -> Iterator[Mixin]:
         """Generate the base mixins that this mixin extends."""
+
+    symbol: Final["_Symbol | SymbolSentinel"]
+    """
+    The symbol for this dependency graph, providing cached symbol resolution.
+    Subclasses (RootMixinMapping, NestedMixinMapping) must define this field.
+    """
 
 
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
-class MixinMapping(Mixin):
+class MixinMapping(Mixin, Mapping[Hashable, "Mixin"]):
     """Base class for dependency graphs supporting O(1) equality comparison.
 
     Equal graphs are interned to the same object instance within the same root,
@@ -569,6 +574,84 @@ class MixinMapping(Mixin):
     intern_pool: Final[weakref.WeakValueDictionary[Hashable, "NestedMixinMapping"]] = (
         field(default_factory=weakref.WeakValueDictionary)
     )
+
+    def __hash__(self) -> int:
+        return id(self)
+
+    def __eq__(self, other: object) -> bool:
+        return self is other
+
+    def __iter__(self) -> Iterator[Hashable]:
+        seen: set[Hashable] = set()
+
+        # Keys from self.symbol (if it's a _SymbolMapping)
+        if self.symbol is not SymbolSentinel.SYNTHETIC:
+            assert isinstance(self.symbol, _SymbolMapping)
+            for key in self.symbol:
+                if key not in seen:
+                    seen.add(key)
+                    yield key
+
+        # Keys from bases
+        for base in cast(Iterator[MixinMapping], self.generate_linearized_bases()):
+            for key in base:
+                if key not in seen:
+                    seen.add(key)
+                    yield key
+
+    def __len__(self) -> int:
+        return sum(1 for _ in self)
+
+    def __getitem__(self, key: Hashable) -> "Mixin":
+        existing = self.intern_pool.get(key)
+        if existing is not None:
+            return existing
+        if self.symbol is SymbolSentinel.SYNTHETIC:
+            item_symbol = SymbolSentinel.SYNTHETIC
+        else:
+            assert isinstance(self.symbol, _SymbolMapping)
+            item_symbol = self.symbol.get(key, SymbolSentinel.SYNTHETIC)
+        item_mixins = {
+            item_mixin: i
+            for i, base in enumerate(
+                cast(Iterator[MixinMapping], self.generate_linearized_bases())
+            )
+            if (item_mixin := base.get(key)) is not None
+        }
+        if not item_mixins and item_symbol == SymbolSentinel.SYNTHETIC:
+            raise KeyError
+
+        def generate_is_mixin_mapping():
+            if item_symbol != SymbolSentinel.SYNTHETIC:
+                yield item_symbol
+            yield from item_mixins
+
+        def assert_equal(a: T, b: T) -> T:
+            if a != b:
+                raise ValueError(
+                    "Inconsistent mixin types for same-named resource across bases"
+                )
+            return a
+
+        is_mixin_mapping = reduce(
+            assert_equal,
+            (isinstance(mixin, MixinMapping) for mixin in generate_is_mixin_mapping()),
+        )
+        if is_mixin_mapping:
+            return NestedMixinMapping(
+                name=key,
+                outer=self,
+                symbol=cast(_SymbolMapping | SymbolSentinel, item_symbol),
+                base_indices=cast(Mapping[NestedMixinMapping, int], item_mixins),
+            )
+        else:
+
+            return NestedMixin(
+                name=key,
+                outer=self,
+                symbol=cast(_Symbol | SymbolSentinel, item_symbol),
+                base_indices=cast(Mapping[NestedMixin, int], item_mixins),
+            )
 
 
 class SymbolSentinel(Enum):
@@ -586,12 +669,6 @@ class StaticMixinMapping(MixinMapping):
               使 ``NestedMixinMapping`` 成为 ``Callable[[LexicalScope], _ProxySemigroup]``。
     """
 
-    symbol: Final["_SymbolMapping | SymbolSentinel"]
-    """
-    The symbol for this dependency graph, providing cached symbol resolution.
-    Subclasses (RootMixinMapping, NestedMixinMapping) must define this field.
-    """
-
     _cached_instance_mixin: weakref.ReferenceType["InstanceMixinMapping"] | None = (
         field(default=None, init=False)
     )
@@ -606,7 +683,7 @@ class StaticMixinMapping(MixinMapping):
             raise ValueError(
                 f"definition is not available for merged dependency graphs (symbol={self.symbol})"
             )
-        return self.symbol.definition
+        return cast(_DefinitionMapping, self.symbol.definition)
 
 
 Evaluator: TypeAlias = "Merger | Patcher"
@@ -626,7 +703,7 @@ class RootMixinMapping(StaticMixinMapping):
     NestedMixinMapping nodes within that dependency graph.
     """
 
-    def generate_bases(self) -> Iterator[Mixin]:
+    def generate_linearized_bases(self) -> Iterator[Mixin]:
         """
         Root mixin cannot extend any other mixins.
         """
@@ -653,13 +730,26 @@ class NestedMixinIndex:
     The indices of a ``NestedMixinMapping`` within its outer mixin mapping.
 
     For example,
-     - ``NestedMixinIndex(primary_index=5, secondary_index=2)`` means a mixin comes ``tuple(tuple(self.outer.generate_bases())[5].symbol[self.name].compile(self.outer).generate_bases())[2]``.
-     - ``NestedMixinIndex(primary_index=MixinIndexSentinel.SELF, secondary_index=3)`` means a mixin comes ``tuple(self.outer.symbol[self.name].compile(self.outer).generate_bases())[3]``.
-     - ``NestedMixinIndex(primary_index=14, secondary_index=MixinIndexSentinel.SELF)`` means a mixin comes ``tuple(self.outer.generate_bases())[14].symbol[self.name].compile(self.outer)``.
+     - ``NestedMixinIndex(primary_index=5, secondary_index=2)`` means a mixin comes ``tuple(tuple(self.outer.generate_linearized_bases())[5].symbol[self.name].compile(self.outer).generate_linearized_bases())[2]``.
+     - ``NestedMixinIndex(primary_index=MixinIndexSentinel.SELF, secondary_index=3)`` means a mixin comes ``tuple(self.outer.symbol[self.name].compile(self.outer).generate_linearized_bases())[3]``.
+     - ``NestedMixinIndex(primary_index=14, secondary_index=MixinIndexSentinel.SELF)`` means a mixin comes ``tuple(self.outer.generate_linearized_bases())[14].symbol[self.name].compile(self.outer)``.
     """
 
     primary_index: Final[MixinIndex]
     secondary_index: Final[MixinIndex]
+
+
+@final
+@dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
+class NestedMixin(Mixin):
+    base_indices: Final[Mapping[NestedMixin, int]]
+
+    outer: Final[MixinMapping]
+    name: Final[Hashable]
+
+    def generate_linearized_bases(self) -> Iterator[Mixin]:
+        """Generate the base mixins that this mixin extends."""
+        return iter(self.base_indices.keys())
 
 
 @final
@@ -674,16 +764,53 @@ class NestedMixinMapping(StaticMixinMapping):
     from a lexical scope into a proxy semigroup.
     """
 
-    def generate_bases(self) -> Iterator[Mixin]:
+    def generate_linearized_bases(self):
         """Generate the base mixins that this mixin extends."""
-        return iter(self.base_indices.keys())
+        return iter(self.linearized_base_indices.keys())
 
-    base_indices: Final[Mapping[NestedMixinMapping, NestedMixinIndex]] = field(
-        default_factory=dict
-    )
+    base_indices: Final[Mapping[NestedMixinMapping, int]] = field(default_factory=dict)
     """
     .. todo:: remove the ``default_factory`` once we have migrated all usages.
     """
+
+    @cached_property
+    def linearized_base_indices(self) -> Mapping[NestedMixinMapping, NestedMixinIndex]:
+        return {
+            **(
+                {
+                    base: NestedMixinIndex(
+                        primary_index=primary_index,
+                        secondary_index=MixinIndexSentinel.SELF,
+                    )
+                    for base, primary_index in self.base_indices.items()
+                }
+            ),
+            **(
+                {}
+                if self.symbol is SymbolSentinel.SYNTHETIC
+                else {
+                    _resolve_mixin_reference(
+                        reference, self.outer, NestedMixinMapping
+                    ): NestedMixinIndex(
+                        primary_index=MixinIndexSentinel.SELF,
+                        secondary_index=secondary_index,
+                    )
+                    for secondary_index, reference in enumerate(
+                        cast(_SymbolMapping, self.symbol).definition.extend
+                    )
+                }
+            ),
+            **{
+                cast(NestedMixinMapping, linearized_base): NestedMixinIndex(
+                    primary_index=primary_index,
+                    secondary_index=secondary_index,
+                )
+                for base, primary_index in self.base_indices.items()
+                for secondary_index, linearized_base in enumerate(
+                    base.generate_linearized_bases()
+                )
+            },
+        }
 
     outer: Final[MixinMapping]
     name: Final[Hashable]
@@ -749,7 +876,7 @@ class InstanceMixinMapping(MixinMapping):
     The static dependency graph that this instance is based on.
     """
 
-    def generate_bases(self) -> Iterator[Mixin]:
+    def generate_linearized_bases(self) -> Iterator[Mixin]:
         """
         Instance mixin cannot merge with other mixins.
         """
@@ -897,7 +1024,9 @@ class StaticProxy(Proxy, ABC):
         cached_ref = self.mixin._cached_instance_mixin
         instance_path = cached_ref() if cached_ref is not None else None
         if instance_path is None:
-            instance_path = InstanceMixinMapping(prototype=self.mixin)
+            instance_path = InstanceMixinMapping(
+                prototype=self.mixin, symbol=self.mixin.symbol
+            )
             self.mixin._cached_instance_mixin = weakref.ref(instance_path)
 
         return InstanceProxy(
@@ -1142,15 +1271,15 @@ class _Symbol(ABC):
         The root symbol has depth 0, its direct children have depth 1, and so on.
         """
 
-    @abstractmethod
-    def compile(self, mixin: "MixinMapping", /) -> Any:
-        """Compile this symbol for a given mixin."""
-        ...
-
 
 @dataclass(kw_only=True, eq=False)
 class _NestedSymbol(_Symbol):
     outer: Final["_SymbolMapping"]
+
+    @abstractmethod
+    def compile(self, mixin: "MixinMapping", /) -> Any:
+        """Compile this symbol for a given mixin."""
+        ...
 
     @property
     def depth(self) -> int:
@@ -1322,9 +1451,6 @@ class _RootSymbol(_SymbolMapping):
     @property
     def symbol_table(self) -> SymbolTable:
         return self._cached_symbol_table
-
-    def compile(self, mixin: "MixinMapping", /) -> Any:
-        raise NotImplementedError("_RootSymbol is not compilable")
 
 
 @dataclass(kw_only=True, eq=False)
@@ -1713,6 +1839,17 @@ class _ProxySemigroup(Merger[StaticProxy, StaticProxy], Patcher[StaticProxy]):
             proxy, StaticProxy
         ), f"proxy must be StaticProxy, got {type(proxy)}"
         yield proxy
+
+
+TMixin = TypeVar("TMixin", bound=Mixin)
+
+
+def _resolve_mixin_reference(
+    reference: "ResourceReference[Hashable]",
+    mixin: "MixinMapping",
+    expected_type: type[TMixin],
+) -> TMixin:
+    raise NotImplementedError("To be implemented")
 
 
 def _resolve_resource_reference(
