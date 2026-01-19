@@ -13,7 +13,7 @@ from mixinject import (
     _RootSymbol,
     _Symbol,
 )
-from mixinject import RootMixinMapping, NestedMixinMapping
+from mixinject import RootMixinMapping, DefinedMixinMapping
 
 
 def _empty_definition() -> _DefinitionMapping:
@@ -37,13 +37,13 @@ def _empty_nested_symbol(
     )
 
 
-def _empty_mixin() -> NestedMixinMapping:
+def _empty_mixin() -> DefinedMixinMapping:
     """Create a minimal dependency graph for testing."""
     scope_def = _empty_definition()
     root_symbol = _empty_root_symbol(scope_def)
     nested_symbol = _empty_nested_symbol(root_symbol, scope_def)
     root_mixin = RootMixinMapping(symbol=root_symbol)
-    return NestedMixinMapping(
+    return DefinedMixinMapping(
         outer=root_mixin,
         symbol=nested_symbol,
         key="test",
@@ -111,7 +111,7 @@ def _make_mock_definition(name: str) -> "_ResourceDefinition":
 def test_symbol_table_extension_consistency():
     """Test that JIT symbol table extension produces correct getters.
 
-    This test now uses _RootSymbol and _NestedMixinMappingSymbol to test symbol table
+    This test now uses _RootSymbol and _DefinedMixinMappingSymbol to test symbol table
     extension through their symbol_table cached_property.
     """
     # Setup
@@ -154,7 +154,7 @@ def test_symbol_table_extension_consistency():
     # depth 2: (outer, inner) -> index = 1
     st_getitem_inner = extend_symbol_table_getitem(st_getitem, ["a", "b"], 1)
 
-    # For nested extension, use _NestedMixinMappingSymbol
+    # For nested extension, use _DefinedMixinMappingSymbol
     class _MockInnerNamespace:
         a = _make_mock_definition("a")
         b = _make_mock_definition("b")
@@ -266,7 +266,7 @@ def test_symbol_hashability():
     except TypeError:
         pytest.fail("_RootSymbol should be hashable")
 
-    # _NestedMixinMappingSymbol should also be hashable
+    # _DefinedMixinMappingSymbol should also be hashable
     class _MockNestedNamespace:
         bar = _make_mock_definition("bar")
 
@@ -282,7 +282,7 @@ def test_symbol_hashability():
     try:
         hash(nested_symbol)
     except TypeError:
-        pytest.fail("_NestedMixinMappingSymbol should be hashable")
+        pytest.fail("_DefinedMixinMappingSymbol should be hashable")
 
     # Should be usable as dict keys
     symbol_dict = {root_symbol: "root", nested_symbol: "nested"}

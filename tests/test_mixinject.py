@@ -33,7 +33,7 @@ from mixinject import (
     _parse_package,
     WeakCachedScope,
 )
-from mixinject import RootMixinMapping, NestedMixinMapping
+from mixinject import RootMixinMapping, DefinedMixinMapping
 
 R = RelativeReference
 
@@ -61,13 +61,13 @@ def _empty_nested_symbol(
     )
 
 
-def _empty_mixin() -> NestedMixinMapping:
+def _empty_mixin() -> DefinedMixinMapping:
     """Create a minimal dependency graph for testing."""
     scope_def = _empty_definition()
     root_symbol = _empty_root_symbol(scope_def)
     nested_symbol = _empty_nested_symbol(root_symbol, scope_def)
     root_mixin = RootMixinMapping(symbol=root_symbol)
-    return NestedMixinMapping(
+    return DefinedMixinMapping(
         outer=root_mixin,
         symbol=nested_symbol,
         key="test",

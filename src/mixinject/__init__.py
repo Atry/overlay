@@ -681,10 +681,10 @@ class Mixin(ABC):
     def generate_linearized_bases(self) -> Iterator[Mixin]:
         """Generate the base mixins that this mixin extends."""
 
-    symbol: Final["_Symbol | _SyntheticSymbol"]
+    symbol: "_Symbol | _SyntheticSymbol"
     """
     The symbol for this dependency graph, providing cached symbol resolution.
-    Subclasses (RootMixinMapping, NestedMixinMapping) must define this field.
+    Subclasses define this field with their specific symbol type (use ``Final`` in subclasses).
     """
 
 
@@ -857,15 +857,15 @@ class _SyntheticSymbol(_Compilable):
             raise KeyError(key) from exception
 
         if is_mixin_mapping:
-            return NestedMixinMapping(
+            return SyntheticMixinMapping(
                 key=key,
                 outer=outer_mixin,
                 symbol=self,
                 base_indices=cast(Mapping["NestedMixinMapping", int], base_indices),
             )
 
-        # For leaf resources, create _SyntheticMixin (empty Patcher)
-        return _SyntheticMixin(
+        # For leaf resources, create _SyntheticResourceMixin (empty Patcher)
+        return _SyntheticResourceMixin(
             key=key,
             outer=outer_mixin,
             symbol=self,
@@ -1169,10 +1169,46 @@ class _NestedMultiplePatchMixin(PatcherMixin[TPatch_co], Generic[TPatch_co]):
         return FunctionPatcher(patch_generator=patch_generator)
 
 
+class _SyntheticMixin(ABC):
+    """
+    Marker base class for synthetic mixins (no local definition, only inherited).
+
+    Synthetic mixins are created when a resource or nested scope is inherited from
+    base classes but has no local definition in the current scope.
+
+    Subclasses
+    ==========
+
+    - ``_SyntheticResourceMixin``: For leaf resources (Merger, Resource, Patcher)
+    - ``SyntheticMixinMapping``: For nested scopes
+
+    All subclasses have ``symbol: _SyntheticSymbol`` (narrowed from the base class type).
+    """
+
+
+class _DefinedMixin(ABC):
+    """
+    Marker base class for defined mixins (has local definition in current scope).
+
+    Defined mixins are created when a resource or nested scope has a local definition
+    in the current scope. They have access to the full symbol information.
+
+    Subclasses
+    ==========
+
+    - ``_NestedMergerMixin``, ``_NestedResourceMixin``, etc.: For leaf resources
+    - ``DefinedMixinMapping``: For nested scopes
+
+    All subclasses have ``symbol: _Symbol`` (narrowed from the base class type).
+    """
+
+    symbol: "_Symbol"
+
+
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
-class _SyntheticMixin(PatcherMixin[Never]):
-    """NestedMixin for inherited-only resources (no local definition).
+class _SyntheticResourceMixin(_SyntheticMixin, PatcherMixin[Never]):
+    """NestedMixin for inherited-only leaf resources (no local definition).
 
     Similar to @extern, this produces an empty Patcher that contributes
     no patches to the Merger election algorithm. The actual Evaluator
@@ -1213,6 +1249,12 @@ class NestedMixinMapping(SemigroupMixin, HasDict, StaticMixinMapping):
 
     Inherits from ``HasDict`` to enable ``@cached_property`` (which requires
     ``__dict__``) in a slots-based dataclass.
+
+    Subclasses
+    ==========
+
+    - ``SyntheticMixinMapping``: For synthetic mixins (no local definition, only inherited)
+    - ``DefinedMixinMapping``: For defined mixins (has local definition with extend references)
 
     Conceptual Layer Distinction
     ============================
@@ -1338,18 +1380,130 @@ class NestedMixinMapping(SemigroupMixin, HasDict, StaticMixinMapping):
         """
         return iter(self.linearized_base_indices.keys())
 
-    base_indices: Final[Mapping[NestedMixinMapping, int]] = field(default_factory=dict)
+    base_indices: Final[Mapping["NestedMixinMapping", int]] = field(default_factory=dict)
     """
     .. todo:: remove the ``default_factory`` once we have migrated all usages.
     """
 
+    outer: Final[MixinMapping]
+    key: Final[Hashable]
+
     @cached_property
-    def linearized_base_indices(self) -> Mapping[NestedMixinMapping, NestedMixinIndex]:
+    def _inherited_base_indices(self) -> Mapping["NestedMixinMapping", NestedMixinIndex]:
+        """
+        Index mapping for inherited base classes (common to both subclasses).
+
+        This includes:
+        1. Direct base classes from ``self.base_indices``
+        2. Inherited base classes from each direct base class's ``generate_linearized_bases()``
+        """
+        return {
+            **(
+                {
+                    base: NestedMixinIndex(
+                        primary_index=primary_index,
+                        secondary_index=MixinIndexSentinel.SELF,
+                    )
+                    for base, primary_index in self.base_indices.items()
+                }
+            ),
+            **{
+                cast("NestedMixinMapping", linearized_base): NestedMixinIndex(
+                    primary_index=primary_index,
+                    secondary_index=secondary_index,
+                )
+                for base, primary_index in self.base_indices.items()
+                for secondary_index, linearized_base in enumerate(
+                    base.generate_linearized_bases()
+                )
+            },
+        }
+
+    @cached_property
+    def linearized_base_indices(self) -> Mapping["NestedMixinMapping", NestedMixinIndex]:
         """
         Index mapping for all linearized base classes.
 
         This property maps all base classes (including direct and inherited base classes) to their
         ``NestedMixinIndex``, supporting O(1) random access.
+
+        Subclasses override this to include/exclude extension references.
+
+        .. todo::
+
+            Add typed index properties as filtered views of this property.
+
+        .. todo::
+
+            Exclude ``_SyntheticMixin`` from this mapping. Synthetic mixins are placeholders
+            for leaf resources that have no definition in the current scope (only inherited
+            from base classes). They should not appear in the linearized base indices because
+            they don't contribute any actual behavior.
+        """
+        return self._inherited_base_indices
+
+    @abstractmethod
+    def get_evaluator(self, captured_scopes: CapturedScopes, /) -> "_ScopeSemigroup":
+        """
+        Resolve resources from the given lexical scope into a _ScopeSemigroup.
+
+        This method creates a scope factory that:
+        1. Creates a mixin from this definition's definition
+        2. Includes mixins from any extended scopes (via extend references)
+        3. Returns a _ScopeSemigroup that can merge with other scopes
+        """
+
+
+@final
+@dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
+class SyntheticMixinMapping(_SyntheticMixin, NestedMixinMapping):
+    """
+    NestedMixinMapping for synthetic symbols (no local definition).
+
+    Synthetic mixins are created when a nested scope is inherited from base classes
+    but has no local definition in the current scope. They use default ``CachedScope``
+    and have no extend references.
+    """
+
+    symbol: "_SyntheticSymbol"  # type: ignore[assignment]  # Narrowing from base class
+
+    @override
+    def get_evaluator(self, captured_scopes: CapturedScopes, /) -> "_ScopeSemigroup":
+        """Resolve resources using default CachedScope (no extend references)."""
+
+        def scope_factory() -> StaticScope:
+            assert (
+                captured_scopes
+            ), "captured_scopes must not be empty when resolving resources"
+            return CachedScope(
+                mixins={self: captured_scopes},
+                mixin=self,
+            )
+
+        return _ScopeSemigroup(
+            scope_factory=scope_factory,
+            access_path_outer=self.outer,
+            key=self.key,
+        )
+
+
+@final
+@dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
+class DefinedMixinMapping(_DefinedMixin, NestedMixinMapping):
+    """
+    NestedMixinMapping for defined symbols (has local definition with extend references).
+
+    Defined mixins are created when a nested scope has a local definition in the current
+    scope. They use the scope class from the definition and include extend references.
+    """
+
+    symbol: "_NestedSymbolMapping"  # type: ignore[assignment]  # Narrowing from base class
+
+    @cached_property
+    @override
+    def linearized_base_indices(self) -> Mapping[NestedMixinMapping, NestedMixinIndex]:
+        """
+        Index mapping including extension references from ``self.symbol.definition.bases``.
 
         Data Sources
         ============
@@ -1363,80 +1517,25 @@ class NestedMixinMapping(SemigroupMixin, HasDict, StaticMixinMapping):
            ``primary_index`` is ``MixinIndexSentinel.SELF``
 
         3. **Inherited base classes**: From each direct base class's ``generate_linearized_bases()``
-
-        Refactoring Goals
-        =================
-
-        After refactoring, this property will serve as the basis for the following typed indices:
-
-        - ``merger_base_indices``: Filter out all ``NestedMergerMixin``
-        - ``patcher_base_indices``: Filter out all ``NestedPatcherMixin``
-        - ``mapping_base_indices``: Filter out all ``NestedMixinMapping``
-
-        These typed indices can be used by JIT/Proxy for O(1) random access to specific types of Mixins.
-
-        .. todo::
-
-            Add typed index properties as filtered views of this property.
-
-        .. todo::
-
-            Exclude ``_SyntheticMixin`` from this mapping. Synthetic mixins are placeholders
-            for leaf resources that have no definition in the current scope (only inherited
-            from base classes). They should not appear in the linearized base indices because
-            they don't contribute any actual behavior.
         """
         return {
-            **(
-                {
-                    base: NestedMixinIndex(
-                        primary_index=primary_index,
-                        secondary_index=MixinIndexSentinel.SELF,
-                    )
-                    for base, primary_index in self.base_indices.items()
-                }
-            ),
-            **(
-                {}
-                if isinstance(self.symbol, _SyntheticSymbol)
-                else {
-                    _resolve_mixin_reference(
-                        reference, self.outer, NestedMixinMapping
-                    ): NestedMixinIndex(
-                        primary_index=MixinIndexSentinel.SELF,
-                        secondary_index=secondary_index,
-                    )
-                    for secondary_index, reference in enumerate(
-                        cast(_SymbolMapping, self.symbol).definition.bases
-                    )
-                }
-            ),
+            **self._inherited_base_indices,
             **{
-                cast(NestedMixinMapping, linearized_base): NestedMixinIndex(
-                    primary_index=primary_index,
+                _resolve_mixin_reference(
+                    reference, self.outer, NestedMixinMapping
+                ): NestedMixinIndex(
+                    primary_index=MixinIndexSentinel.SELF,
                     secondary_index=secondary_index,
                 )
-                for base, primary_index in self.base_indices.items()
-                for secondary_index, linearized_base in enumerate(
-                    base.generate_linearized_bases()
+                for secondary_index, reference in enumerate(
+                    self.symbol.definition.bases
                 )
             },
         }
 
-    outer: Final[MixinMapping]
-    key: Final[Hashable]
-
+    @override
     def get_evaluator(self, captured_scopes: CapturedScopes, /) -> "_ScopeSemigroup":
-        """
-        Resolve resources from the given lexical scope into a _ScopeSemigroup.
-
-        This method creates a scope factory that:
-        1. Creates a mixin from this definition's definition
-        2. Includes mixins from any extended scopes (via extend references)
-        3. Returns a _ScopeSemigroup that can merge with other scopes
-
-        .. todo:: Phase 9: Replace ``generate_all_mixin_items`` with ``ChainMap``.
-        """
+        """Resolve resources including extend references from definition."""
 
         def scope_factory() -> StaticScope:
             assert (
@@ -1449,14 +1548,10 @@ class NestedMixinMapping(SemigroupMixin, HasDict, StaticMixinMapping):
                 """
                 Generate all mixin items for the scope, including:
                 - CapturedScopes from this definition, keyed by scope's mixin
-                - CapturedScopess from extended scopes, preserving their original keys
+                - CapturedScopes from extended scopes, preserving their original keys
                 """
                 yield (self, captured_scopes)
-                # SYNTHETIC symbols have no local definition, so no extend references
-                if isinstance(self.symbol, _SyntheticSymbol):
-                    return
-                symbol = cast("_NestedSymbolMapping", self.symbol)
-                for reference in symbol.definition.bases:
+                for reference in self.symbol.definition.bases:
                     extended_scope = _resolve_resource_reference(
                         reference=reference,
                         captured_scopes=captured_scopes,
@@ -1464,14 +1559,7 @@ class NestedMixinMapping(SemigroupMixin, HasDict, StaticMixinMapping):
                     )
                     yield from extended_scope.mixins.items()
 
-            # SYNTHETIC symbols use default CachedScope
-            if isinstance(self.symbol, _SyntheticSymbol):
-                scope_class: type[StaticScope] = CachedScope
-            else:
-                symbol = cast("_NestedSymbolMapping", self.symbol)
-                scope_class = symbol.definition.scope_class
-
-            return scope_class(
+            return self.symbol.definition.scope_class(
                 mixins=dict(generate_all_mixin_items()),
                 mixin=self,
             )
@@ -2079,10 +2167,10 @@ class _NestedSymbolMapping(_SymbolMapping, _NestedSymbol):
         """
         existing = outer_mixin.intern_pool.get(self.name)
         if existing is not None:
-            assert isinstance(existing, NestedMixinMapping)
+            assert isinstance(existing, DefinedMixinMapping)
             return existing
         base_indices = self._collect_base_indices(outer_mixin, self.name)
-        nested_mixin_mapping = NestedMixinMapping(
+        nested_mixin_mapping = DefinedMixinMapping(
             outer=outer_mixin,
             symbol=self,
             key=self.name,
