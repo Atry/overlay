@@ -769,7 +769,11 @@ class MixinMapping(Mixin, Mapping[Hashable, "Mixin"]):
         else:
             assert isinstance(self.symbol, _SymbolMapping)
             nested_symbol = self.symbol.get(key)
-            item_symbol = nested_symbol if nested_symbol is not None else _SyntheticSymbol(key=key)
+            item_symbol = (
+                nested_symbol
+                if nested_symbol is not None
+                else _SyntheticSymbol(key=key)
+            )
 
         # Delegate to symbol.compile() - all creation logic is in compile methods
         mixin = item_symbol.compile(self)
@@ -883,6 +887,7 @@ class StaticMixinMapping(MixinMapping):
     """
     Cache for the corresponding InstanceMixinMapping.
     """
+
 
 Evaluator: TypeAlias = "Merger | Patcher"
 """A Merger or Patcher that participates in resource evaluation."""
@@ -1134,9 +1139,7 @@ class _NestedSinglePatchMixin(PatcherMixin[TPatch_co], Generic[TPatch_co]):
     """NestedMixin for _SinglePatchSymbol."""
 
     @override
-    def get_evaluator(
-        self, captured_scopes: CapturedScopes, /
-    ) -> "Patcher[TPatch_co]":
+    def get_evaluator(self, captured_scopes: CapturedScopes, /) -> "Patcher[TPatch_co]":
         assert not isinstance(
             self.symbol, _SyntheticSymbol
         ), "SYNTHETIC symbols should use _SyntheticMixin"
@@ -1154,9 +1157,7 @@ class _NestedMultiplePatchMixin(PatcherMixin[TPatch_co], Generic[TPatch_co]):
     """NestedMixin for _MultiplePatchSymbol."""
 
     @override
-    def get_evaluator(
-        self, captured_scopes: CapturedScopes, /
-    ) -> "Patcher[TPatch_co]":
+    def get_evaluator(self, captured_scopes: CapturedScopes, /) -> "Patcher[TPatch_co]":
         assert not isinstance(
             self.symbol, _SyntheticSymbol
         ), "SYNTHETIC symbols should use _SyntheticMixin"
@@ -1181,9 +1182,7 @@ class _SyntheticMixin(PatcherMixin[Never]):
     """
 
     @override
-    def get_evaluator(
-        self, captured_scopes: CapturedScopes, /
-    ) -> "Patcher[Never]":
+    def get_evaluator(self, captured_scopes: CapturedScopes, /) -> "Patcher[Never]":
         def empty_patch_generator() -> Iterator[Never]:
             return iter(())
 
@@ -1360,7 +1359,7 @@ class NestedMixinMapping(SemigroupMixin, HasDict, StaticMixinMapping):
         1. **Direct base classes**: From ``self.base_indices``,
            ``secondary_index`` is ``MixinIndexSentinel.SELF``
 
-        2. **Extension references**: From ``self.symbol.definition.extend``,
+        2. **Extension references**: From ``self.symbol.definition.bases``,
            ``primary_index`` is ``MixinIndexSentinel.SELF``
 
         3. **Inherited base classes**: From each direct base class's ``generate_linearized_bases()``
@@ -1401,7 +1400,7 @@ class NestedMixinMapping(SemigroupMixin, HasDict, StaticMixinMapping):
                         secondary_index=secondary_index,
                     )
                     for secondary_index, reference in enumerate(
-                        cast(_SymbolMapping, self.symbol).definition.extend
+                        cast(_SymbolMapping, self.symbol).definition.bases
                     )
                 }
             ),
@@ -1450,7 +1449,7 @@ class NestedMixinMapping(SemigroupMixin, HasDict, StaticMixinMapping):
                 if isinstance(self.symbol, _SyntheticSymbol):
                     return
                 symbol = cast("_NestedSymbolMapping", self.symbol)
-                for reference in symbol.definition.extend:
+                for reference in symbol.definition.bases:
                     extended_scope = _resolve_resource_reference(
                         reference=reference,
                         captured_scopes=captured_scopes,
@@ -2628,7 +2627,7 @@ class _DefinitionMapping(
 
     scope_class: type[StaticScope]
     underlying: object
-    extend: tuple["ResourceReference[Hashable]", ...] = ()
+    bases: tuple["ResourceReference[Hashable]", ...] = ()
 
     def __iter__(self) -> Iterator[Hashable]:
         for name in dir(self.underlying):
@@ -2722,7 +2721,7 @@ class _PackageDefinitionMapping(_DefinitionMapping):
 def scope(
     *,
     scope_class: type[StaticScope] = CachedScope,
-    extend: Iterable["ResourceReference[Hashable]"] = (),
+    bases: Iterable["ResourceReference[Hashable]"] = (),
 ) -> Callable[[object], _DefinitionMapping]:
     """
     Decorator that converts a class into a NamespaceDefinition.
@@ -2777,13 +2776,13 @@ def scope(
             root.union_mount_point.bar  # "foo_bar"
 
     """
-    extend_tuple = tuple(extend)
+    extend_tuple = tuple(bases)
 
     def wrapper(c: object) -> _DefinitionMapping:
         return _DefinitionMapping(
             underlying=c,
             scope_class=scope_class,
-            extend=extend_tuple,
+            bases=extend_tuple,
         )
 
     return wrapper

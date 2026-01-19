@@ -199,7 +199,7 @@ class TestNestedCapturedScopes:
             class N2:
                 target = DirectDefinition(Dual("B"))
 
-            @scope(extend=[
+            @scope(bases=[
                 R(levels_up=0, path=("N1",)),
                 R(levels_up=0, path=("N2",)),
             ])
@@ -226,7 +226,7 @@ class TestNestedCapturedScopes:
             class N2:
                 target = DirectDefinition(Dual("D"))
 
-            @scope(extend=[
+            @scope(bases=[
                 R(levels_up=0, path=("N1",)),
                 R(levels_up=0, path=("N2",)),
             ])
@@ -252,7 +252,7 @@ class TestNestedCapturedScopes:
             class N2:
                 target = DirectDefinition(PureMerger("B"))
 
-            @scope(extend=[
+            @scope(bases=[
                 R(levels_up=0, path=("N1",)),
                 R(levels_up=0, path=("N2",)),
             ])
@@ -312,7 +312,7 @@ class TestNestedCapturedScopes:
                 def extra() -> Result:
                     return Result("extra")
 
-            @scope(extend=[
+            @scope(bases=[
                 R(levels_up=0, path=("Base",)),
                 R(levels_up=0, path=("Extension",)),
             ])
@@ -344,7 +344,7 @@ class TestNestedCapturedScopes:
                     return "extra"
 
             # Combined explicitly sets scope_class=CustomScope
-            @scope(scope_class=CustomScope, extend=[
+            @scope(scope_class=CustomScope, bases=[
                 R(levels_up=0, path=("Base",)),
                 R(levels_up=0, path=("Extension",)),
             ])
@@ -374,7 +374,7 @@ class TestNestedCapturedScopes:
                     return "extra"
 
             # Combined uses CachedScope regardless of what Base/Extension use
-            @scope(scope_class=CachedScope, extend=[
+            @scope(scope_class=CachedScope, bases=[
                 R(levels_up=0, path=("Base",)),
                 R(levels_up=0, path=("Extension",)),
             ])

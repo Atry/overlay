@@ -139,7 +139,7 @@ class TestPatch:
                     return lambda x: x * 2
 
             @scope(
-                extend=[
+                bases=[
                     R(levels_up=0, path=("Base",)),
                     R(levels_up=0, path=("Patcher",)),
                 ]
@@ -172,7 +172,7 @@ class TestPatch:
                     return lambda x: x + 3
 
             @scope(
-                extend=[
+                bases=[
                     R(levels_up=0, path=("Base",)),
                     R(levels_up=0, path=("Patch1",)),
                     R(levels_up=0, path=("Patch2",)),
@@ -204,7 +204,7 @@ class TestPatches:
                     return ((lambda x: x + 5), (lambda x: x + 3))
 
             @scope(
-                extend=[
+                bases=[
                     R(levels_up=0, path=("Base",)),
                     R(levels_up=0, path=("Patcher",)),
                 ]
@@ -280,7 +280,7 @@ class TestMerger:
                     return "tag2"
 
             @scope(
-                extend=[
+                bases=[
                     R(levels_up=0, path=("Base",)),
                     R(levels_up=0, path=("Provider1",)),
                     R(levels_up=0, path=("Provider2",)),
@@ -312,7 +312,7 @@ class TestUnionMount:
                     return "bar_value"
 
             @scope(
-                extend=[
+                bases=[
                     R(levels_up=0, path=("Namespace1",)),
                     R(levels_up=0, path=("Namespace2",)),
                 ]
@@ -334,7 +334,7 @@ class TestUnionMount:
                     return "base"
 
             @scope(
-                extend=[
+                bases=[
                     R(levels_up=0, path=("Namespace1",)),
                 ]
             )
@@ -380,7 +380,7 @@ class TestUnionMount:
                     return f"tag2_{another_dependency}"
 
             @scope(
-                extend=[
+                bases=[
                     R(levels_up=0, path=("branch0",)),
                     R(levels_up=0, path=("branch1",)),
                     R(levels_up=0, path=("branch2",)),
@@ -415,7 +415,7 @@ class TestUnionMount:
                     return f"{foo}_bar"
 
             @scope(
-                extend=[
+                bases=[
                     R(levels_up=0, path=("branch1",)),
                     R(levels_up=0, path=("branch2",)),
                 ]
@@ -451,7 +451,7 @@ class TestExtendInstanceScopeProhibition:
 
             # This should fail because my_instance is an InstanceScope
             @scope(
-                extend=[
+                bases=[
                     R(levels_up=0, path=("my_instance",)),
                 ]
             )
@@ -485,7 +485,7 @@ class TestExtendInstanceScopeProhibition:
             # This should fail because my_instance is an InstanceScope,
             # even though MyInner is a StaticScope
             @scope(
-                extend=[
+                bases=[
                     R(levels_up=0, path=("my_instance", "MyInner")),
                 ]
             )
@@ -521,7 +521,7 @@ class TestExtendInstanceScopeProhibition:
                     def base_value() -> int:
                         return 100
 
-                @scope(extend=(R(levels_up=0, path=("Inner2",)),))
+                @scope(bases=(R(levels_up=0, path=("Inner2",)),))
                 class Inner1:
                     @patch
                     def base_value(i: int) -> Callable[[int], int]:
@@ -567,7 +567,7 @@ class TestExtendNameResolution:
                 def base_value() -> int:
                     return 42
 
-            @scope(extend=(R(levels_up=0, path=("Base",)),))
+            @scope(bases=(R(levels_up=0, path=("Base",)),))
             class Extended:
                 # This should work: base_value should be resolved from Base
                 # Currently fails because symbol table doesn't include extended names
@@ -637,7 +637,7 @@ class TestScalaStylePathDependentTypes:
                 def i() -> int:
                     return 1
 
-                @scope(extend=(R(levels_up=1, path=("Base",)),))
+                @scope(bases=(R(levels_up=1, path=("Base",)),))
                 class MyInner:
                     @patch
                     def foo(i: int) -> Callable[[int], int]:
@@ -649,7 +649,7 @@ class TestScalaStylePathDependentTypes:
                 def i() -> int:
                     return 2
 
-                @scope(extend=(R(levels_up=1, path=("Base",)),))
+                @scope(bases=(R(levels_up=1, path=("Base",)),))
                 class MyInner:
                     @patch
                     def foo(i: int) -> Callable[[int], int]:
@@ -657,7 +657,7 @@ class TestScalaStylePathDependentTypes:
 
             # MyObjectA extends object1.MyInner, object2.MyInner and adds its own patch
             @scope(
-                extend=(
+                bases=(
                     R(levels_up=0, path=("object1", "MyInner")),
                     R(levels_up=0, path=("object2", "MyInner")),
                 )
@@ -808,7 +808,7 @@ class TestSymbolSharing:
                     def value(arg: str) -> str:
                         return f"value_{arg}"
 
-            @scope(extend=(R(levels_up=1, path=("Outer",)),))
+            @scope(bases=(R(levels_up=1, path=("Outer",)),))
             class object1:
                 @extern
                 def arg() -> str: ...
@@ -1173,7 +1173,7 @@ class TestScopeDir:
                     return "bar"
 
             @scope(
-                extend=[
+                bases=[
                     R(levels_up=0, path=("Namespace1",)),
                     R(levels_up=0, path=("Namespace2",)),
                 ]
@@ -1204,7 +1204,7 @@ class TestScopeDir:
                     return lambda s: s + "_patched"
 
             @scope(
-                extend=[
+                bases=[
                     R(levels_up=0, path=("Namespace1",)),
                     R(levels_up=0, path=("Namespace2",)),
                 ]
@@ -1433,7 +1433,7 @@ class TestScopeSemigroupMixinMapping:
                 def value() -> int:
                     return 10
 
-            @scope(extend=(R(levels_up=0, path=("Base",)),))
+            @scope(bases=(R(levels_up=0, path=("Base",)),))
             class Extended:
                 @resource
                 def doubled(value: int) -> int:
@@ -1493,7 +1493,7 @@ class TestScopeSemigroupMixinMapping:
                         return "nested"
 
             @scope(
-                extend=(R(levels_up=0, path=("Base",)), R(levels_up=0, path=("Base2",)))
+                bases=(R(levels_up=0, path=("Base",)), R(levels_up=0, path=("Base2",)))
             )
             class Extended:
                 @resource
