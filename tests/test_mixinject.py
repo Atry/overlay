@@ -70,7 +70,7 @@ def _empty_mixin() -> NestedMixinMapping:
     return NestedMixinMapping(
         outer=root_mixin,
         symbol=nested_symbol,
-        name="test",
+        key="test",
     )
 
 
@@ -1416,10 +1416,10 @@ class TestScopeSemigroupMixinMapping:
         """Nested scope in Extended should have different mixin than in Base.
 
         Expected behavior:
-        - base_another.mixin.name == "Another"
-        - extended_another.mixin.name == "Another"
-        - base_another.mixin.outer.name == "Base"
-        - extended_another.mixin.outer.name == "Extended"
+        - base_another.mixin.key == "Another"
+        - extended_another.mixin.key == "Another"
+        - base_another.mixin.outer.key == "Base"
+        - extended_another.mixin.outer.key == "Extended"
         """
 
         @scope()
@@ -1470,25 +1470,25 @@ class TestScopeSemigroupMixinMapping:
 
         # Print actual values for debugging
         print(
-            f"\nbase_another.mixin.name = {base_another.mixin.name!r}"
+            f"\nbase_another.mixin.key = {base_another.mixin.key!r}"
         )
         print(
-            f"extended_another.mixin.name = {extended_another.mixin.name!r}"
+            f"extended_another.mixin.key = {extended_another.mixin.key!r}"
         )
         print(
-            f"base_another.mixin.outer.name = {base_another.mixin.outer.name!r}"
+            f"base_another.mixin.outer.key = {base_another.mixin.outer.key!r}"
         )
         print(
-            f"extended_another.mixin.outer.name = {extended_another.mixin.outer.name!r}"
+            f"extended_another.mixin.outer.key = {extended_another.mixin.outer.key!r}"
         )
 
-        # Verify name for both
-        assert base_another.mixin.name == "Another"
-        assert extended_another.mixin.name == "Another"
+        # Verify key for both
+        assert base_another.mixin.key == "Another"
+        assert extended_another.mixin.key == "Another"
 
-        # Verify outer.name
-        assert base_another.mixin.outer.name == "Base"
-        assert extended_another.mixin.outer.name == "Extended"
+        # Verify outer.key
+        assert base_another.mixin.outer.key == "Base"
+        assert extended_another.mixin.outer.key == "Extended"
 
         # Verify the nested resource is still accessible (with patch applied)
         assert extended_another.nested_value == "nestednestednested"

@@ -46,7 +46,7 @@ def _empty_mixin() -> NestedMixinMapping:
     return NestedMixinMapping(
         outer=root_mixin,
         symbol=nested_symbol,
-        name="test",
+        key="test",
     )
 
 

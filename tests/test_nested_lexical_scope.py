@@ -135,7 +135,7 @@ class _DirectSymbol:
         self, outer_mixin: MixinMapping, /
     ) -> _DirectNestedMixin:
         return _DirectNestedMixin(
-            name="test",
+            key="test",
             outer=outer_mixin,
             symbol=self,
             base_indices={},

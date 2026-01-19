@@ -854,7 +854,7 @@ class _SyntheticSymbol(_Compilable):
 
         if is_mixin_mapping:
             return NestedMixinMapping(
-                name=key,
+                key=key,
                 outer=outer_mixin,
                 symbol=self,
                 base_indices=cast(Mapping["NestedMixinMapping", int], base_indices),
@@ -862,7 +862,7 @@ class _SyntheticSymbol(_Compilable):
 
         # For leaf resources, create _SyntheticMixin (empty Patcher)
         return _SyntheticMixin(
-            name=key,
+            key=key,
             outer=outer_mixin,
             symbol=self,
             base_indices=base_indices,
@@ -1032,7 +1032,7 @@ class NestedMixin(Mixin, EvaluatorGetter["Merger | Patcher"]):
     base_indices: Final[Mapping["NestedMixin", int]]
 
     outer: Final[MixinMapping]
-    name: Final[Hashable]
+    key: Final[Hashable]
 
     def generate_linearized_bases(self) -> Iterator[Mixin]:
         """Generate the base mixins that this mixin extends."""
@@ -1418,7 +1418,7 @@ class NestedMixinMapping(SemigroupMixin, HasDict, StaticMixinMapping):
         }
 
     outer: Final[MixinMapping]
-    name: Final[Hashable]
+    key: Final[Hashable]
 
     def get_evaluator(self, captured_scopes: CapturedScopes, /) -> "_ScopeSemigroup":
         """
@@ -1473,7 +1473,7 @@ class NestedMixinMapping(SemigroupMixin, HasDict, StaticMixinMapping):
         return _ScopeSemigroup(
             scope_factory=scope_factory,
             access_path_outer=self.outer,
-            name=self.name,
+            key=self.key,
         )
 
 
@@ -2079,16 +2079,16 @@ class _NestedSymbolMapping(_SymbolMapping, _NestedSymbol):
         nested_mixin_mapping = NestedMixinMapping(
             outer=outer_mixin,
             symbol=self,
-            name=self.name,
+            key=self.name,
             base_indices=cast(Mapping[NestedMixinMapping, int], base_indices),
         )
         outer_mixin.intern_pool[self.name] = nested_mixin_mapping
         _logger.debug(
-            "name=%(name)r " "underlying=%(underlying)r " "outer_name=%(outer_name)r",
+            "key=%(key)r " "underlying=%(underlying)r " "outer_key=%(outer_key)r",
             {
-                "name": self.name,
+                "key": self.name,
                 "underlying": self.definition.underlying,
-                "outer_name": getattr(outer_mixin, "name", "ROOT"),
+                "outer_key": getattr(outer_mixin, "key", "ROOT"),
             },
         )
         return nested_mixin_mapping
@@ -2138,7 +2138,7 @@ class _MergerSymbol(_NestedSymbol, Generic[TPatch_contra, TResult_co]):
         """Compile this symbol into a _NestedMergerMixin."""
         base_indices = self._collect_base_indices(outer_mixin, self.resource_name)
         return _NestedMergerMixin(
-            name=self.resource_name,
+            key=self.resource_name,
             outer=outer_mixin,
             symbol=self,
             base_indices=base_indices,
@@ -2168,7 +2168,7 @@ class _ResourceSymbol(_NestedSymbol, Generic[TResult]):
         """Compile this symbol into a _NestedResourceMixin."""
         base_indices = self._collect_base_indices(outer_mixin, self.resource_name)
         return _NestedResourceMixin(
-            name=self.resource_name,
+            key=self.resource_name,
             outer=outer_mixin,
             symbol=self,
             base_indices=base_indices,
@@ -2198,7 +2198,7 @@ class _SinglePatchSymbol(_NestedSymbol, Generic[TPatch_co]):
         """Compile this symbol into a _NestedSinglePatchMixin."""
         base_indices = self._collect_base_indices(outer_mixin, self.resource_name)
         return _NestedSinglePatchMixin(
-            name=self.resource_name,
+            key=self.resource_name,
             outer=outer_mixin,
             symbol=self,
             base_indices=base_indices,
@@ -2228,7 +2228,7 @@ class _MultiplePatchSymbol(_NestedSymbol, Generic[TPatch_co]):
         """Compile this symbol into a _NestedMultiplePatchMixin."""
         base_indices = self._collect_base_indices(outer_mixin, self.resource_name)
         return _NestedMultiplePatchMixin(
-            name=self.resource_name,
+            key=self.resource_name,
             outer=outer_mixin,
             symbol=self,
             base_indices=base_indices,
@@ -2422,7 +2422,7 @@ class _ScopeSemigroup(Merger[StaticScope, StaticScope], Patcher[StaticScope]):
 
     scope_factory: Final[Callable[[], StaticScope]]
     access_path_outer: Final[MixinMapping]
-    name: Final[Hashable]
+    key: Final[Hashable]
 
     @override
     def create(self, patches: Iterator[StaticScope]) -> StaticScope:
@@ -2447,11 +2447,11 @@ class _ScopeSemigroup(Merger[StaticScope, StaticScope], Patcher[StaticScope]):
                 raise AssertionError(" at least one scope expected")
             case _:
                 # Get mixin via __getitem__. The mixin should always exist because
-                # _ScopeSemigroup is created by NestedMixinMapping.__call__ which
-                # passes access_path_outer=self.outer and name=self.name. That
-                # NestedMixinMapping is stored in self.outer.intern_pool[self.name],
+                # _ScopeSemigroup is created by NestedMixinMapping.get_evaluator which
+                # passes access_path_outer=self.outer and key=self.key. That
+                # NestedMixinMapping is stored in self.outer.intern_pool[self.key],
                 # so __getitem__ will find it via intern_pool lookup.
-                mixin = self.access_path_outer[self.name]
+                mixin = self.access_path_outer[self.key]
                 assert isinstance(mixin, NestedMixinMapping)
 
         winner_class = _calculate_most_derived_class(*(type(p) for p in scopes_tuple))
