@@ -540,6 +540,46 @@ class TestExtendInstanceScopeProhibition:
         assert root.my_instance.Inner1.base_value == 142  # 100 + 42 (patched)
 
 
+class TestExtendNameResolution:
+    """Test that names from extended scopes can be resolved without @extern."""
+
+    @pytest.mark.xfail(
+        reason="BUG: Symbol table is at Symbol level, not Mixin level. "
+        "SymbolMapping doesn't merge names from extended scopes, "
+        "so dependency resolution fails without explicit @extern declaration."
+    )
+    def test_extend_allows_name_resolution_without_extern(self) -> None:
+        """Extended scope should be able to resolve names from base scope.
+
+        When a scope extends another scope, the extending scope should be able
+        to use resources from the extended scope as dependencies without needing
+        to declare them with @extern.
+
+        Current behavior: Fails with missing dependency error
+        Expected behavior: base_value should be resolved from Base scope
+        """
+
+        @scope()
+        class Root:
+            @scope()
+            class Base:
+                @resource
+                def base_value() -> int:
+                    return 42
+
+            @scope(extend=(R(levels_up=0, path=("Base",)),))
+            class Extended:
+                # This should work: base_value should be resolved from Base
+                # Currently fails because symbol table doesn't include extended names
+                @resource
+                def doubled(base_value: int) -> int:
+                    return base_value * 2
+
+        root = evaluate(Root)
+        assert root.Extended.base_value == 42
+        assert root.Extended.doubled == 84
+
+
 class TestScalaStylePathDependentTypes:
     """Test composing multiple path-dependent scopes - a pattern Scala cannot express.
 
