@@ -123,77 +123,80 @@ Definition Types and Their Roles
 +-------------------+----------+---------+------------------------------------------+
 
 .. todo::
-    支持 phony 伪目标，用于标记返回 ``None`` 的 Semigroup。
+    Support phony targets for marking Semigroups that return ``None``.
 
-    类似于 Makefile 中的 ``.PHONY`` 目标，phony 资源主要用于触发副作用而非产生值。
-    这对于以下场景很有用：
+    Similar to ``.PHONY`` targets in Makefiles, phony resources are primarily used
+    to trigger side effects rather than produce values. This is useful for scenarios like:
 
-    - 初始化操作（如数据库连接池预热）
-    - 资源清理（如关闭文件句柄）
-    - 触发多个依赖的聚合操作
+    - Initialization operations (e.g., warming up database connection pools)
+    - Resource cleanup (e.g., closing file handles)
+    - Aggregation operations that trigger multiple dependencies
 
-    设计考虑：
+    Design considerations:
 
-    1. **声明方式**：新增 ``@phony`` 装饰器，标记返回 ``None`` 的资源定义::
+    1. **Declaration method**: Add ``@phony`` decorator to mark resource definitions returning ``None``::
 
            @phony
            def initialize_logging(config: Config) -> None:
                logging.basicConfig(level=config.log_level)
 
-    2. **类型安全**：phony 资源的类型应为 ``None``，访问时返回 ``None``::
+    2. **Type safety**: Phony resources should have type ``None`` and return ``None`` when accessed::
 
-           root.initialize_logging  # 触发副作用，返回 None
+           root.initialize_logging  # Trigger side effect, returns None
 
-    3. **Semigroup 语义**：多个 phony 定义合并时，所有副作用均会执行。
-       **重要**：用户必须确保多个 phony 定义满足交换律，不得依赖执行顺序::
-
-           @phony
-           def setup():
-               register_handler_a()  # 必须与其他 setup 的副作用相互独立
+    3. **Semigroup semantics**: When merging multiple phony definitions, all side effects are executed.
+       **Important**: Users must ensure multiple phony definitions are commutative and do not depend on execution order::
 
            @phony
            def setup():
-               register_handler_b()  # 必须与其他 setup 的副作用相互独立
+               register_handler_a()  # Must be independent from other setup side effects
 
-    4. **依赖追踪**：phony 资源可以依赖其他资源，确保依赖在副作用执行前已就绪::
+           @phony
+           def setup():
+               register_handler_b()  # Must be independent from other setup side effects
+
+    4. **Dependency tracking**: Phony resources can depend on other resources, ensuring dependencies are ready before side effects execute::
 
            @phony
            def warmup_cache(database: Database, cache: Cache) -> None:
                cache.populate_from(database)
 
-    5. **与 ``@resource`` 的区别**：
+    5. **Difference from ``@resource``**:
 
-       - ``@resource`` 返回值会被缓存并可被其他资源依赖
-       - ``@phony`` 返回 ``None``，主要目的是触发副作用，多个定义作为 Semigroup 合并
+       - ``@resource`` return values are cached and can be depended on by other resources
+       - ``@phony`` returns ``None``, primarily for triggering side effects, with multiple definitions merged as Semigroup
 
-    6. **装饰器表更新**：
+    6. **Decorator table update**:
 
        +-------------------+----------+---------+------------------------------------------+
        | @phony            | Yes      | Yes     | Semigroup for side-effect-only resources |
        +-------------------+----------+---------+------------------------------------------+
 
 .. todo::
-    支持通过 type annotation 指定 ``PurePath`` 来定位依赖。
+    Support specifying ``PurePath`` via type annotation to locate dependencies.
 
-    当前依赖解析基于参数名在符号表中查找，需要遍历闭包层级。通过 ``Annotated`` 和
-    ``PurePath`` 可以显式指定依赖的相对路径，避免符号表查找::
+    Current dependency resolution is based on looking up parameter names in the symbol table,
+    requiring traversal of closure levels. Using ``Annotated`` and ``PurePath`` allows explicit
+    specification of relative paths for dependencies, avoiding symbol table lookups::
 
-        # 期望支持的语法
+        # Desired syntax
         @resource
         def connection_pool(
             database_url: Annotated[URL, ResourceReference.from_pure_path(PurePath("../../config/database_url"))]
         ):
             return create_connection_pool(database_url)
 
-        # 大致等价于当前语法
+        # Roughly equivalent to current syntax
         @resource
         def connection_pool(config: Scope):
             return create_connection_pool(config.database_url)
 
-    前者显式指定了 ``database_url`` 的位置，后者需要在符号表查找 ``config`` 所在的闭包层级。
+    The former explicitly specifies the location of ``database_url``, while the latter requires
+    looking up the closure level where ``config`` is located in the symbol table.
 
-    ``ResourceReference`` 的优势在于可以访问不在词法作用域中的资源。即使 ``config`` 不在当前词法作用域的
-    符号表中，``../../config`` 仍然可以通过路径直接定位到它。
+    The advantage of ``ResourceReference`` is that it can access resources not in the lexical scope.
+    Even if ``config`` is not in the current lexical scope's symbol table, ``../../config`` can still
+    directly locate it through the path.
 
 Combining Definitions
 ---------------------
@@ -557,7 +560,117 @@ class HasDict:
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
 class Mixin(ABC):
     """
-    .. todo:: 继承 ``EvaluatorGetter``。
+    Base class for nodes in the dependency graph.
+
+    Conceptual Layer Distinction
+    ============================
+
+    This system has two distinct layers that should not be conflated:
+
+    **Mixin Layer (Dependency Graph Nodes)**
+
+    - ``Mixin``: Base class
+    - ``MixinMapping``: Mixin containing nested resources
+    - ``NestedMixin``: Leaf Mixin (non-Mapping)
+    - ``NestedMixinMapping``: Nested Scope Mixin (IS-A Mapping)
+
+    **Evaluator Layer (Resource Evaluators)**
+
+    - ``Evaluator = Merger | Patcher``
+    - ``Merger``: Merges patches to produce result
+    - ``Patcher``: Provides patches
+    - ``_ScopeSemigroup``: An Evaluator that implements both Merger and Patcher
+
+    **Relationship**
+
+    - ``NestedMergerMixin.__call__`` returns ``Merger``
+    - ``NestedPatcherMixin.__call__`` returns ``Patcher``
+    - ``NestedMixinMapping.__call__`` returns ``_ScopeSemigroup`` (an Evaluator)
+
+    ``_ScopeSemigroup`` is currently the only Semigroup Evaluator, but the system
+    will support other Semigroups in the future. Semigroup is an Evaluator layer
+    concept and should not be conflated with the Mixin layer.
+
+    Refactoring Goals and Motivation
+    ==================================
+
+    Optimization Scenario
+    ---------------------
+
+    This refactoring aims to optimize **scenarios where massive Mixins are merged into a single Proxy after linearization**.
+
+    **Definition of "massive"**: 100+ Mixins need to be merged.
+
+    In complex dependency injection scenarios, a Scope may inherit from multiple base classes, each with its own
+    inheritance chain. After linearization, looking up a single resource may require traversing 100+ Mixins. The
+    current implementation traverses all Mixins at runtime and performs ``isinstance`` checks, which becomes a
+    performance bottleneck in massive Mixin scenarios.
+
+    Optimization Strategy
+    ---------------------
+
+    1. **Compile-time type classification**: When creating Mixin in ``MixinMapping.__getitem__``,
+       determine whether it's Merger/Patcher/Mapping based on Symbol type
+    2. **Precompute indices**: Store type classification results in ``merger_base_indices``,
+       ``patcher_base_indices``, ``mapping_base_indices``
+    3. **Random access instead of traversal**: Proxy/JIT uses precomputed indices to directly access
+       needed Mixins, eliminating runtime traversal and ``isinstance`` checks
+
+    Typed Mixin Hierarchy
+    ======================
+
+    ::
+
+        Mixin (ABC)
+        │   @abstractmethod __call__(CapturedScopes) → Evaluator
+        │
+        ├── MixinMapping (ABC, Mapping[Hashable, Mixin])
+        │   │   __getitem__(key) → NestedMergerMixin | NestedPatcherMixin | NestedMixinMapping
+        │   │
+        │   ├── StaticMixinMapping (ABC)
+        │   │   ├── RootMixinMapping
+        │   │   └── NestedMixinMapping (IS-A Mapping, contains nested resources)
+        │   │           __call__() → _ScopeSemigroup (an Evaluator: Merger ∩ Patcher)
+        │   │           merger_base_indices: Mapping[NestedMergerMixin, NestedMixinIndex]
+        │   │           patcher_base_indices: Mapping[NestedPatcherMixin, NestedMixinIndex]
+        │   │           mapping_base_indices: Mapping[NestedMixinMapping, NestedMixinIndex]
+        │   │
+        │   └── InstanceMixinMapping
+        │
+        ├── NestedMergerMixin (subtype of former NestedMixin)
+        │       __call__() → Merger (not Patcher)
+        │
+        └── NestedPatcherMixin (subtype of former NestedMixin)
+                __call__() → Patcher (not Merger)
+
+    ``__call__`` Semantics
+    ======================
+
+    ``Mixin`` implements the ``EvaluatorGetter`` interface, i.e.::
+
+        EvaluatorGetter: TypeAlias = Callable[[CapturedScopes], Evaluator]
+
+    Calling ``mixin(captured_scopes)`` returns an ``Evaluator`` (``Merger | Patcher``).
+    Different subclasses have different return types:
+
+    - ``NestedMergerMixin.__call__`` → ``Merger`` (not Patcher)
+    - ``NestedPatcherMixin.__call__`` → ``Patcher`` (not Merger)
+    - ``NestedMixinMapping.__call__`` → ``_ScopeSemigroup`` (an Evaluator: Merger ∩ Patcher)
+
+    Symbol Type to Mixin Type Mapping
+    ==================================
+
+    ====================== ========================= ======================= ============================
+    Symbol Type            Definition Type           Generated Mixin         ``__call__`` Return Type
+    ====================== ========================= ======================= ============================
+    ``_MergerSymbol``      ``MergerDefinition``      ``NestedMergerMixin``   ``Merger`` (not Patcher)
+    ``_ResourceSymbol``    ``_ResourceDefinition``   ``NestedMergerMixin``   ``Merger`` (not Patcher)
+    ``_SinglePatchSymbol`` ``_SinglePatchDefinition`` ``NestedPatcherMixin`` ``Patcher`` (not Merger)
+    ``_MultiplePatchSymbol`` ``_MultiplePatchDefinition`` ``NestedPatcherMixin`` ``Patcher`` (not Merger)
+    ``_NestedSymbolMapping`` ``_DefinitionMapping``  ``NestedMixinMapping``  ``_ScopeSemigroup`` (Evaluator)
+    ====================== ========================= ======================= ============================
+
+    .. todo:: Inherit from ``EvaluatorGetter``. Add ``@abstractmethod __call__``.
     """
 
     @abstractmethod
@@ -580,7 +693,7 @@ class MixinMapping(Mixin, Mapping[Hashable, "Mixin"]):
 
     This class is immutable and hashable, suitable for use as dictionary keys.
 
-    .. todo:: 继承 ``Mapping[Hashable, EvaluatorGetter]``。
+    .. todo:: Inherit from ``Mapping[Hashable, EvaluatorGetter]``.
     """
 
     intern_pool: Final[
@@ -615,6 +728,48 @@ class MixinMapping(Mixin, Mapping[Hashable, "Mixin"]):
         return sum(1 for _ in self)
 
     def __getitem__(self, key: Hashable) -> "Mixin":
+        """
+        Get or create the child Mixin for the specified key.
+
+        Symbol → Mixin Type Mapping Rules
+        ==================================
+
+        This method determines which Mixin subclass to create based on ``item_symbol`` type:
+
+        ========================== ========================
+        ``item_symbol`` Type       Created Mixin Type
+        ========================== ========================
+        ``_NestedSymbolMapping``   ``NestedMixinMapping``
+        ``_MergerSymbol``          ``NestedMergerMixin``
+        ``_ResourceSymbol``        ``NestedMergerMixin``
+        ``_SinglePatchSymbol``     ``NestedPatcherMixin``
+        ``_MultiplePatchSymbol``   ``NestedPatcherMixin``
+        ``SymbolSentinel.SYNTHETIC`` Infer type from bases
+        ========================== ========================
+
+        Current Implementation Issues
+        -----------------------------
+
+        Currently only distinguishes ``Mapping`` vs ``non-Mapping``, doesn't distinguish ``Merger`` vs ``Patcher``.
+        Need to refactor to create typed Mixin based on Symbol type.
+
+        Target Implementation After Refactoring
+        ----------------------------------------
+
+        ::
+
+            match item_symbol:
+                case SymbolSentinel.SYNTHETIC:
+                    mixin_class = self._infer_mixin_class_from_bases(item_mixins)
+                case _NestedSymbolMapping():
+                    mixin_class = NestedMixinMapping  # IS-A Mapping
+                case _MergerSymbol() | _ResourceSymbol():
+                    mixin_class = NestedMergerMixin
+                case _SinglePatchSymbol() | _MultiplePatchSymbol():
+                    mixin_class = NestedPatcherMixin
+
+        .. todo:: Create typed Mixin based on Symbol type to support JIT optimization.
+        """
         existing = self.intern_pool.get(key)
         if existing is not None:
             return existing
@@ -679,9 +834,9 @@ class SymbolSentinel(Enum):
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
 class StaticMixinMapping(MixinMapping):
     """
-    .. todo:: 实现 ``__getitem__`` 用于懒创建子依赖图。
-    .. todo:: 实现 ``__call__(captured_scopes: CapturedScopes) -> _ScopeSemigroup``，
-              使 ``NestedMixinMapping`` 成为 ``Callable[[CapturedScopes], _ScopeSemigroup]``。
+    .. todo:: Implement ``__getitem__`` for lazy creation of child dependency graphs.
+    .. todo:: Implement ``__call__(captured_scopes: CapturedScopes) -> _ScopeSemigroup``
+              to make ``NestedMixinMapping`` become ``Callable[[CapturedScopes], _ScopeSemigroup]``.
     """
 
     _cached_instance_mixin: weakref.ReferenceType["InstanceMixinMapping"] | None = (
@@ -742,12 +897,59 @@ The index of a symbol from its outer mixin mapping.
 @dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True)
 class NestedMixinIndex:
     """
-    The indices of a ``NestedMixinMapping`` within its outer mixin mapping.
+    Two-dimensional index of Mixin in outer MixinMapping, supporting O(1) random access.
 
-    For example,
-     - ``NestedMixinIndex(primary_index=5, secondary_index=2)`` means a mixin comes ``tuple(tuple(self.outer.generate_linearized_bases())[5].symbol[self.name].compile(self.outer).generate_linearized_bases())[2]``.
-     - ``NestedMixinIndex(primary_index=MixinIndexSentinel.SELF, secondary_index=3)`` means a mixin comes ``tuple(self.outer.symbol[self.name].compile(self.outer).generate_linearized_bases())[3]``.
-     - ``NestedMixinIndex(primary_index=14, secondary_index=MixinIndexSentinel.SELF)`` means a mixin comes ``tuple(self.outer.generate_linearized_bases())[14].symbol[self.name].compile(self.outer)``.
+    Basic Concept
+    =============
+
+    ``NestedMixinIndex`` uses a two-dimensional index ``(primary_index, secondary_index)`` to locate
+    a Mixin's position in its outer MixinMapping's linearized inheritance chain.
+
+    - ``primary_index``: Index in ``outer.generate_linearized_bases()``
+    - ``secondary_index``: Index in the result of ``symbol[name].compile(outer)`` for that base class
+
+    Index Examples
+    ==============
+
+    - ``NestedMixinIndex(primary_index=5, secondary_index=2)``:
+      ``tuple(outer.generate_linearized_bases())[5].symbol[name].compile(outer)[2]``
+
+    - ``NestedMixinIndex(primary_index=MixinIndexSentinel.SELF, secondary_index=3)``:
+      ``tuple(outer.symbol[name].compile(outer).generate_linearized_bases())[3]``
+
+    - ``NestedMixinIndex(primary_index=14, secondary_index=MixinIndexSentinel.SELF)``:
+      ``tuple(outer.generate_linearized_bases())[14].symbol[name].compile(outer)``
+
+    JIT Optimization Use Cases
+    ===========================
+
+    This data structure is designed for JIT and Proxy optimization:
+
+    1. **Eliminate runtime traversal**: JIT can directly access specific Mixins using indices,
+       without traversing ``generate_linearized_bases()``
+
+    2. **O(1) random access**: Given ``NestedMixinIndex``, the Mixin's position can be directly
+       computed with O(1) time complexity
+
+    3. **Typed indices**: Combined with ``merger_base_indices``, ``patcher_base_indices``,
+       ``mapping_base_indices``, JIT can directly access specific types of Mixins
+
+    Collaboration with Typed Mixins
+    ================================
+
+    After refactoring, this index will be used for the following typed index properties:
+
+    ::
+
+        merger_base_indices: Mapping[NestedMergerMixin, NestedMixinIndex]
+        patcher_base_indices: Mapping[NestedPatcherMixin, NestedMixinIndex]
+        mapping_base_indices: Mapping[NestedMixinMapping, NestedMixinIndex]
+
+    JIT Usage Example::
+
+        # Directly access all Mergers without traversal and isinstance checks
+        for merger, index in scope.mixin.merger_base_indices.items():
+            evaluator = merger(captured_scopes)  # Return type guaranteed to be Merger
     """
 
     primary_index: Final[MixinIndex]
@@ -757,7 +959,65 @@ class NestedMixinIndex:
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
 class NestedMixin(Mixin):
-    base_indices: Final[Mapping[NestedMixin, int]]
+    """
+    Leaf Mixin corresponding to non-Mapping resource definitions.
+
+    Refactoring Goals
+    =================
+
+    This class will be split into two subclasses:
+
+    - ``NestedMergerMixin``: For resources produced by ``MergerDefinition``
+    - ``NestedPatcherMixin``: For resources produced by ``PatcherDefinition``
+
+    NestedMergerMixin
+    -----------------
+
+    ::
+
+        class NestedMergerMixin(Mixin):
+            '''Leaf Mixin guaranteeing __call__ returns pure Merger (not Patcher).'''
+            name: Final[Hashable]
+            outer: Final[MixinMapping]
+            symbol: Final[_MergerSymbol | _ResourceSymbol]  # Type narrowed
+            base_indices: Final[Mapping[NestedMergerMixin, int]]
+
+            def __call__(self, captured_scopes: CapturedScopes) -> Merger:
+                evaluator_getter = self.symbol.compile(self.outer)
+                return evaluator_getter(captured_scopes)  # Returns Merger
+
+    NestedPatcherMixin
+    ------------------
+
+    ::
+
+        class NestedPatcherMixin(Mixin):
+            '''Leaf Mixin guaranteeing __call__ returns pure Patcher (not Merger).'''
+            name: Final[Hashable]
+            outer: Final[MixinMapping]
+            symbol: Final[_SinglePatchSymbol | _MultiplePatchSymbol]  # Type narrowed
+            base_indices: Final[Mapping[NestedPatcherMixin, int]]
+
+            def __call__(self, captured_scopes: CapturedScopes) -> Patcher:
+                evaluator_getter = self.symbol.compile(self.outer)
+                return evaluator_getter(captured_scopes)  # Returns Patcher
+
+    ``__call__`` Semantics
+    ======================
+
+    Calling ``mixin(captured_scopes)`` returns an ``Evaluator``:
+
+    1. Check if ``self.symbol`` is ``SymbolSentinel.SYNTHETIC``
+    2. Call ``self.symbol.compile(self.outer)`` to get ``EvaluatorGetter``
+    3. Call ``evaluator_getter(captured_scopes)`` to return ``Evaluator``
+
+    .. todo::
+
+        1. Split into ``NestedMergerMixin`` and ``NestedPatcherMixin``
+        2. Implement ``__call__(captured_scopes: CapturedScopes) -> Evaluator``
+    """
+
+    base_indices: Final[Mapping["NestedMixin", int]]
 
     outer: Final[MixinMapping]
     name: Final[Hashable]
@@ -770,7 +1030,8 @@ class NestedMixin(Mixin):
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
 class NestedMixinMapping(HasDict, StaticMixinMapping):
-    """Non-empty dependency graph node.
+    """
+    Non-empty dependency graph node corresponding to nested Scope definitions.
 
     Uses object.__eq__ and object.__hash__ (identity-based) for O(1) comparison.
     This works because interned graphs within the same outer are the same object.
@@ -780,6 +1041,117 @@ class NestedMixinMapping(HasDict, StaticMixinMapping):
 
     Inherits from ``HasDict`` to enable ``@cached_property`` (which requires
     ``__dict__``) in a slots-based dataclass.
+
+    Conceptual Layer Distinction
+    ============================
+
+    **Important**: This class is a **Mixin** (IS-A Mapping), not a Semigroup.
+
+    - ``NestedMixinMapping`` is a **Mixin layer** concept: a Mapping containing nested resources
+    - ``_ScopeSemigroup`` is an **Evaluator layer** concept: returned by ``__call__``
+
+    The name ``NestedMixinMapping`` is retained because it IS-A Mapping (contains nested
+    resources). ``_ScopeSemigroup`` is a type of Evaluator that implements both ``Merger``
+    and ``Patcher`` interfaces.
+
+    ``__call__`` Semantics
+    ======================
+
+    ``__call__`` returns ``_ScopeSemigroup``, which implements both ``Merger`` and ``Patcher``
+    interfaces. This allows nested Scopes to simultaneously act as:
+
+    - **Merger**: Merge nested Scopes with the same name from multiple base classes
+    - **Patcher**: Extend existing nested Scopes
+
+    Compile-time Index Data Structures
+    ===================================
+
+    To support JIT and Proxy optimization, the following ``@cached_property`` need to be added:
+
+    ``merger_base_indices``
+    -----------------------
+
+    ::
+
+        @cached_property
+        def merger_base_indices(self) -> Mapping[NestedMergerMixin, NestedMixinIndex]:
+            '''Filter linearized_base_indices to keep only NestedMergerMixin.
+
+            Use case: JIT/Proxy can directly access all pure Merger base classes without runtime isinstance checks.
+            '''
+            return {
+                base: index
+                for base, index in self.linearized_base_indices.items()
+                if isinstance(base, NestedMergerMixin)
+            }
+
+    ``patcher_base_indices``
+    ------------------------
+
+    ::
+
+        @cached_property
+        def patcher_base_indices(self) -> Mapping[NestedPatcherMixin, NestedMixinIndex]:
+            '''Filter linearized_base_indices to keep only NestedPatcherMixin.
+
+            Use case: JIT/Proxy can directly access all pure Patcher base classes without runtime isinstance checks.
+            '''
+            return {
+                base: index
+                for base, index in self.linearized_base_indices.items()
+                if isinstance(base, NestedPatcherMixin)
+            }
+
+    ``mapping_base_indices``
+    ------------------------
+
+    ::
+
+        @cached_property
+        def mapping_base_indices(self) -> Mapping[NestedMixinMapping, NestedMixinIndex]:
+            '''Filter linearized_base_indices to keep only NestedMixinMapping.
+
+            Use case: JIT/Proxy can directly access all Mapping base classes without runtime isinstance checks.
+            '''
+            return {
+                base: index
+                for base, index in self.linearized_base_indices.items()
+                if isinstance(base, NestedMixinMapping)
+            }
+
+    JIT Usage Example
+    =================
+
+    ::
+
+        # JIT or Proxy can utilize typed indices for direct access
+        for merger, index in scope.mixin.merger_base_indices.items():
+            # No isinstance check needed, merger guaranteed to be NestedMergerMixin
+            evaluator = merger(captured_scopes)  # Return type is Merger
+
+        for patcher, index in scope.mixin.patcher_base_indices.items():
+            # No isinstance check needed, patcher guaranteed to be NestedPatcherMixin
+            evaluator = patcher(captured_scopes)  # Return type is Patcher
+
+    NestedMixinIndex Collaboration
+    ===============================
+
+    ``NestedMixinIndex`` provides O(1) random access capability. For example::
+
+        NestedMixinIndex(primary_index=5, secondary_index=2)
+        # Represents: tuple(outer.generate_linearized_bases())[5].symbol[name].compile(outer)[2]
+
+    Combined with typed indices, JIT can:
+
+    1. Pre-generate code paths for accessing specific Mergers
+    2. Pre-generate code paths for collecting all Patchers
+    3. Eliminate runtime ``isinstance`` checks
+    4. Use ``NestedMixinIndex`` for O(1) random access instead of traversal
+
+    .. todo::
+
+        Add ``merger_base_indices``, ``patcher_base_indices``,
+        ``mapping_base_indices`` properties.
     """
 
     def generate_linearized_bases(self):
@@ -793,6 +1165,40 @@ class NestedMixinMapping(HasDict, StaticMixinMapping):
 
     @cached_property
     def linearized_base_indices(self) -> Mapping[NestedMixinMapping, NestedMixinIndex]:
+        """
+        Index mapping for all linearized base classes.
+
+        This property maps all base classes (including direct and inherited base classes) to their
+        ``NestedMixinIndex``, supporting O(1) random access.
+
+        Data Sources
+        ============
+
+        Indices consist of three parts:
+
+        1. **Direct base classes**: From ``self.base_indices``,
+           ``secondary_index`` is ``MixinIndexSentinel.SELF``
+
+        2. **Extension references**: From ``self.symbol.definition.extend``,
+           ``primary_index`` is ``MixinIndexSentinel.SELF``
+
+        3. **Inherited base classes**: From each direct base class's ``generate_linearized_bases()``
+
+        Refactoring Goals
+        =================
+
+        After refactoring, this property will serve as the basis for the following typed indices:
+
+        - ``merger_base_indices``: Filter out all ``NestedMergerMixin``
+        - ``patcher_base_indices``: Filter out all ``NestedPatcherMixin``
+        - ``mapping_base_indices``: Filter out all ``NestedMixinMapping``
+
+        These typed indices can be used by JIT/Proxy for O(1) random access to specific types of Mixins.
+
+        .. todo::
+
+            Add typed index properties as filtered views of this property.
+        """
         return {
             **(
                 {
@@ -842,7 +1248,7 @@ class NestedMixinMapping(HasDict, StaticMixinMapping):
         2. Includes mixins from any extended scopes (via extend references)
         3. Returns a _ScopeSemigroup that can merge with other scopes
 
-        .. todo:: Phase 9: 用 ``ChainMap`` 替代 ``generate_all_mixin_items``。
+        .. todo:: Phase 9: Replace ``generate_all_mixin_items`` with ``ChainMap``.
         """
 
         def scope_factory() -> StaticScope:
@@ -916,31 +1322,38 @@ class Scope(Mapping[Hashable, "Node"], ABC):
       Stores kwargs directly and delegates to base scope for other lookups.
 
     .. todo::
-        我希望把Scope/CachedScope/WeakCachedScope合并成一个类，按需提供ResourceConfig的26种组合行为。
+        Merge Scope/CachedScope/WeakCachedScope into a single class that provides 26 combinations
+        of ResourceConfig behaviors on demand.
 
-        我希望可以通过新增的一些decorator提供 ResourceConfig 的配置。注意这个配置是静态的不依赖于 Scope 和 Scope，且可能将来会被Symbol编译进字节码里。
+        Provide ResourceConfig configuration through new decorators. Note that this configuration
+        is static, independent of Scope instances, and may be compiled into bytecode by Symbol in the future.
         ```
         @dataclass
         class BuilderDefinition:
             bind_captured_scopes: Callable[[CapturedScopes, str], Callable[[Scope, ResourceConfig], Evaluator]]
             config: ResourceConfig
             '''
-            默认的config由``inspect.signature``推断而来，可以由注解修改
+            Default config is inferred from ``inspect.signature`` and can be modified by annotations
             '''
 
         ```
 
 
-        用同一套Merger/Patcher接口来处理context manager/async，但是`TResult`的类型取决于ResourceConfig，可能是Awaitable/ContextManager/AsyncContextManager，或是直接的同步类型。`@resource`的`TPatch`的类型也取决于ResourceConfig，可能是`Endofunction`/`ContextManagerEndofunction`/`AsyncEndofunction`/`AsyncContextManagerEndofunction`。也就是说同一套Merger/Patcher接口可以处理同步/异步/上下文管理器的情况。
+        Use the same Merger/Patcher interface to handle context managers/async, but the type of `TResult`
+        depends on ResourceConfig and could be Awaitable/ContextManager/AsyncContextManager, or a direct
+        synchronous type. The `TPatch` type of `@resource` also depends on ResourceConfig and could be
+        `Endofunction`/`ContextManagerEndofunction`/`AsyncEndofunction`/`AsyncContextManagerEndofunction`.
+        This means the same Merger/Patcher interface can handle synchronous/asynchronous/context manager cases.
 
     .. todo::
-        支持定义 method，需要动态生成类。
+        Support defining methods, requiring dynamic class generation.
 
-        当前实现通过 ``__getattr__`` 拦截属性访问来提供资源，但 ``__getattr__`` 不是真正的
-        method，无法用于定义 dunder 方法（如 ``__str__``、``__repr__``、``__eq__`` 等）。
-        Python 的 dunder 方法查找直接在类的 ``__dict__`` 中进行，不经过 ``__getattr__``。
+        The current implementation provides resources by intercepting attribute access via ``__getattr__``,
+        but ``__getattr__`` is not a true method and cannot be used to define dunder methods (such as
+        ``__str__``, ``__repr__``, ``__eq__``, etc.). Python's dunder method lookup happens directly
+        in the class's ``__dict__`` and does not go through ``__getattr__``.
 
-        问题示例::
+        Problem example::
 
             @scope()
             class MyScope:
@@ -949,7 +1362,7 @@ class Scope(Mapping[Hashable, "Node"], ABC):
                     return "custom string representation"
 
             root = mount(MyScope)
-            str(root)  # 不会调用自定义的 __str__，而是使用 Scope 默认的 __str__
+            str(root)  # Won't call custom __str__, uses Scope's default __str__ instead
 
     """
 
@@ -964,7 +1377,7 @@ class Scope(Mapping[Hashable, "Node"], ABC):
         mixins[self.mixin]. Extended scopes contribute their mixins
         with their original mixin keys.
 
-        .. todo:: 改用 ``ChainMap`` 代替 ``dict``。
+        .. todo:: Replace ``dict`` with ``ChainMap``.
         """
         ...
 
@@ -1784,10 +2197,10 @@ class _ScopeSemigroup(Merger[StaticScope, StaticScope], Patcher[StaticScope]):
     """
     Semigroup for merging Scope instances from extended scopes.
 
-    .. todo:: 改为只支持 ``StaticScope`` 的合并，禁止 ``InstanceScope`` 的合并。
+    .. todo:: Change to only support merging ``StaticScope``, prohibit merging ``InstanceScope``.
 
-        应将类型签名改为 ``Merger[StaticScope, StaticScope]``，并在 ``create``
-        方法中添加断言确保不会传入 ``InstanceScope``。
+        The type signature should be changed to ``Merger[StaticScope, StaticScope]``, and add
+        assertions in the ``create`` method to ensure ``InstanceScope`` is not passed in.
     """
 
     scope_factory: Final[Callable[[], StaticScope]]
@@ -1799,7 +2212,7 @@ class _ScopeSemigroup(Merger[StaticScope, StaticScope], Patcher[StaticScope]):
         """
         Create a merged Scope from factory and patches.
 
-        .. todo:: Phase 9: 用 ``ChainMap`` 替代 ``generate_all_mixin_items``。
+        .. todo:: Phase 9: Replace ``generate_all_mixin_items`` with ``ChainMap``.
         """
 
         def all_scopes() -> Iterator[StaticScope]:
