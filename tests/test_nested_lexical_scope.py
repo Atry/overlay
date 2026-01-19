@@ -15,7 +15,7 @@ from mixinject import (
     evaluate,
     scope,
     Definition,
-    Mixin,
+    MixinMapping,
     LexicalScope,
     RelativeReference as R,
 )
@@ -108,7 +108,7 @@ class _DirectSymbol:
     item: Any
 
     def compile(
-        self, mixin: Mixin, /
+        self, mixin: MixinMapping, /
     ) -> Callable[[LexicalScope], Merger[Any, Any] | Patcher[Any]]:
         return lambda _lexical_scope: self.item
 

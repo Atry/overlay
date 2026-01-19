@@ -544,7 +544,7 @@ P = ParamSpec("P")
 
 
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
-class Mixin(ABC):
+class MixinMapping(ABC):
     """Base class for dependency graphs supporting O(1) equality comparison.
 
     Equal graphs are interned to the same object instance within the same root,
@@ -555,8 +555,8 @@ class Mixin(ABC):
     .. todo:: 继承 ``Mapping[Hashable, EvaluatorGetter]``。
     """
 
-    intern_pool: Final[weakref.WeakValueDictionary[Hashable, "NestedMixin"]] = field(
-        default_factory=weakref.WeakValueDictionary
+    intern_pool: Final[weakref.WeakValueDictionary[Hashable, "NestedMixinMapping"]] = (
+        field(default_factory=weakref.WeakValueDictionary)
     )
 
 
@@ -568,33 +568,24 @@ class SymbolSentinel(Enum):
 
 
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
-class StaticMixin(Mixin):
+class StaticMixinMapping(MixinMapping):
     """
     .. todo:: 实现 ``__getitem__`` 用于懒创建子依赖图。
     .. todo:: 实现 ``__call__(lexical_scope: LexicalScope) -> _ProxySemigroup``，
-              使 ``NestedMixin`` 成为 ``Callable[[LexicalScope], _ProxySemigroup]``。
+              使 ``NestedMixinMapping`` 成为 ``Callable[[LexicalScope], _ProxySemigroup]``。
     """
 
     symbol: Final["_SymbolMapping | SymbolSentinel"]
     """
     The symbol for this dependency graph, providing cached symbol resolution.
-    Subclasses (RootMixin, NestedMixin) must define this field.
+    Subclasses (RootMixinMapping, NestedMixinMapping) must define this field.
     """
 
-    _cached_instance_mixin: weakref.ReferenceType["InstanceMixin"] | None = field(
-        default=None, init=False
+    _cached_instance_mixin: weakref.ReferenceType["InstanceMixinMapping"] | None = (
+        field(default=None, init=False)
     )
     """
-    Cache for the corresponding InstanceMixin.
-    """
-
-    bases: Sequence["Mixin[Any]"] = field(default_factory=tuple)
-    """
-    Mapping from dependency graph paths to their corresponding symbols.
-    Corresponds one-to-one with Proxy.mixins keys.
-
-    .. todo:: 拆分为 ``symbol: _Symbol`` (单个) + ``base_symbols: ChainMap[NestedMixin, _Symbol]``，
-              ``symbols`` 改为 ``cached_property`` 合并两者。
+    Cache for the corresponding InstanceMixinMapping.
     """
 
     @property
@@ -616,18 +607,18 @@ EvaluatorGetter: TypeAlias = Callable[["LexicalScope"], Evaluator]
 
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
-class RootMixin(StaticMixin):
+class RootMixinMapping(StaticMixinMapping):
     """
     Root of a dependency graph.
 
-    Each RootMixin instance has its own intern pool for interning
-    NestedMixin nodes within that dependency graph.
+    Each RootMixinMapping instance has its own intern pool for interning
+    NestedMixinMapping nodes within that dependency graph.
 
     """
 
 
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
-class NestedMixin(StaticMixin):
+class NestedMixinMapping(StaticMixinMapping):
     """Non-empty dependency graph node.
 
     Uses object.__eq__ and object.__hash__ (identity-based) for O(1) comparison.
@@ -637,7 +628,7 @@ class NestedMixin(StaticMixin):
     from a lexical scope into a proxy semigroup.
     """
 
-    outer: Final[Mixin]
+    outer: Final[MixinMapping]
     name: Final[Hashable]
 
     def __call__(self, lexical_scope: LexicalScope) -> "_ProxySemigroup":
@@ -658,7 +649,7 @@ class NestedMixin(StaticMixin):
             ), "lexical_scope must not be empty when resolving resources"
 
             def generate_all_mixin_items() -> (
-                Iterator[tuple[StaticMixin, LexicalScope]]
+                Iterator[tuple[StaticMixinMapping, LexicalScope]]
             ):
                 """
                 Generate all mixin items for the proxy, including:
@@ -688,7 +679,7 @@ class NestedMixin(StaticMixin):
 
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
-class InstanceMixin(Mixin):
+class InstanceMixinMapping(MixinMapping):
     """Non-empty dependency graph node for InstanceProxy.
 
     Uses object.__eq__ and object.__hash__ (identity-based) for O(1) comparison.
@@ -696,7 +687,7 @@ class InstanceMixin(Mixin):
     are the same object.
     """
 
-    prototype: Final[StaticMixin]
+    prototype: Final[StaticMixinMapping]
     """
     The static dependency graph that this instance is based on.
     """
@@ -758,7 +749,7 @@ class Proxy(Mapping[Hashable, "Node"], ABC):
     @abstractmethod
     def mixins(
         self,
-    ) -> Mapping[StaticMixin, LexicalScope]:
+    ) -> Mapping[StaticMixinMapping, LexicalScope]:
         """The mixins that provide resources for this proxy, keyed by mixin.
 
         Each proxy's own properties (not from extend=) are stored at
@@ -769,7 +760,7 @@ class Proxy(Mapping[Hashable, "Node"], ABC):
         """
         ...
 
-    mixin: "NestedMixin | InstanceMixin"
+    mixin: "NestedMixinMapping | InstanceMixinMapping"
     """The runtime access path from root to this proxy, in reverse order.
 
     This path reflects how the proxy was accessed at runtime, not where
@@ -829,21 +820,21 @@ class StaticProxy(Proxy, ABC):
     InstanceProxy with additional kwargs.
     """
 
-    mixins: Mapping[StaticMixin, LexicalScope]  # type: ignore[misc]
-    mixin: StaticMixin  # type: ignore[misc]
+    mixins: Mapping[StaticMixinMapping, LexicalScope]  # type: ignore[misc]
+    mixin: StaticMixinMapping  # type: ignore[misc]
 
     def __call__(self, **kwargs: object) -> "InstanceProxy":
         """
         Create an InstanceProxy with the given kwargs.
 
         .. todo:: Phase 2: Pass ``symbol`` and ``base_symbols``
-                  when creating ``InstanceMixin``.
+                  when creating ``InstanceMixinMapping``.
         """
-        # Get or create InstanceMixin (memoized via weak reference)
+        # Get or create InstanceMixinMapping (memoized via weak reference)
         cached_ref = self.mixin._cached_instance_mixin
         instance_path = cached_ref() if cached_ref is not None else None
         if instance_path is None:
-            instance_path = InstanceMixin(prototype=self.mixin)
+            instance_path = InstanceMixinMapping(prototype=self.mixin)
             self.mixin._cached_instance_mixin = weakref.ref(instance_path)
 
         return InstanceProxy(
@@ -866,13 +857,13 @@ class InstanceProxy(Proxy):
 
     base_proxy: Final[StaticProxy]
     kwargs: Final[Mapping[str, object]]
-    mixin: InstanceMixin  # type: ignore[misc]
+    mixin: InstanceMixinMapping  # type: ignore[misc]
 
     @property
     @override
     def mixins(
         self,
-    ) -> Mapping[StaticMixin, LexicalScope]:
+    ) -> Mapping[StaticMixinMapping, LexicalScope]:
         return self.base_proxy.mixins
 
     @override
@@ -1049,7 +1040,7 @@ class _EndofunctionMerger(
 
 
 def _mixin_getitem(
-    mixin: StaticMixin,
+    mixin: StaticMixinMapping,
     lexical_scope: LexicalScope,
     key: Hashable,
     /,
@@ -1089,7 +1080,7 @@ class _Symbol(ABC):
         """
 
     @abstractmethod
-    def compile(self, mixin: "Mixin", /) -> Any:
+    def compile(self, mixin: "MixinMapping", /) -> Any:
         """Compile this symbol for a given mixin."""
         ...
 
@@ -1222,11 +1213,11 @@ class _NestedSymbolMapping(_SymbolMapping, _NestedSymbol):
     def symbol_table(self) -> SymbolTable:
         return self._cached_symbol_table
 
-    def compile(self, outer_mixin: Mixin) -> "NestedMixin":
+    def compile(self, outer_mixin: MixinMapping) -> "NestedMixinMapping":
         """
-        Create or retrieve a memoized NestedMixin for the given outer mixin.
+        Create or retrieve a memoized NestedMixinMapping for the given outer mixin.
 
-        Memoization ensures that the same NestedMixin instance is reused
+        Memoization ensures that the same NestedMixinMapping instance is reused
         for the same (outer_mixin, name) pair, enabling O(1) identity-based
         equality comparison.
         """
@@ -1234,7 +1225,7 @@ class _NestedSymbolMapping(_SymbolMapping, _NestedSymbol):
         existing = intern_pool.get(self.name)
         if existing is not None:
             return existing
-        proxy_mixin = NestedMixin(
+        proxy_mixin = NestedMixinMapping(
             outer=outer_mixin,
             symbol=self,
             name=self.name,
@@ -1269,7 +1260,7 @@ class _RootSymbol(_SymbolMapping):
     def symbol_table(self) -> SymbolTable:
         return self._cached_symbol_table
 
-    def compile(self, mixin: "Mixin", /) -> Any:
+    def compile(self, mixin: "MixinMapping", /) -> Any:
         raise NotImplementedError("_RootSymbol is not compilable")
 
 
@@ -1295,7 +1286,7 @@ class _MergerSymbol(_NestedSymbol, Generic[TPatch_contra, TResult_co]):
         )
 
     def compile(
-        self, _mixin: Mixin
+        self, _mixin: MixinMapping
     ) -> Callable[[LexicalScope], Merger[TPatch_contra, TResult_co]]:
         def resolve_lexical_scope(
             lexical_scope: LexicalScope,
@@ -1326,7 +1317,7 @@ class _ResourceSymbol(_NestedSymbol, Generic[TResult]):
         )
 
     def compile(
-        self, _mixin: Mixin
+        self, _mixin: MixinMapping
     ) -> Callable[[LexicalScope], Merger[Callable[[TResult], TResult], TResult]]:
         def resolve_lexical_scope(
             lexical_scope: LexicalScope,
@@ -1356,7 +1347,9 @@ class _SinglePatchSymbol(_NestedSymbol, Generic[TPatch_co]):
             name=self._resource_name,
         )
 
-    def compile(self, _mixin: Mixin) -> Callable[[LexicalScope], Patcher[TPatch_co]]:
+    def compile(
+        self, _mixin: MixinMapping
+    ) -> Callable[[LexicalScope], Patcher[TPatch_co]]:
         def resolve_lexical_scope(
             lexical_scope: LexicalScope,
         ) -> Patcher[TPatch_co]:
@@ -1387,7 +1380,9 @@ class _MultiplePatchSymbol(_NestedSymbol, Generic[TPatch_co]):
             name=self._resource_name,
         )
 
-    def compile(self, _mixin: Mixin) -> Callable[[LexicalScope], Patcher[TPatch_co]]:
+    def compile(
+        self, _mixin: MixinMapping
+    ) -> Callable[[LexicalScope], Patcher[TPatch_co]]:
         def resolve_lexical_scope(
             lexical_scope: LexicalScope,
         ) -> Patcher[TPatch_co]:
@@ -1585,7 +1580,7 @@ class _ProxySemigroup(Merger[StaticProxy, StaticProxy], Patcher[StaticProxy]):
     """
 
     proxy_factory: Final[Callable[[], StaticProxy]]
-    access_path_outer: Final[Mixin]
+    access_path_outer: Final[MixinMapping]
     name: Final[Hashable]
 
     @override
@@ -1603,7 +1598,7 @@ class _ProxySemigroup(Merger[StaticProxy, StaticProxy], Patcher[StaticProxy]):
         proxies_tuple = tuple(all_proxies())
         match proxies_tuple:
             case (single_proxy,) if (
-                isinstance(single_proxy.mixin, NestedMixin)
+                isinstance(single_proxy.mixin, NestedMixinMapping)
                 and single_proxy.mixin.outer == self.access_path_outer
             ):
                 mixin = single_proxy.mixin
@@ -1615,7 +1610,7 @@ class _ProxySemigroup(Merger[StaticProxy, StaticProxy], Patcher[StaticProxy]):
                 if existing is not None:
                     mixin = existing
                 else:
-                    mixin = NestedMixin(
+                    mixin = NestedMixinMapping(
                         outer=self.access_path_outer,
                         symbol=SymbolSentinel.SYNTHETIC,
                         name=self.name,
@@ -1624,7 +1619,9 @@ class _ProxySemigroup(Merger[StaticProxy, StaticProxy], Patcher[StaticProxy]):
 
         winner_class = _calculate_most_derived_class(*(type(p) for p in proxies_tuple))
 
-        def generate_all_mixin_items() -> Iterator[tuple[StaticMixin, LexicalScope]]:
+        def generate_all_mixin_items() -> (
+            Iterator[tuple[StaticMixinMapping, LexicalScope]]
+        ):
             for proxy in proxies_tuple:
                 yield from proxy.mixins.items()
 
@@ -1677,9 +1674,9 @@ def _resolve_resource_reference(
         InstanceProxy).
 
     .. todo:: 添加 ``_resolve_mixin_reference`` 辅助函数，类似本函数，
-              但参数为 ``mixin: Mixin`` 而非 ``lexical_scope: LexicalScope``，
+              但参数为 ``mixin: MixinMapping`` 而非 ``lexical_scope: LexicalScope``，
               返回类型为 ``Callable[[LexicalScope], Evaluator]``
-              （实际上是 ``NestedMixin``，它本质上是特殊的
+              （实际上是 ``NestedMixinMapping``，它本质上是特殊的
               ``Callable[[LexicalScope], Evaluator]``）。
 
               该函数用于在 dependency graph 中查找静态的 ``Callable[[LexicalScope], Evaluator]``。
@@ -1687,13 +1684,13 @@ def _resolve_resource_reference(
 
               - ``_resolve_resource_reference``: 运行时解析，遍历 lexical_scope 中的 Proxy 对象
               - ``_resolve_mixin_reference``: 编译时解析，遍历 mixin 中的
-                ``NestedMixin``，返回可被 JIT 缓存的 callable
+                ``NestedMixinMapping``，返回可被 JIT 缓存的 callable
 
               签名示例::
 
                   def _resolve_mixin_reference(
                       reference: ResourceReference[TKey],
-                      mixin: Mixin,
+                      mixin: MixinMapping,
                   ) -> Callable[[LexicalScope], Evaluator]:
                       ...
     """
@@ -1776,9 +1773,9 @@ class _DefinitionMapping(
         """
         Resolve symbols for this definition given the symbol table and resource name.
 
-        Returns a _NestedMixinSymbol that implements ``Callable[[Mixin], NestedMixin]``.
+        Returns a _NestedMixinMappingSymbol that implements ``Callable[[MixinMapping], NestedMixinMapping]``.
 
-        .. todo:: Phase 2: Add ``base_symbols`` parameter to ``NestedMixin``
+        .. todo:: Phase 2: Add ``base_symbols`` parameter to ``NestedMixinMapping``
                   for inherited symbols from extended scopes.
         """
         return _NestedSymbolMapping(
@@ -2134,7 +2131,7 @@ def evaluate(
         root = mount(MyNamespace)
 
     .. todo:: Phase 2: Pass ``symbol`` and ``base_symbols``
-              when creating ``NestedMixin``.
+              when creating ``NestedMixinMapping``.
     """
     lexical_scope: LexicalScope = ()
     root_proxy_class: type[StaticProxy] = CachedProxy
@@ -2157,7 +2154,7 @@ def evaluate(
         definition=namespace_definition,
     )
 
-    root_mixin = RootMixin(
+    root_mixin = RootMixinMapping(
         symbol=symbol,
     )
     return root_proxy_class(

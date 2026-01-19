@@ -9,7 +9,7 @@ from mixinject import (
     _MergerDefinition,
     Merger,
     CachedProxy,
-    InstanceMixin,
+    InstanceMixinMapping,
     InstanceProxy,
     _NestedSymbolMapping,
     _RootSymbol,
@@ -33,7 +33,7 @@ from mixinject import (
     _parse_package,
     WeakCachedScope,
 )
-from mixinject import RootMixin, NestedMixin
+from mixinject import RootMixinMapping, NestedMixinMapping
 
 R = RelativeReference
 
@@ -61,13 +61,13 @@ def _empty_nested_symbol(
     )
 
 
-def _empty_mixin() -> NestedMixin:
+def _empty_mixin() -> NestedMixinMapping:
     """Create a minimal dependency graph for testing."""
     proxy_def = _empty_definition()
     root_symbol = _empty_root_symbol(proxy_def)
     nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
-    root_mixin = RootMixin(symbol=root_symbol)
-    return NestedMixin(
+    root_mixin = RootMixinMapping(symbol=root_symbol)
+    return NestedMixinMapping(
         outer=root_mixin,
         symbol=nested_symbol,
         name="test",
@@ -560,7 +560,7 @@ class TestScalaStylePathDependentTypes:
     object MyObjectA extends object1.MyInner with object2.MyInner { ... }
     ```
 
-    Mixinject takes a different trade-off:
+    MixinMappingject takes a different trade-off:
     - Forbids extend through InstanceProxy (val-like) entirely
     - But allows composing MULTIPLE scopes via static @scope with lexical scoping
 
@@ -641,12 +641,12 @@ class TestScalaStylePathDependentTypes:
 
 
 class TestInstanceProxyReversedPath:
-    """Test that InstanceProxy has correct mixin with InstanceChildMixin."""
+    """Test that InstanceProxy has correct mixin with InstanceChildMixinMapping."""
 
     def test_instance_proxy_nested_access_has_instance_mixin_in_path(
         self,
     ) -> None:
-        """When accessing nested proxy through InstanceProxy, path should use InstanceChildMixin."""
+        """When accessing nested proxy through InstanceProxy, path should use InstanceChildMixinMapping."""
 
         @scope()
         class Root:
@@ -671,8 +671,8 @@ class TestInstanceProxyReversedPath:
         my_instance = root.my_instance
         my_inner = my_instance.MyInner
 
-        # The mixin should be InstanceChildMixin to distinguish from static path
-        assert isinstance(my_instance.mixin, InstanceMixin)
+        # The mixin should be InstanceChildMixinMapping to distinguish from static path
+        assert isinstance(my_instance.mixin, InstanceMixinMapping)
 
         # Verify the resource works correctly
         assert my_inner.foo == "foo_42"
@@ -709,8 +709,8 @@ class TestSymbolSharing:
         assert symbol1 is symbol2
 
     @pytest.mark.xfail(
-        reason="BUG: InstanceChildMixin and ChildMixin have separate intern_pools, "
-        "causing instance path to create new ChildMixin with SymbolSentinel.MERGED "
+        reason="BUG: InstanceChildMixinMapping and ChildMixinMapping have separate intern_pools, "
+        "causing instance path to create new ChildMixinMapping with SymbolSentinel.MERGED "
         "instead of reusing the one created via static path."
     )
     def test_symbol_shared_between_instance_and_static_access(self) -> None:
@@ -719,14 +719,14 @@ class TestSymbolSharing:
         .. todo:: Fix _ProxySemigroup.create to share symbol between instance and static paths.
 
             Currently when accessing Inner via instance path (root.Outer(arg="v1").Inner),
-            the access_path_outer is an InstanceChildMixin which has its own
+            the access_path_outer is an InstanceChildMixinMapping which has its own
             intern_pool. When _ProxySemigroup.create checks this intern_pool, it doesn't
-            find the existing ChildMixin (created via resolve for static
+            find the existing ChildMixinMapping (created via resolve for static
             path), so it creates a new one with symbol=SymbolSentinel.MERGED.
 
-            The fix should ensure that InstanceChildMixin delegates to its
+            The fix should ensure that InstanceChildMixinMapping delegates to its
             prototype's intern_pool, or that _ProxySemigroup.create uses the prototype's
-            intern_pool when access_path_outer is an InstanceChildMixin.
+            intern_pool when access_path_outer is an InstanceChildMixinMapping.
         """
 
         @scope()
@@ -755,7 +755,7 @@ class TestSymbolSharing:
 
     @pytest.mark.xfail(
         reason="BUG: Same issue as test_symbol_shared_between_instance_and_static_access. "
-        "InstanceChildMixin has separate intern_pool from ChildMixin, "
+        "InstanceChildMixinMapping has separate intern_pool from ChildMixinMapping, "
         "causing different symbol values for the same underlying scope definition."
     )
     def test_symbol_shared_when_scope_extends_another(self) -> None:
@@ -765,8 +765,8 @@ class TestSymbolSharing:
 
             When object1 extends Outer, accessing Inner through both paths should yield
             the same symbol since they refer to the same Python class definition
-            (Root.Outer.Inner). Currently, each InstanceChildMixin has its own
-            intern_pool, leading to separate ChildMixin instances with different
+            (Root.Outer.Inner). Currently, each InstanceChildMixinMapping has its own
+            intern_pool, leading to separate ChildMixinMapping instances with different
             symbol values (SymbolSentinel.MERGED vs real _Symbol).
 
             The fix should ensure that all access paths to the same scope definition
@@ -1392,7 +1392,7 @@ class TestParameter:
             pass
 
 
-class TestProxySemigroupMixin:
+class TestProxySemigroupMixinMapping:
     """Test _ProxySemigroup.create correctly assigns mixin."""
 
     def test_extended_proxy_has_distinct_mixin(self) -> None:
