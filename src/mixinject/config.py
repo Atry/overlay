@@ -10,11 +10,11 @@ class InitializationTiming(Enum):
 
     POST_INIT = auto()
     """
-    The resource is created in ``Proxy.__post_init__``.
+    The resource is created in ``Scope.__post_init__``.
     """
     ENTER = auto()
     """
-    The resource is created in ``Proxy.__enter__`` or ``Proxy.__aenter__``, depending on whether the resource is async.
+    The resource is created in ``Scope.__enter__`` or ``Scope.__aenter__``, depending on whether the resource is async.
     """
 
 
@@ -52,5 +52,5 @@ class ResourceConfig:
     """
     Whether the resource is a context manager.
 
-    If True, the ``TResult`` is either a ``ContextManager`` or ``AsyncContextManager``, and should be registered with ``proxy.exit_stack.enter_context``` or ``proxy.exit_stack.async_enter_context`` depending on ``is_async``.
+    If True, the ``TResult`` is either a ``ContextManager`` or ``AsyncContextManager``, and should be registered with ``scope.exit_stack.enter_context``` or ``scope.exit_stack.async_enter_context`` depending on ``is_async``.
     """

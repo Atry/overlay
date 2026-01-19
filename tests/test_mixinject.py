@@ -8,18 +8,18 @@ import pytest
 from mixinject import (
     _MergerDefinition,
     Merger,
-    CachedProxy,
+    CachedScope,
     InstanceMixinMapping,
-    InstanceProxy,
+    InstanceScope,
     _NestedSymbolMapping,
     _RootSymbol,
     SymbolSentinel,
-    LexicalScope,
+    CapturedScopes,
     _PackageDefinitionMapping,
     _DefinitionMapping,
-    Proxy,
+    Scope,
     RelativeReference,
-    StaticProxy,
+    StaticScope,
     _ResourceDefinition,
     _SinglePatchDefinition,
     ChainMapSentinel,
@@ -41,8 +41,8 @@ FIXTURES_DIR = str(Path(__file__).parent / "fixtures")
 
 
 def _empty_definition() -> _DefinitionMapping:
-    """Create a minimal empty proxy definition for testing."""
-    return _DefinitionMapping(proxy_class=CachedProxy, underlying=object())
+    """Create a minimal empty scope definition for testing."""
+    return _DefinitionMapping(scope_class=CachedScope, underlying=object())
 
 
 def _empty_root_symbol(definition: _DefinitionMapping) -> _RootSymbol:
@@ -63,9 +63,9 @@ def _empty_nested_symbol(
 
 def _empty_mixin() -> NestedMixinMapping:
     """Create a minimal dependency graph for testing."""
-    proxy_def = _empty_definition()
-    root_symbol = _empty_root_symbol(proxy_def)
-    nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
+    scope_def = _empty_definition()
+    root_symbol = _empty_root_symbol(scope_def)
+    nested_symbol = _empty_nested_symbol(root_symbol, scope_def)
     root_mixin = RootMixinMapping(symbol=root_symbol)
     return NestedMixinMapping(
         outer=root_mixin,
@@ -216,7 +216,7 @@ class TestPatches:
         assert root.Combined.value == 18
 
 
-class TestLexicalScope:
+class TestCapturedScopes:
     """Test lexical scope lookup (same name parameter)."""
 
     def test_same_name_lookup_via_nested_scope(self) -> None:
@@ -237,22 +237,22 @@ class TestLexicalScope:
         assert root.Inner.counter == 1
 
 
-class TestInstanceProxy:
-    """Test InstanceProxy created via StaticProxy.__call__."""
+class TestInstanceScope:
+    """Test InstanceScope created via StaticScope.__call__."""
 
-    def test_instance_proxy_single_value(self) -> None:
-        base_proxy = CachedProxy(mixins={}, mixin=_empty_mixin())
-        proxy = base_proxy(foo="bar")
-        assert isinstance(proxy, InstanceProxy)
-        assert proxy.foo == "bar"
+    def test_instance_scope_single_value(self) -> None:
+        base_scope = CachedScope(mixins={}, mixin=_empty_mixin())
+        scope = base_scope(foo="bar")
+        assert isinstance(scope, InstanceScope)
+        assert scope.foo == "bar"
 
-    def test_instance_proxy_multiple_values(self) -> None:
-        base_proxy = CachedProxy(mixins={}, mixin=_empty_mixin())
-        proxy = base_proxy(foo="bar", count=42, flag=True)
-        assert isinstance(proxy, InstanceProxy)
-        assert proxy.foo == "bar"
-        assert proxy.count == 42
-        assert proxy.flag is True
+    def test_instance_scope_multiple_values(self) -> None:
+        base_scope = CachedScope(mixins={}, mixin=_empty_mixin())
+        scope = base_scope(foo="bar", count=42, flag=True)
+        assert isinstance(scope, InstanceScope)
+        assert scope.foo == "bar"
+        assert scope.count == 42
+        assert scope.flag is True
 
 
 class TestMerger:
@@ -428,11 +428,11 @@ class TestUnionMount:
         assert root.Combined.bar == "foo_bar"
 
 
-class TestExtendInstanceProxyProhibition:
-    """Test that extend cannot reference a path through InstanceProxy."""
+class TestExtendInstanceScopeProhibition:
+    """Test that extend cannot reference a path through InstanceScope."""
 
-    def test_extend_instance_proxy_raises_type_error(self) -> None:
-        """Extending from an InstanceProxy should raise TypeError."""
+    def test_extend_instance_scope_raises_type_error(self) -> None:
+        """Extending from an InstanceScope should raise TypeError."""
 
         @scope()
         class Root:
@@ -446,10 +446,10 @@ class TestExtendInstanceProxyProhibition:
                     return f"foo_{i}"
 
             @resource
-            def my_instance(MyOuter: Proxy) -> Proxy:
+            def my_instance(MyOuter: Scope) -> Scope:
                 return MyOuter(i=42)
 
-            # This should fail because my_instance is an InstanceProxy
+            # This should fail because my_instance is an InstanceScope
             @scope(
                 extend=[
                     R(levels_up=0, path=("my_instance",)),
@@ -458,12 +458,12 @@ class TestExtendInstanceProxyProhibition:
             class Invalid:
                 pass
 
-        with pytest.raises(TypeError, match="Cannot extend through InstanceProxy"):
+        with pytest.raises(TypeError, match="Cannot extend through InstanceScope"):
             root = evaluate(Root)
             _ = root.Invalid.foo
 
-    def test_extend_path_through_instance_proxy_raises_type_error(self) -> None:
-        """Extending from a path through InstanceProxy should raise TypeError."""
+    def test_extend_path_through_instance_scope_raises_type_error(self) -> None:
+        """Extending from a path through InstanceScope should raise TypeError."""
 
         @scope()
         class Root:
@@ -479,11 +479,11 @@ class TestExtendInstanceProxyProhibition:
                         return "inner_foo"
 
             @resource
-            def my_instance(MyOuter: Proxy) -> Proxy:
+            def my_instance(MyOuter: Scope) -> Scope:
                 return MyOuter(i=42)
 
-            # This should fail because my_instance is an InstanceProxy,
-            # even though MyInner is a StaticProxy
+            # This should fail because my_instance is an InstanceScope,
+            # even though MyInner is a StaticScope
             @scope(
                 extend=[
                     R(levels_up=0, path=("my_instance", "MyInner")),
@@ -492,19 +492,19 @@ class TestExtendInstanceProxyProhibition:
             class Invalid:
                 pass
 
-        with pytest.raises(TypeError, match="Cannot extend through InstanceProxy"):
+        with pytest.raises(TypeError, match="Cannot extend through InstanceScope"):
             root = evaluate(Root)
             _ = root.Invalid.foo
 
-    def test_extend_within_instance_proxy_sibling_allowed(self) -> None:
-        """Extending a sibling scope within the same InstanceProxy is allowed.
+    def test_extend_within_instance_scope_sibling_allowed(self) -> None:
+        """Extending a sibling scope within the same InstanceScope is allowed.
 
         The prohibition is on the NAVIGATION PATH of extend references, not on
-        whether the extending scope is defined inside an InstanceProxy.
+        whether the extending scope is defined inside an InstanceScope.
 
-        Here, `root.my_instance` is an InstanceProxy, but `Inner1` extends `Inner2`
+        Here, `root.my_instance` is an InstanceScope, but `Inner1` extends `Inner2`
         via a sibling reference `R(levels_up=0, path=("Inner2",))`. This path doesn't
-        traverse through any InstanceProxy - it's a direct sibling reference within
+        traverse through any InstanceScope - it's a direct sibling reference within
         the same scope.
         """
 
@@ -528,13 +528,13 @@ class TestExtendInstanceProxyProhibition:
                         return lambda x: x + i
 
             @resource
-            def my_instance(MyOuter: Proxy) -> Proxy:
+            def my_instance(MyOuter: Scope) -> Scope:
                 return MyOuter(i=42)
 
         root = evaluate(Root)
 
-        # Accessing via InstanceProxy should work because the extend reference
-        # ("Inner2",) is a sibling reference that doesn't traverse through InstanceProxy
+        # Accessing via InstanceScope should work because the extend reference
+        # ("Inner2",) is a sibling reference that doesn't traverse through InstanceScope
         # Inner1 extends Inner2, so Inner1 has base_value from Inner2, patched by Inner1
         assert root.my_instance.Inner2.base_value == 100
         assert root.my_instance.Inner1.base_value == 142  # 100 + 42 (patched)
@@ -561,7 +561,7 @@ class TestScalaStylePathDependentTypes:
     ```
 
     MixinMappingject takes a different trade-off:
-    - Forbids extend through InstanceProxy (val-like) entirely
+    - Forbids extend through InstanceScope (val-like) entirely
     - But allows composing MULTIPLE scopes via static @scope with lexical scoping
 
     This test demonstrates the multi-instance pattern using static scopes.
@@ -577,7 +577,7 @@ class TestScalaStylePathDependentTypes:
         - Lexical scope lookup (parameter `i` resolved from outer scope)
         - ReversedPath to distinguish object1.MyInner from object2.MyInner
 
-        Note: Unlike InstanceProxy which captures kwargs at runtime, static @scope
+        Note: Unlike InstanceScope which captures kwargs at runtime, static @scope
         requires each scope to provide its own patches with local dependencies.
         """
 
@@ -640,13 +640,13 @@ class TestScalaStylePathDependentTypes:
         assert root.MyObjectA.foo == 113
 
 
-class TestInstanceProxyReversedPath:
-    """Test that InstanceProxy has correct mixin with InstanceChildMixinMapping."""
+class TestInstanceScopeReversedPath:
+    """Test that InstanceScope has correct mixin with InstanceChildMixinMapping."""
 
-    def test_instance_proxy_nested_access_has_instance_mixin_in_path(
+    def test_instance_scope_nested_access_has_instance_mixin_in_path(
         self,
     ) -> None:
-        """When accessing nested proxy through InstanceProxy, path should use InstanceChildMixinMapping."""
+        """When accessing nested scope through InstanceScope, path should use InstanceChildMixinMapping."""
 
         @scope()
         class Root:
@@ -662,12 +662,12 @@ class TestInstanceProxyReversedPath:
                         return f"foo_{i}"
 
             @resource
-            def my_instance(MyOuter: Proxy) -> Proxy:
+            def my_instance(MyOuter: Scope) -> Scope:
                 return MyOuter(i=42)
 
         root = evaluate(Root)
 
-        # Access MyInner through the InstanceProxy
+        # Access MyInner through the InstanceScope
         my_instance = root.my_instance
         my_inner = my_instance.MyInner
 
@@ -709,7 +709,7 @@ class TestSymbolSharing:
         assert symbol1 is symbol2
 
     def test_symbol_shared_between_instance_and_static_access(self) -> None:
-        """_Symbol should be shared between InstanceProxy and StaticProxy access paths."""
+        """_Symbol should be shared between InstanceScope and StaticScope access paths."""
 
         @scope()
         class Root:
@@ -743,7 +743,7 @@ class TestSymbolSharing:
     def test_symbol_shared_when_scope_extends_another(self) -> None:
         """_Symbol should be shared when accessing Inner through extending scopes.
 
-        .. todo:: Fix _ProxySemigroup.create to share symbol across extending scopes.
+        .. todo:: Fix _ScopeSemigroup.create to share symbol across extending scopes.
 
             When object1 extends Outer, accessing Inner through both paths should yield
             the same symbol since they refer to the same Python class definition
@@ -789,18 +789,18 @@ class TestSymbolSharing:
         assert object1_symbol is not SymbolSentinel.SYNTHETIC
 
 
-class TestProxyAsSymlink:
-    """Test Proxy return values acting as symlinks."""
+class TestScopeAsSymlink:
+    """Test Scope return values acting as symlinks."""
 
-    def test_proxy_symlink(self) -> None:
-        base_proxy = CachedProxy(mixins={}, mixin=_empty_mixin())
-        inner_proxy = base_proxy(inner_value="inner")
+    def test_scope_symlink(self) -> None:
+        base_scope = CachedScope(mixins={}, mixin=_empty_mixin())
+        inner_scope = base_scope(inner_value="inner")
 
         @scope()
         class Namespace:
             @resource
-            def linked() -> Proxy:
-                return inner_proxy
+            def linked() -> Scope:
+                return inner_scope
 
         root = evaluate(Namespace)
         assert root.linked.inner_value == "inner"
@@ -816,7 +816,7 @@ class TestModuleParsing:
 
             scope_def = _parse_package(
                 regular_pkg,
-                get_module_proxy_class=lambda _: CachedProxy,
+                get_module_scope_class=lambda _: CachedScope,
             )
             assert isinstance(scope_def, _PackageDefinitionMapping)
         finally:
@@ -858,7 +858,7 @@ class TestModuleParsing:
 
             scope_def = _parse_package(
                 regular_mod,
-                get_module_proxy_class=lambda _: CachedProxy,
+                get_module_scope_class=lambda _: CachedScope,
             )
             assert isinstance(scope_def, _DefinitionMapping)
             assert not isinstance(scope_def, _PackageDefinitionMapping)
@@ -874,7 +874,7 @@ class TestModuleParsing:
             assert hasattr(ns_pkg, "__path__")
             scope_def = _parse_package(
                 ns_pkg,
-                get_module_proxy_class=lambda _: CachedProxy,
+                get_module_scope_class=lambda _: CachedScope,
             )
             assert isinstance(scope_def, _PackageDefinitionMapping)
 
@@ -917,7 +917,7 @@ class TestModuleParsing:
                 assert len(ns_pkg.__path__) == 2
                 scope_def = _parse_package(
                     ns_pkg,
-                    get_module_proxy_class=lambda _: CachedProxy,
+                    get_module_scope_class=lambda _: CachedScope,
                 )
                 assert isinstance(scope_def, _PackageDefinitionMapping)
 
@@ -934,50 +934,50 @@ class TestModuleParsing:
                 sys.modules.pop("ns_pkg.mod_c", None)
 
 
-class TestProxyCallable:
-    """Test Proxy as Callable - dynamic mixin injection."""
+class TestScopeCallable:
+    """Test Scope as Callable - dynamic mixin injection."""
 
-    def test_proxy_call_single_kwarg(self) -> None:
-        """Test calling Proxy to inject a single new value."""
-        base_proxy = CachedProxy(mixins={}, mixin=_empty_mixin())
-        proxy = base_proxy(foo="foo_value")
+    def test_scope_call_single_kwarg(self) -> None:
+        """Test calling Scope to inject a single new value."""
+        base_scope = CachedScope(mixins={}, mixin=_empty_mixin())
+        scope = base_scope(foo="foo_value")
 
-        # Call proxy with new kwargs to add additional values
-        new_proxy = proxy(bar="bar_value")
+        # Call scope with new kwargs to add additional values
+        new_scope = scope(bar="bar_value")
 
-        assert new_proxy.foo == "foo_value"  # from first call
-        assert new_proxy.bar == "bar_value"  # from second call
+        assert new_scope.foo == "foo_value"  # from first call
+        assert new_scope.bar == "bar_value"  # from second call
 
-    def test_proxy_call_multiple_kwargs(self) -> None:
-        """Test calling Proxy with multiple new kwargs."""
-        base_proxy = CachedProxy(mixins={}, mixin=_empty_mixin())
-        proxy = base_proxy(x=1, y=2)
+    def test_scope_call_multiple_kwargs(self) -> None:
+        """Test calling Scope with multiple new kwargs."""
+        base_scope = CachedScope(mixins={}, mixin=_empty_mixin())
+        scope = base_scope(x=1, y=2)
 
         # Call to add new values (z and w)
-        new_proxy = proxy(z=3, w=4)
+        new_scope = scope(z=3, w=4)
 
-        assert new_proxy.x == 1  # from first call
-        assert new_proxy.y == 2  # from first call
-        assert new_proxy.z == 3  # from second call
-        assert new_proxy.w == 4  # from second call
+        assert new_scope.x == 1  # from first call
+        assert new_scope.y == 2  # from first call
+        assert new_scope.z == 3  # from second call
+        assert new_scope.w == 4  # from second call
 
-    def test_proxy_call_injected_values_accessible(self) -> None:
-        """Test that values injected via Proxy call are accessible as resources."""
-        # Create empty proxy and inject values via call
-        proxy = CachedProxy(mixins={}, mixin=_empty_mixin())(
+    def test_scope_call_injected_values_accessible(self) -> None:
+        """Test that values injected via Scope call are accessible as resources."""
+        # Create empty scope and inject values via call
+        scope = CachedScope(mixins={}, mixin=_empty_mixin())(
             config={"db": "postgres"}
         )(timeout=30)
 
         # Injected values should be accessible
-        assert proxy.config == {"db": "postgres"}
-        assert proxy.timeout == 30
+        assert scope.config == {"db": "postgres"}
+        assert scope.timeout == 30
 
-    def test_proxy_call_provides_endo_only_base_value(self) -> None:
-        """Test Proxy callable providing base value for parameter pattern.
+    def test_scope_call_provides_endo_only_base_value(self) -> None:
+        """Test Scope callable providing base value for parameter pattern.
 
         Pattern:
         - Use @extern to declare a symbol that will be provided at runtime
-        - Provide the value via Proxy.__call__
+        - Provide the value via Scope.__call__
         - Other resources can depend on the parameter
         """
 
@@ -985,7 +985,7 @@ class TestProxyCallable:
         class Config:
             @extern
             def db_config() -> dict:
-                """Parameter to be provided via Proxy.__call__"""
+                """Parameter to be provided via Scope.__call__"""
                 ...
 
             @resource
@@ -997,51 +997,51 @@ class TestProxyCallable:
         assert root.db_config == {"host": "localhost", "port": "5432"}
         assert root.connection_string == "localhost:5432"
 
-    def test_proxy_call_returns_instance_proxy(self) -> None:
-        """Test that calling a StaticProxy returns an InstanceProxy."""
+    def test_scope_call_returns_instance_scope(self) -> None:
+        """Test that calling a StaticScope returns an InstanceScope."""
 
         class Value:
             pass
 
         v1, v2 = Value(), Value()
 
-        # CachedProxy.__call__ should return InstanceProxy
-        cached = CachedProxy(mixins={}, mixin=_empty_mixin())
+        # CachedScope.__call__ should return InstanceScope
+        cached = CachedScope(mixins={}, mixin=_empty_mixin())
         instance1 = cached(x=v1)
-        assert isinstance(instance1, InstanceProxy)
+        assert isinstance(instance1, InstanceScope)
         assert instance1.x is v1
 
-        # Calling InstanceProxy again should return another InstanceProxy
+        # Calling InstanceScope again should return another InstanceScope
         instance2 = instance1(y=v2)
-        assert isinstance(instance2, InstanceProxy)
+        assert isinstance(instance2, InstanceScope)
         assert instance2.x is v1
         assert instance2.y is v2
 
-        # WeakCachedScope.__call__ should also return InstanceProxy
+        # WeakCachedScope.__call__ should also return InstanceScope
         weak = WeakCachedScope(mixins={}, mixin=_empty_mixin())
         weak_instance = weak(x=v1)
-        assert isinstance(weak_instance, InstanceProxy)
+        assert isinstance(weak_instance, InstanceScope)
         assert weak_instance.x is v1
 
-    def test_proxy_call_creates_fresh_instance(self) -> None:
-        """Test that calling a Proxy creates a new instance without modifying the original."""
-        base_proxy = CachedProxy(mixins={}, mixin=_empty_mixin())
-        proxy1 = base_proxy(a=1)
+    def test_scope_call_creates_fresh_instance(self) -> None:
+        """Test that calling a Scope creates a new instance without modifying the original."""
+        base_scope = CachedScope(mixins={}, mixin=_empty_mixin())
+        scope1 = base_scope(a=1)
 
-        # Call to create a new proxy
-        proxy2 = proxy1(b=2)
+        # Call to create a new scope
+        scope2 = scope1(b=2)
 
         # Original should be unchanged
-        assert proxy1.a == 1
-        # New proxy should have both
-        assert proxy2.a == 1
-        assert proxy2.b == 2
+        assert scope1.a == 1
+        # New scope should have both
+        assert scope2.a == 1
+        assert scope2.b == 2
         # They should be different instances
-        assert proxy1 is not proxy2
+        assert scope1 is not scope2
 
 
-class TestProxyDir:
-    """Test Proxy.__dir__ method."""
+class TestScopeDir:
+    """Test Scope.__dir__ method."""
 
     def test_dir_returns_list(self) -> None:
         """Test that __dir__ returns a list."""
@@ -1176,8 +1176,8 @@ class TestProxyDir:
         result = dir(root.Combined)
         assert result.count("shared") == 1
 
-    def test_dir_works_with_cached_proxy(self) -> None:
-        """Test __dir__ works with CachedProxy subclass."""
+    def test_dir_works_with_cached_scope(self) -> None:
+        """Test __dir__ works with CachedScope subclass."""
 
         @scope()
         class Namespace:
@@ -1374,11 +1374,11 @@ class TestParameter:
             pass
 
 
-class TestProxySemigroupMixinMapping:
-    """Test _ProxySemigroup.create correctly assigns mixin."""
+class TestScopeSemigroupMixinMapping:
+    """Test _ScopeSemigroup.create correctly assigns mixin."""
 
-    def test_extended_proxy_has_distinct_mixin(self) -> None:
-        """Extended proxy should have its own mixin, not primary's.
+    def test_extended_scope_has_distinct_mixin(self) -> None:
+        """Extended scope should have its own mixin, not primary's.
 
         When scope B extends scope A via extend=, B.mixin should be
         distinct from A.mixin because they represent different
@@ -1401,15 +1401,15 @@ class TestProxySemigroupMixinMapping:
 
         root = evaluate(Root)
 
-        # The extended proxy should have its own unique mixin
+        # The extended scope should have its own unique mixin
         # that represents its access path ("Extended", "Root"), not Base's path
         base_mixin = root.Base.mixin
         extended_mixin = root.Extended.mixin
 
         # This should pass - Extended has its own mixin
         assert extended_mixin is not base_mixin, (
-            "Extended proxy should have its own mixin, "
-            "not share with Base proxy"
+            "Extended scope should have its own mixin, "
+            "not share with Base scope"
         )
 
     def test_nested_scope_in_extended_has_distinct_mixin(self) -> None:

@@ -15,14 +15,14 @@ Key Terminology
     A named injectable value defined via decorators like :func:`resource`, :func:`patch`,
     :func:`patch_many`, or :func:`merge`.
 
-**Proxy**
+**Scope**
     An object that contains resources, accessed via attribute access (``.`` operator).
-    Proxies can be nested to form hierarchical structures, analogous to a filesystem directory
-    hierarchy. See :class:`Proxy`.
+    Scopes can be nested to form hierarchical structures, analogous to a filesystem directory
+    hierarchy. See :class:`Scope`.
 
 **Lexical Scope**
     The lookup chain for resolving resources, scanning from inner to outer layers.
-    See :data:`LexicalScope`.
+    See :data:`CapturedScopes`.
 
 **Merger**
     An object that creates a resource value by aggregating patches. See :class:`Merger`.
@@ -33,7 +33,7 @@ Key Terminology
 **Semigroup**
     An object that is BOTH Merger AND Patcher simultaneously. This enables commutative
     composition where any item can serve as the merger while others contribute patches.
-    Example: :func:`scope` creates a semigroup for nested Proxy composition.
+    Example: :func:`scope` creates a semigroup for nested Scope composition.
 
 **Endofunction**
     A function of type ``Callable[[T], T]`` that transforms a value of type ``T`` into another
@@ -72,17 +72,17 @@ Example::
 
     root = mount(...)
     root.greeting  # "Hello!"
-    root.ignored_function  # AttributeError: 'CachedProxy' object has no attribute 'ignored_function'
+    root.ignored_function  # AttributeError: 'CachedScope' object has no attribute 'ignored_function'
 
 Union Filesystem Analogy
 ========================
 
 If we make an analogy to union filesystems:
 
-- :class:`Proxy` objects are like directory objects
+- :class:`Scope` objects are like directory objects
 - Resources are like files
 - Modules, packages, callables, and :class:`ScopeDefinition` are filesystem definitions before mounting
-- The compiled result (from :func:`mount`) is a concrete :class:`Proxy` that implements resource access
+- The compiled result (from :func:`mount`) is a concrete :class:`Scope` that implements resource access
 
 Merger/Patcher Architecture
 =============================
@@ -119,7 +119,7 @@ Definition Types and Their Roles
 +-------------------+----------+---------+------------------------------------------+
 | @extern        | No       | Yes     | Pure patcher providing no patches        |
 +-------------------+----------+---------+------------------------------------------+
-| @scope            | Yes      | Yes     | Semigroup for nested Proxy creation      |
+| @scope            | Yes      | Yes     | Semigroup for nested Scope creation      |
 +-------------------+----------+---------+------------------------------------------+
 
 .. todo::
@@ -187,7 +187,7 @@ Definition Types and Their Roles
 
         # 大致等价于当前语法
         @resource
-        def connection_pool(config: Proxy):
+        def connection_pool(config: Scope):
             return create_connection_pool(config.database_url)
 
     前者显式指定了 ``database_url`` 的位置，后者需要在符号表查找 ``config`` 所在的闭包层级。
@@ -243,7 +243,7 @@ Common patterns:
         def bar() -> str:
             return "ext_bar"
 
-    # Result: Proxy with both foo and bar resources (merged)
+    # Result: Scope with both foo and bar resources (merged)
 
 Dependency Resolution
 =====================
@@ -264,35 +264,35 @@ Simple Dependency Example::
 The parameter ``some_dependency`` is resolved by searching the lexical scope chain for a resource
 named ``some_dependency``.
 
-Complex Path Access via Proxy
+Complex Path Access via Scope
 ------------------------------
 
-To access resources via complex paths, you must use an explicit :class:`Proxy` parameter::
+To access resources via complex paths, you must use an explicit :class:`Scope` parameter::
 
     @resource
-    def my_callable(uncle: Proxy) -> float:
+    def my_callable(uncle: Scope) -> float:
         return uncle.path.to.resource
 
-This searches the lexical scope chain for the first :class:`Proxy` that defines a resource
-named ``uncle``, then accesses ``path.to.resource`` under that :class:`Proxy`.
+This searches the lexical scope chain for the first :class:`Scope` that defines a resource
+named ``uncle``, then accesses ``path.to.resource`` under that :class:`Scope`.
 
-Proxy-Returning Resources as Symbolic Links
+Scope-Returning Resources as Symbolic Links
 --------------------------------------------
 
-If a callable returns a :class:`Proxy`, that resource acts like a symbolic link
+If a callable returns a :class:`Scope`, that resource acts like a symbolic link
 (similar to https://github.com/mxmlnkn/ratarmount/pull/163)::
 
     @resource
-    def my_scope(uncle: Proxy) -> Proxy:
+    def my_scope(uncle: Scope) -> Scope:
         return uncle.path.to.another_scope
 
-This finds the first :class:`Proxy` in the lexical scope that defines ``uncle``, then accesses
-nested resources through that :class:`Proxy`.
+This finds the first :class:`Scope` in the lexical scope that defines ``uncle``, then accesses
+nested resources through that :class:`Scope`.
 
 Same-Name Dependency (Extending Outer Definitions)
 ---------------------------------------------------
 
-When a parameter name matches the resource name, it skips the current :class:`Proxy` and
+When a parameter name matches the resource name, it skips the current :class:`Scope` and
 looks for the same-named resource in outer scopes. This pattern allows extending or
 transforming an outer scope's definition::
 
@@ -357,7 +357,7 @@ Union Mounting at Entry Point
 ------------------------------
 
 At the framework entry point (:func:`mount`), users can pass multiple packages, modules,
-or objects, which are union-mounted into a unified root :class:`Proxy`, similar to
+or objects, which are union-mounted into a unified root :class:`Scope`, similar to
 https://github.com/mxmlnkn/ratarmount/pull/163.
 
 Parameter Injection Pattern
@@ -369,7 +369,7 @@ Concept
 A resource can be defined **solely** by :func:`patch`, :func:`patch_many`, or :func:`extern`
 decorators, without a base definition from :func:`resource` or :func:`merge`. This is
 the **parameter injection pattern** - a way to declare that a value should be provided from
-an outer scope via :class:`InstanceProxy` or :meth:`StaticProxy.__call__`.
+an outer scope via :class:`InstanceScope` or :meth:`StaticScope.__call__`.
 
 Two Equivalent Approaches
 --------------------------
@@ -386,7 +386,7 @@ Two Equivalent Approaches
         return lambda x: x  # identity function
 
 Both approaches register the resource name in the symbol table and expect the base value
-to be provided via :meth:`StaticProxy.__call__`. The ``@extern`` decorator is syntactic sugar
+to be provided via :meth:`StaticScope.__call__`. The ``@extern`` decorator is syntactic sugar
 that makes the intent clearer.
 
 How It Works
@@ -395,7 +395,7 @@ How It Works
 When a parameter-only resource is accessed:
 
 1. The resource name is found in the symbol table (registered by ``@extern`` or ``@patch``)
-2. The base value is looked up from :class:`InstanceProxy` (created via ``StaticProxy.__call__``)
+2. The base value is looked up from :class:`InstanceScope` (created via ``StaticScope.__call__``)
 3. All patches are applied (identity patches pass through unchanged)
 4. The final value is returned
 
@@ -431,20 +431,20 @@ This pattern is useful for:
 - **Dependency injection**: Inject external dependencies without hardcoding
 - **Multi-version support**: Combine the same module with different injected values
 
-Proxy as Callable
+Scope as Callable
 =================
 
-Every :class:`Proxy` object is also callable, supporting direct parameter injection.
+Every :class:`Scope` object is also callable, supporting direct parameter injection.
 
 Implementation
 --------------
 
-:class:`Proxy` implements ``__call__(**kwargs)``, returning a new :class:`Proxy` of the same type
-creating an :class:`InstanceProxy` that stores kwargs directly for lookup.
+:class:`Scope` implements ``__call__(**kwargs)``, returning a new :class:`Scope` of the same type
+creating an :class:`InstanceScope` that stores kwargs directly for lookup.
 
 Example::
 
-    # Create a Proxy and inject values using mount
+    # Create a Scope and inject values using mount
     @scope()
     class Config:
         @extern
@@ -452,18 +452,18 @@ Example::
         @extern
         def count(): ...
 
-    proxy = mount(Config)
-    new_proxy = proxy(setting="value", count=42)
+    scope = mount(Config)
+    new_scope = scope(setting="value", count=42)
 
     # Access injected values
-    assert new_proxy.setting == "value"
-    assert new_proxy.count == 42
+    assert new_scope.setting == "value"
+    assert new_scope.count == 42
 
 Primary Use Case
 ----------------
 
-The primary use of Proxy as Callable is to provide base values for parameter injection.
-By using :meth:`Proxy.__call__` in an outer scope to inject parameter values, resources in
+The primary use of Scope as Callable is to provide base values for parameter injection.
+By using :meth:`Scope.__call__` in an outer scope to inject parameter values, resources in
 modules can access these values via symbol table lookup::
 
     # Provide base value in outer scope via mount
@@ -472,9 +472,9 @@ modules can access these values via symbol table lookup::
         @extern
         def db_config(): ...
 
-    outer_proxy = mount(Config)(db_config={"host": "localhost", "port": "5432"})
+    outer_scope = mount(Config)(db_config={"host": "localhost", "port": "5432"})
 
-    outer_scope: LexicalScope = (outer_proxy,)
+    outer_scope: CapturedScopes = (outer_scope,)
 
     # Resources in modules can obtain this value via same-named parameter
     @scope()
@@ -486,7 +486,7 @@ modules can access these values via symbol table lookup::
         def connection(db_config: dict) -> str:
             return f"{db_config['host']}:{db_config['port']}"
 
-Callables can be used not only to define resources but also to define and transform Proxy objects.
+Callables can be used not only to define resources but also to define and transform Scope objects.
 """
 
 from __future__ import annotations
@@ -680,8 +680,8 @@ class SymbolSentinel(Enum):
 class StaticMixinMapping(MixinMapping):
     """
     .. todo:: 实现 ``__getitem__`` 用于懒创建子依赖图。
-    .. todo:: 实现 ``__call__(lexical_scope: LexicalScope) -> _ProxySemigroup``，
-              使 ``NestedMixinMapping`` 成为 ``Callable[[LexicalScope], _ProxySemigroup]``。
+    .. todo:: 实现 ``__call__(captured_scopes: CapturedScopes) -> _ScopeSemigroup``，
+              使 ``NestedMixinMapping`` 成为 ``Callable[[CapturedScopes], _ScopeSemigroup]``。
     """
 
     _cached_instance_mixin: weakref.ReferenceType["InstanceMixinMapping"] | None = (
@@ -704,8 +704,8 @@ class StaticMixinMapping(MixinMapping):
 Evaluator: TypeAlias = "Merger | Patcher"
 """A Merger or Patcher that participates in resource evaluation."""
 
-EvaluatorGetter: TypeAlias = Callable[["LexicalScope"], Evaluator]
-"""A callable that retrieves an Evaluator from a LexicalScope context."""
+EvaluatorGetter: TypeAlias = Callable[["CapturedScopes"], Evaluator]
+"""A callable that retrieves an Evaluator from a CapturedScopes context."""
 
 
 @final
@@ -775,8 +775,8 @@ class NestedMixinMapping(HasDict, StaticMixinMapping):
     Uses object.__eq__ and object.__hash__ (identity-based) for O(1) comparison.
     This works because interned graphs within the same outer are the same object.
 
-    Implements ``Callable[[LexicalScope], _ProxySemigroup]`` to resolve resources
-    from a lexical scope into a proxy semigroup.
+    Implements ``Callable[[CapturedScopes], _ScopeSemigroup]`` to resolve resources
+    from a lexical scope into a scope semigroup.
 
     Inherits from ``HasDict`` to enable ``@cached_property`` (which requires
     ``__dict__``) in a slots-based dataclass.
@@ -833,47 +833,47 @@ class NestedMixinMapping(HasDict, StaticMixinMapping):
     outer: Final[MixinMapping]
     name: Final[Hashable]
 
-    def __call__(self, lexical_scope: LexicalScope) -> "_ProxySemigroup":
+    def __call__(self, captured_scopes: CapturedScopes) -> "_ScopeSemigroup":
         """
-        Resolve resources from the given lexical scope into a _ProxySemigroup.
+        Resolve resources from the given lexical scope into a _ScopeSemigroup.
 
-        This method creates a proxy factory that:
+        This method creates a scope factory that:
         1. Creates a mixin from this definition's definition
-        2. Includes mixins from any extended proxies (via extend references)
-        3. Returns a _ProxySemigroup that can merge with other proxies
+        2. Includes mixins from any extended scopes (via extend references)
+        3. Returns a _ScopeSemigroup that can merge with other scopes
 
         .. todo:: Phase 9: 用 ``ChainMap`` 替代 ``generate_all_mixin_items``。
         """
 
-        def proxy_factory() -> StaticProxy:
+        def scope_factory() -> StaticScope:
             assert (
-                lexical_scope
-            ), "lexical_scope must not be empty when resolving resources"
+                captured_scopes
+            ), "captured_scopes must not be empty when resolving resources"
 
             def generate_all_mixin_items() -> (
-                Iterator[tuple[StaticMixinMapping, LexicalScope]]
+                Iterator[tuple[StaticMixinMapping, CapturedScopes]]
             ):
                 """
-                Generate all mixin items for the proxy, including:
-                - LexicalScope from this definition, keyed by proxy's mixin
-                - LexicalScopes from extended proxies, preserving their original keys
+                Generate all mixin items for the scope, including:
+                - CapturedScopes from this definition, keyed by scope's mixin
+                - CapturedScopess from extended scopes, preserving their original keys
                 """
-                yield (self, lexical_scope)
+                yield (self, captured_scopes)
                 for reference in self.definition.extend:
-                    extended_proxy = _resolve_resource_reference(
+                    extended_scope = _resolve_resource_reference(
                         reference=reference,
-                        lexical_scope=lexical_scope,
-                        forbid_instance_proxy=True,
+                        captured_scopes=captured_scopes,
+                        forbid_instance_scope=True,
                     )
-                    yield from extended_proxy.mixins.items()
+                    yield from extended_scope.mixins.items()
 
-            return self.definition.proxy_class(
+            return self.definition.scope_class(
                 mixins=dict(generate_all_mixin_items()),
                 mixin=self,
             )
 
-        return _ProxySemigroup(
-            proxy_factory=proxy_factory,
+        return _ScopeSemigroup(
+            scope_factory=scope_factory,
             access_path_outer=self.outer,
             name=self.name,
         )
@@ -882,7 +882,7 @@ class NestedMixinMapping(HasDict, StaticMixinMapping):
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
 class InstanceMixinMapping(MixinMapping):
-    """Non-empty dependency graph node for InstanceProxy.
+    """Non-empty dependency graph node for InstanceScope.
 
     Uses object.__eq__ and object.__hash__ (identity-based) for O(1) comparison.
     This works because interned graphs with equal head within the same outer
@@ -904,25 +904,25 @@ class InstanceMixinMapping(MixinMapping):
 Resource = NewType("Resource", object)
 
 
-class Proxy(Mapping[Hashable, "Node"], ABC):
+class Scope(Mapping[Hashable, "Node"], ABC):
     """
-    A Proxy represents resources available via attributes or keys.
+    A Scope represents resources available via attributes or keys.
 
-    There are two types of proxies:
+    There are two types of scopes:
 
-    - ``StaticProxy``: Represents class/module level static definitions.
+    - ``StaticScope``: Represents class/module level static definitions.
       Contains mixins and supports ``__call__`` to create instances.
-    - ``InstanceProxy``: Created via ``StaticProxy.__call__``.
-      Stores kwargs directly and delegates to base proxy for other lookups.
+    - ``InstanceScope``: Created via ``StaticScope.__call__``.
+      Stores kwargs directly and delegates to base scope for other lookups.
 
     .. todo::
-        我希望把Proxy/CachedProxy/WeakCachedProxy合并成一个类，按需提供ResourceConfig的26种组合行为。
+        我希望把Scope/CachedScope/WeakCachedScope合并成一个类，按需提供ResourceConfig的26种组合行为。
 
-        我希望可以通过新增的一些decorator提供 ResourceConfig 的配置。注意这个配置是静态的不依赖于 Proxy 和 Scope，且可能将来会被Symbol编译进字节码里。
+        我希望可以通过新增的一些decorator提供 ResourceConfig 的配置。注意这个配置是静态的不依赖于 Scope 和 Scope，且可能将来会被Symbol编译进字节码里。
         ```
         @dataclass
         class BuilderDefinition:
-            bind_lexical_scope: Callable[[LexicalScope, str], Callable[[Proxy, ResourceConfig], Evaluator]]
+            bind_captured_scopes: Callable[[CapturedScopes, str], Callable[[Scope, ResourceConfig], Evaluator]]
             config: ResourceConfig
             '''
             默认的config由``inspect.signature``推断而来，可以由注解修改
@@ -949,7 +949,7 @@ class Proxy(Mapping[Hashable, "Node"], ABC):
                     return "custom string representation"
 
             root = mount(MyScope)
-            str(root)  # 不会调用自定义的 __str__，而是使用 Proxy 默认的 __str__
+            str(root)  # 不会调用自定义的 __str__，而是使用 Scope 默认的 __str__
 
     """
 
@@ -957,11 +957,11 @@ class Proxy(Mapping[Hashable, "Node"], ABC):
     @abstractmethod
     def mixins(
         self,
-    ) -> Mapping[StaticMixinMapping, LexicalScope]:
-        """The mixins that provide resources for this proxy, keyed by mixin.
+    ) -> Mapping[StaticMixinMapping, CapturedScopes]:
+        """The mixins that provide resources for this scope, keyed by mixin.
 
-        Each proxy's own properties (not from extend=) are stored at
-        mixins[self.mixin]. Extended proxies contribute their mixins
+        Each scope's own properties (not from extend=) are stored at
+        mixins[self.mixin]. Extended scopes contribute their mixins
         with their original mixin keys.
 
         .. todo:: 改用 ``ChainMap`` 代替 ``dict``。
@@ -969,9 +969,9 @@ class Proxy(Mapping[Hashable, "Node"], ABC):
         ...
 
     mixin: "NestedMixinMapping | InstanceMixinMapping"
-    """The runtime access path from root to this proxy, in reverse order.
+    """The runtime access path from root to this scope, in reverse order.
 
-    This path reflects how the proxy was accessed at runtime, not where
+    This path reflects how the scope was accessed at runtime, not where
     it was statically defined. For example, root.object1.MyInner and
     root.object2.MyInner should have different mixins even if
     MyInner is defined in the same place.
@@ -979,9 +979,9 @@ class Proxy(Mapping[Hashable, "Node"], ABC):
 
     def __getitem__(self, key: Hashable) -> "Node":
         def generate_resource() -> Iterator[Evaluator]:
-            for mixin, lexical_scope in self.mixins.items():
+            for mixin, captured_scopes in self.mixins.items():
                 try:
-                    factory_or_patch = _mixin_getitem(mixin, lexical_scope, key)
+                    factory_or_patch = _mixin_getitem(mixin, captured_scopes, key)
                 except KeyError:
                     continue
                 yield factory_or_patch(self)
@@ -1015,25 +1015,25 @@ class Proxy(Mapping[Hashable, "Node"], ABC):
         """
         return (
             *(key for key in self if isinstance(key, str)),
-            *super(Proxy, self).__dir__(),
+            *super(Scope, self).__dir__(),
         )
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class StaticProxy(Proxy, ABC):
+class StaticScope(Scope, ABC):
     """
-    A static proxy representing class/module level definitions.
+    A static scope representing class/module level definitions.
 
-    StaticProxy stores mixins directly and supports ``__call__`` to create
-    InstanceProxy with additional kwargs.
+    StaticScope stores mixins directly and supports ``__call__`` to create
+    InstanceScope with additional kwargs.
     """
 
-    mixins: Mapping[StaticMixinMapping, LexicalScope]  # type: ignore[misc]
+    mixins: Mapping[StaticMixinMapping, CapturedScopes]  # type: ignore[misc]
     mixin: StaticMixinMapping  # type: ignore[misc]
 
-    def __call__(self, **kwargs: object) -> "InstanceProxy":
+    def __call__(self, **kwargs: object) -> "InstanceScope":
         """
-        Create an InstanceProxy with the given kwargs.
+        Create an InstanceScope with the given kwargs.
 
         .. todo:: Phase 2: Pass ``symbol`` and ``base_symbols``
                   when creating ``InstanceMixinMapping``.
@@ -1047,25 +1047,25 @@ class StaticProxy(Proxy, ABC):
             )
             self.mixin._cached_instance_mixin = weakref.ref(instance_path)
 
-        return InstanceProxy(
-            base_proxy=self,
+        return InstanceScope(
+            base_scope=self,
             kwargs=kwargs,
             mixin=instance_path,
         )
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class InstanceProxy(Proxy):
+class InstanceScope(Scope):
     """
-    An instance proxy created via StaticProxy.__call__.
+    An instance scope created via StaticScope.__call__.
 
-    InstanceProxy stores kwargs directly and checks them first during lookup,
-    then delegates to the base proxy for other resources.
+    InstanceScope stores kwargs directly and checks them first during lookup,
+    then delegates to the base scope for other resources.
 
     .. note:: kwargs keys are bounded by str because Python's **kwargs only accepts string keys.
     """
 
-    base_proxy: Final[StaticProxy]
+    base_scope: Final[StaticScope]
     kwargs: Final[Mapping[str, object]]
     mixin: InstanceMixinMapping  # type: ignore[misc]
 
@@ -1073,8 +1073,8 @@ class InstanceProxy(Proxy):
     @override
     def mixins(
         self,
-    ) -> Mapping[StaticMixinMapping, LexicalScope]:
-        return self.base_proxy.mixins
+    ) -> Mapping[StaticMixinMapping, CapturedScopes]:
+        return self.base_scope.mixins
 
     @override
     def __getitem__(self, key: Hashable) -> Node:
@@ -1085,21 +1085,21 @@ class InstanceProxy(Proxy):
                 # Yield the kwargs value as a Merger
                 yield _EndofunctionMerger(base_value=cast(Resource, value))
                 # Also collect any Patchers from mixins
-                for mixin, lexical_scope in self.mixins.items():
+                for mixin, captured_scopes in self.mixins.items():
                     try:
-                        factory_or_patch = _mixin_getitem(mixin, lexical_scope, key)
+                        factory_or_patch = _mixin_getitem(mixin, captured_scopes, key)
                     except KeyError:
                         continue
                     yield factory_or_patch(self)
 
             return _evaluate_resource(resource_generator=generate_resource)
-        return super(InstanceProxy, self).__getitem__(key)
+        return super(InstanceScope, self).__getitem__(key)
 
     @override
     def __iter__(self) -> Iterator[Hashable]:
         for key in self.kwargs:
             yield key
-        for key in super(InstanceProxy, self).__iter__():
+        for key in super(InstanceScope, self).__iter__():
             if key not in self.kwargs:
                 yield key
 
@@ -1107,18 +1107,18 @@ class InstanceProxy(Proxy):
     def __len__(self) -> int:
         return sum(1 for _ in self)
 
-    def __call__(self, **kwargs: object) -> "InstanceProxy":
+    def __call__(self, **kwargs: object) -> "InstanceScope":
         merged_kwargs: Mapping[str, object] = {**self.kwargs, **kwargs}
-        return InstanceProxy(
-            base_proxy=self.base_proxy,
+        return InstanceScope(
+            base_scope=self.base_scope,
             kwargs=merged_kwargs,
             mixin=self.mixin,
         )
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class CachedProxy(StaticProxy[str]):
-    """A StaticProxy with cached resource lookups."""
+class CachedScope(StaticScope[str]):
+    """A StaticScope with cached resource lookups."""
 
     _cache: MutableMapping[str, "Node"] = field(
         default_factory=dict, init=False, repr=False, compare=False
@@ -1130,7 +1130,7 @@ class CachedProxy(StaticProxy[str]):
         .. note:: This method uses the two-arg super() as a workaround for https://github.com/python/cpython/pull/124455
         """
         if key not in self._cache:
-            value = super(CachedProxy, self).__getitem__(key)
+            value = super(CachedScope, self).__getitem__(key)
             self._cache[key] = value
             return value
         else:
@@ -1138,8 +1138,8 @@ class CachedProxy(StaticProxy[str]):
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class WeakCachedScope(CachedProxy):
-    """A CachedProxy with weak reference caching."""
+class WeakCachedScope(CachedScope):
+    """A CachedScope with weak reference caching."""
 
     _cache: MutableMapping[str, "Node"] = field(
         default_factory=WeakValueDictionary, init=False, repr=False, compare=False
@@ -1175,9 +1175,9 @@ def _calculate_most_derived_class(first: type, *rest: type) -> type:
             )
 
 
-LexicalScope: TypeAlias = Sequence[Proxy]
+CapturedScopes: TypeAlias = Sequence[Scope]
 """
-A sequence of proxies representing the lexical scope, starting from the outermost proxy to the innermost proxy.
+A sequence of scopes representing the lexical scope, starting from the outermost scope to the innermost scope.
 """
 
 
@@ -1196,7 +1196,7 @@ A mapping from resource names to symbols that provide getters for lexical scope 
 """
 
 
-Node: TypeAlias = Resource | Proxy
+Node: TypeAlias = Resource | Scope
 TPatch_co = TypeVar("TPatch_co", covariant=True)
 TPatch_contra = TypeVar("TPatch_contra", contravariant=True)
 TResult_co = TypeVar("TResult_co", covariant=True)
@@ -1233,7 +1233,7 @@ class FunctionMerger(Merger[TPatch_contra, TResult_co]):
 
 
 TResult = TypeVar("TResult")
-TProxy = TypeVar("TProxy", bound=StaticProxy)
+TScope = TypeVar("TScope", bound=StaticScope)
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
@@ -1251,29 +1251,29 @@ class _EndofunctionMerger(
 
 def _mixin_getitem(
     mixin: StaticMixinMapping,
-    lexical_scope: LexicalScope,
+    captured_scopes: CapturedScopes,
     key: Hashable,
     /,
-) -> Callable[[Proxy], Evaluator]:
+) -> Callable[[Scope], Evaluator]:
     """
     Get a factory function from a dependency graph by key.
 
     Calls ``mixin.symbol[key](mixin)`` to get the
     second-level callable, passing the mixin's mixin (not the
-    proxy's mixin from lexical_scope).
+    scope's mixin from captured_scopes).
     """
     first_level = mixin.symbol[key]
     resolved_function = first_level.compile(mixin)
 
-    def bind_proxy(proxy: Proxy) -> Evaluator:
-        inner_lexical_scope: LexicalScope = (*lexical_scope, proxy)
-        evaluator = resolved_function(inner_lexical_scope)
-        # If evaluator is a _ProxySemigroup, set access_path_outer to the proxy's mixin
-        if isinstance(evaluator, _ProxySemigroup):
-            return replace(evaluator, access_path_outer=proxy.mixin)
+    def bind_scope(scope: Scope) -> Evaluator:
+        inner_captured_scopes: CapturedScopes = (*captured_scopes, scope)
+        evaluator = resolved_function(inner_captured_scopes)
+        # If evaluator is a _ScopeSemigroup, set access_path_outer to the scope's mixin
+        if isinstance(evaluator, _ScopeSemigroup):
+            return replace(evaluator, access_path_outer=scope.mixin)
         return evaluator
 
-    return bind_proxy
+    return bind_scope
 
 
 @dataclass(kw_only=True, eq=False)
@@ -1311,24 +1311,24 @@ class _NestedSymbol(_Symbol):
         ...
 
     @cached_property
-    def getter(self) -> Callable[[LexicalScope], "Node"]:
+    def getter(self) -> Callable[[CapturedScopes], "Node"]:
         """
         A getter function for retrieving the resource from a lexical scope.
 
-        Note that the index is depth - 1 because the root proxy itself is not
-        a named referenceable resource, i.e. you can never inject the root proxy
+        Note that the index is depth - 1 because the root scope itself is not
+        a named referenceable resource, i.e. you can never inject the root scope
         itself into any resource.
 
         When ``resource_name`` is a ``str``, uses JIT-compiled attribute access
-        (``lexical_scope[index].name``). Otherwise, uses a closure with bracket
-        syntax (``lexical_scope[index][resource_name]``).
+        (``captured_scopes[index].name``). Otherwise, uses a closure with bracket
+        syntax (``captured_scopes[index][resource_name]``).
         """
         index = self.depth - 1
         resource_name = self.resource_name
         if isinstance(resource_name, str):
             return _make_jit_getter(resource_name, index)
         # For non-string keys, use bracket syntax via closure
-        return lambda lexical_scope: lexical_scope[index][resource_name]
+        return lambda captured_scopes: captured_scopes[index][resource_name]
 
 
 @dataclass(kw_only=True, eq=False)
@@ -1341,7 +1341,7 @@ class _SymbolMapping(
 
     Implements _Symbol to provide depth and resource_name for the namespace itself.
 
-    .. todo:: Also compiles the proxy class into Python bytecode.
+    .. todo:: Also compiles the scope class into Python bytecode.
 
     .. note:: _SymbolMapping instances are shared among all mixins created from the same
         _DefinitionMapping (the Python class decorated with @scope()). For example::
@@ -1489,7 +1489,7 @@ class _MergerSymbol(_NestedSymbol, Generic[TPatch_contra, TResult_co]):
     @cached_property
     def jit_compiled_function(
         self,
-    ) -> Callable[[LexicalScope], Callable[[Iterator[TPatch_contra]], TResult_co]]:
+    ) -> Callable[[CapturedScopes], Callable[[Iterator[TPatch_contra]], TResult_co]]:
         return _resolve_dependencies_jit(
             symbol_table=self.outer.symbol_table,
             function=self.function,
@@ -1498,14 +1498,14 @@ class _MergerSymbol(_NestedSymbol, Generic[TPatch_contra, TResult_co]):
 
     def compile(
         self, _mixin: MixinMapping
-    ) -> Callable[[LexicalScope], Merger[TPatch_contra, TResult_co]]:
-        def resolve_lexical_scope(
-            lexical_scope: LexicalScope,
+    ) -> Callable[[CapturedScopes], Merger[TPatch_contra, TResult_co]]:
+        def resolve_captured_scopes(
+            captured_scopes: CapturedScopes,
         ) -> Merger[TPatch_contra, TResult_co]:
-            aggregation_function = self.jit_compiled_function(lexical_scope)
+            aggregation_function = self.jit_compiled_function(captured_scopes)
             return FunctionMerger(aggregation_function=aggregation_function)
 
-        return resolve_lexical_scope
+        return resolve_captured_scopes
 
 
 @dataclass(kw_only=True, eq=False)
@@ -1520,7 +1520,7 @@ class _ResourceSymbol(_NestedSymbol, Generic[TResult]):
         return self._resource_name
 
     @cached_property
-    def jit_compiled_function(self) -> Callable[[LexicalScope], TResult]:
+    def jit_compiled_function(self) -> Callable[[CapturedScopes], TResult]:
         return _resolve_dependencies_jit(
             symbol_table=self.outer.symbol_table,
             function=self.function,
@@ -1529,14 +1529,14 @@ class _ResourceSymbol(_NestedSymbol, Generic[TResult]):
 
     def compile(
         self, _mixin: MixinMapping
-    ) -> Callable[[LexicalScope], Merger[Callable[[TResult], TResult], TResult]]:
-        def resolve_lexical_scope(
-            lexical_scope: LexicalScope,
+    ) -> Callable[[CapturedScopes], Merger[Callable[[TResult], TResult], TResult]]:
+        def resolve_captured_scopes(
+            captured_scopes: CapturedScopes,
         ) -> Merger[Callable[[TResult], TResult], TResult]:
-            base_value = self.jit_compiled_function(lexical_scope)
+            base_value = self.jit_compiled_function(captured_scopes)
             return _EndofunctionMerger(base_value=base_value)
 
-        return resolve_lexical_scope
+        return resolve_captured_scopes
 
 
 @dataclass(kw_only=True, eq=False)
@@ -1551,7 +1551,7 @@ class _SinglePatchSymbol(_NestedSymbol, Generic[TPatch_co]):
         return self._resource_name
 
     @cached_property
-    def jit_compiled_function(self) -> Callable[[LexicalScope], TPatch_co]:
+    def jit_compiled_function(self) -> Callable[[CapturedScopes], TPatch_co]:
         return _resolve_dependencies_jit(
             symbol_table=self.outer.symbol_table,
             function=self.function,
@@ -1560,16 +1560,16 @@ class _SinglePatchSymbol(_NestedSymbol, Generic[TPatch_co]):
 
     def compile(
         self, _mixin: MixinMapping
-    ) -> Callable[[LexicalScope], Patcher[TPatch_co]]:
-        def resolve_lexical_scope(
-            lexical_scope: LexicalScope,
+    ) -> Callable[[CapturedScopes], Patcher[TPatch_co]]:
+        def resolve_captured_scopes(
+            captured_scopes: CapturedScopes,
         ) -> Patcher[TPatch_co]:
             def patch_generator() -> Iterator[TPatch_co]:
-                yield self.jit_compiled_function(lexical_scope)
+                yield self.jit_compiled_function(captured_scopes)
 
             return FunctionPatcher(patch_generator=patch_generator)
 
-        return resolve_lexical_scope
+        return resolve_captured_scopes
 
 
 @dataclass(kw_only=True, eq=False)
@@ -1584,7 +1584,7 @@ class _MultiplePatchSymbol(_NestedSymbol, Generic[TPatch_co]):
         return self._resource_name
 
     @cached_property
-    def jit_compiled_function(self) -> Callable[[LexicalScope], Iterable[TPatch_co]]:
+    def jit_compiled_function(self) -> Callable[[CapturedScopes], Iterable[TPatch_co]]:
         return _resolve_dependencies_jit(
             symbol_table=self.outer.symbol_table,
             function=self.function,
@@ -1593,16 +1593,16 @@ class _MultiplePatchSymbol(_NestedSymbol, Generic[TPatch_co]):
 
     def compile(
         self, _mixin: MixinMapping
-    ) -> Callable[[LexicalScope], Patcher[TPatch_co]]:
-        def resolve_lexical_scope(
-            lexical_scope: LexicalScope,
+    ) -> Callable[[CapturedScopes], Patcher[TPatch_co]]:
+        def resolve_captured_scopes(
+            captured_scopes: CapturedScopes,
         ) -> Patcher[TPatch_co]:
             def patch_generator() -> Iterator[TPatch_co]:
-                return (yield from self.jit_compiled_function(lexical_scope))
+                return (yield from self.jit_compiled_function(captured_scopes))
 
             return FunctionPatcher(patch_generator=patch_generator)
 
-        return resolve_lexical_scope
+        return resolve_captured_scopes
 
 
 def _evaluate_resource(
@@ -1673,7 +1673,7 @@ class Definition(ABC):
     def resolve(self, outer: "_SymbolMapping", name: str, /) -> _NestedSymbol:
         """
         Resolve symbols in the definition and return a compiled symbol.
-        Call .compile(mixin) on the result to get a LexicalScope resolver.
+        Call .compile(mixin) on the result to get a CapturedScopes resolver.
 
         .. warning::
 
@@ -1775,71 +1775,71 @@ class _MultiplePatchDefinition(PatcherDefinition[TPatch_co]):
 
 
 DefinitionMapping: TypeAlias = Mapping[
-    str, Callable[[LexicalScope], Callable[[Proxy], Evaluator]]
+    str, Callable[[CapturedScopes], Callable[[Scope], Evaluator]]
 ]
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class _ProxySemigroup(Merger[StaticProxy, StaticProxy], Patcher[StaticProxy]):
+class _ScopeSemigroup(Merger[StaticScope, StaticScope], Patcher[StaticScope]):
     """
-    Semigroup for merging Proxy instances from extended scopes.
+    Semigroup for merging Scope instances from extended scopes.
 
-    .. todo:: 改为只支持 ``StaticProxy`` 的合并，禁止 ``InstanceProxy`` 的合并。
+    .. todo:: 改为只支持 ``StaticScope`` 的合并，禁止 ``InstanceScope`` 的合并。
 
-        应将类型签名改为 ``Merger[StaticProxy, StaticProxy]``，并在 ``create``
-        方法中添加断言确保不会传入 ``InstanceProxy``。
+        应将类型签名改为 ``Merger[StaticScope, StaticScope]``，并在 ``create``
+        方法中添加断言确保不会传入 ``InstanceScope``。
     """
 
-    proxy_factory: Final[Callable[[], StaticProxy]]
+    scope_factory: Final[Callable[[], StaticScope]]
     access_path_outer: Final[MixinMapping]
     name: Final[Hashable]
 
     @override
-    def create(self, patches: Iterator[StaticProxy]) -> StaticProxy:
+    def create(self, patches: Iterator[StaticScope]) -> StaticScope:
         """
-        Create a merged Proxy from factory and patches.
+        Create a merged Scope from factory and patches.
 
         .. todo:: Phase 9: 用 ``ChainMap`` 替代 ``generate_all_mixin_items``。
         """
 
-        def all_proxies() -> Iterator[StaticProxy]:
+        def all_scopes() -> Iterator[StaticScope]:
             yield from self
             return (yield from patches)
 
-        proxies_tuple = tuple(all_proxies())
-        match proxies_tuple:
-            case (single_proxy,) if (
-                isinstance(single_proxy.mixin, NestedMixinMapping)
-                and single_proxy.mixin.outer == self.access_path_outer
+        scopes_tuple = tuple(all_scopes())
+        match scopes_tuple:
+            case (single_scope,) if (
+                isinstance(single_scope.mixin, NestedMixinMapping)
+                and single_scope.mixin.outer == self.access_path_outer
             ):
-                mixin = single_proxy.mixin
+                mixin = single_scope.mixin
             case ():
-                raise AssertionError(" at least one proxy expected")
+                raise AssertionError(" at least one scope expected")
             case _:
                 # Get mixin via __getitem__. The mixin should always exist because
-                # _ProxySemigroup is created by NestedMixinMapping.__call__ which
+                # _ScopeSemigroup is created by NestedMixinMapping.__call__ which
                 # passes access_path_outer=self.outer and name=self.name. That
                 # NestedMixinMapping is stored in self.outer.intern_pool[self.name],
                 # so __getitem__ will find it via intern_pool lookup.
                 mixin = self.access_path_outer[self.name]
                 assert isinstance(mixin, NestedMixinMapping)
 
-        winner_class = _calculate_most_derived_class(*(type(p) for p in proxies_tuple))
+        winner_class = _calculate_most_derived_class(*(type(p) for p in scopes_tuple))
 
         def generate_all_mixin_items() -> (
-            Iterator[tuple[StaticMixinMapping, LexicalScope]]
+            Iterator[tuple[StaticMixinMapping, CapturedScopes]]
         ):
-            for proxy in proxies_tuple:
-                yield from proxy.mixins.items()
+            for scope in scopes_tuple:
+                yield from scope.mixins.items()
 
         all_mixin_items = list(generate_all_mixin_items())
         merged_mixins = dict(all_mixin_items)
         _logger.debug(
-            "proxies_count=%(proxies_count)d "
+            "scopes_count=%(scopes_count)d "
             "total_mixin_items=%(total_mixin_items)d "
             "unique_after_dict=%(unique_after_dict)d",
             {
-                "proxies_count": len(proxies_tuple),
+                "scopes_count": len(scopes_tuple),
                 "total_mixin_items": len(all_mixin_items),
                 "unique_after_dict": len(merged_mixins),
             },
@@ -1851,12 +1851,12 @@ class _ProxySemigroup(Merger[StaticProxy, StaticProxy], Patcher[StaticProxy]):
         )
 
     @override
-    def __iter__(self) -> Iterator[StaticProxy]:
-        proxy = self.proxy_factory()
+    def __iter__(self) -> Iterator[StaticScope]:
+        scope = self.scope_factory()
         assert isinstance(
-            proxy, StaticProxy
-        ), f"proxy must be StaticProxy, got {type(proxy)}"
-        yield proxy
+            scope, StaticScope
+        ), f"scope must be StaticScope, got {type(scope)}"
+        yield scope
 
 
 TMixin = TypeVar("TMixin", bound=Mixin)
@@ -1871,7 +1871,7 @@ def _resolve_mixin_reference(
     Resolve a ResourceReference to a Mixin using the given mixin as starting point.
 
     This is the compile-time analog of :func:`_resolve_resource_reference`. Instead of
-    traversing Proxy objects at runtime, it traverses MixinMapping objects at compile-time.
+    traversing Scope objects at runtime, it traverses MixinMapping objects at compile-time.
 
     For RelativeReference:
         - Navigate up `levels_up` levels from the given mixin via ``.outer``
@@ -1928,43 +1928,43 @@ def _resolve_mixin_reference(
 
 def _resolve_resource_reference(
     reference: "ResourceReference[Hashable]",
-    lexical_scope: LexicalScope,
-    forbid_instance_proxy: bool = False,
-) -> Proxy:
+    captured_scopes: CapturedScopes,
+    forbid_instance_scope: bool = False,
+) -> Scope:
     """
-    Resolve a ResourceReference to a Proxy using the given lexical scope.
+    Resolve a ResourceReference to a Scope using the given lexical scope.
 
     For RelativeReference:
-        - Navigate up `levels_up` levels from the innermost proxy
+        - Navigate up `levels_up` levels from the innermost scope
         - Then navigate down through `parts` by accessing attributes
 
     For AbsoluteReference:
-        - Start from the root (outermost proxy)
+        - Start from the root (outermost scope)
         - Navigate down through `parts` by accessing attributes
 
-    :param forbid_instance_proxy: If True, raises TypeError if any step in the
-        path resolves to an InstanceProxy. Used by extend to prevent referencing
-        paths through InstanceProxy (e.g., object1.MyInner where object1 is an
-        InstanceProxy).
+    :param forbid_instance_scope: If True, raises TypeError if any step in the
+        path resolves to an InstanceScope. Used by extend to prevent referencing
+        paths through InstanceScope (e.g., object1.MyInner where object1 is an
+        InstanceScope).
 
     .. seealso:: :func:`_resolve_mixin_reference` for the compile-time analog that
-                 traverses MixinMapping objects instead of Proxy objects.
+                 traverses MixinMapping objects instead of Scope objects.
     """
     match reference:
         case RelativeReference(levels_up=levels_up, path=parts):
-            if levels_up > len(lexical_scope):
+            if levels_up > len(captured_scopes):
                 raise ValueError(
-                    f"Cannot navigate {levels_up} levels up from scope of depth {len(lexical_scope)}"
+                    f"Cannot navigate {levels_up} levels up from scope of depth {len(captured_scopes)}"
                 )
             # Navigate up: levels_up=0 means innermost (last), levels_up=1 means outer, etc.
-            scope_index = len(lexical_scope) - 1 - levels_up
-            current: Proxy | Resource = lexical_scope[scope_index]
+            scope_index = len(captured_scopes) - 1 - levels_up
+            current: Scope | Resource = captured_scopes[scope_index]
         case AbsoluteReference(path=parts):
-            if not lexical_scope:
+            if not captured_scopes:
                 raise ValueError(
                     "Cannot resolve absolute reference with empty lexical scope"
                 )
-            current = lexical_scope[0]
+            current = captured_scopes[0]
         case _ as unreachable:
             assert_never(unreachable)
 
@@ -1972,20 +1972,20 @@ def _resolve_resource_reference(
     traversed_parts: list[Hashable] = []
     for part in parts:
         resolved = current[part]
-        if not isinstance(resolved, Proxy):
+        if not isinstance(resolved, Scope):
             raise TypeError(
-                f"Expected Proxy while resolving reference, got {type(resolved)} at part '{part}'"
+                f"Expected Scope while resolving reference, got {type(resolved)} at part '{part}'"
             )
         traversed_parts.append(part)
-        if forbid_instance_proxy and isinstance(resolved, InstanceProxy):
+        if forbid_instance_scope and isinstance(resolved, InstanceScope):
             raise TypeError(
-                f"Cannot extend through InstanceProxy. "
-                f"Path {'.'.join(str(p) for p in traversed_parts)} resolved to an InstanceProxy."
+                f"Cannot extend through InstanceScope. "
+                f"Path {'.'.join(str(p) for p in traversed_parts)} resolved to an InstanceScope."
             )
         current = resolved
 
-    if not isinstance(current, Proxy):
-        raise TypeError(f"Final resolved value is not a Proxy: {type(current)}")
+    if not isinstance(current, Scope):
+        raise TypeError(f"Final resolved value is not a Scope: {type(current)}")
     return current
 
 
@@ -1994,9 +1994,9 @@ class _DefinitionMapping(
     Mapping[Hashable, Definition],
     Definition,
 ):
-    """Base class for proxy definitions that create Proxy instances from underlying objects."""
+    """Base class for scope definitions that create Scope instances from underlying objects."""
 
-    proxy_class: type[StaticProxy]
+    scope_class: type[StaticScope]
     underlying: object
     extend: tuple["ResourceReference[Hashable]", ...] = ()
 
@@ -2045,7 +2045,7 @@ class _DefinitionMapping(
 class _PackageDefinitionMapping(_DefinitionMapping):
     """A definition for packages that discovers submodules via pkgutil."""
 
-    get_module_proxy_class: Callable[[ModuleType], type[StaticProxy]]
+    get_module_scope_class: Callable[[ModuleType], type[StaticScope]]
     underlying: ModuleType
 
     def __iter__(self) -> Iterator[str]:
@@ -2079,19 +2079,19 @@ class _PackageDefinitionMapping(_DefinitionMapping):
         if hasattr(submod, "__path__"):
             return _PackageDefinitionMapping(
                 underlying=submod,
-                proxy_class=self.get_module_proxy_class(submod),
-                get_module_proxy_class=self.get_module_proxy_class,
+                scope_class=self.get_module_scope_class(submod),
+                get_module_scope_class=self.get_module_scope_class,
             )
         else:
             return _DefinitionMapping(
                 underlying=submod,
-                proxy_class=self.get_module_proxy_class(submod),
+                scope_class=self.get_module_scope_class(submod),
             )
 
 
 def scope(
     *,
-    proxy_class: type[StaticProxy] = CachedProxy,
+    scope_class: type[StaticScope] = CachedScope,
     extend: Iterable["ResourceReference[Hashable]"] = (),
 ) -> Callable[[object], _DefinitionMapping]:
     """
@@ -2100,7 +2100,7 @@ def scope(
 
     Note: Always use @scope() with parentheses, not @scope without parentheses.
 
-    :param proxy_class: The Proxy subclass to use for this scope.
+    :param scope_class: The Scope subclass to use for this scope.
     :param extend: ResourceReferences to other scopes whose mixins should be included.
                    This allows composing scopes without explicit merge operations.
 
@@ -2152,7 +2152,7 @@ def scope(
     def wrapper(c: object) -> _DefinitionMapping:
         return _DefinitionMapping(
             underlying=c,
-            proxy_class=proxy_class,
+            scope_class=scope_class,
             extend=extend_tuple,
         )
 
@@ -2161,7 +2161,7 @@ def scope(
 
 def _parse_package(
     module: ModuleType,
-    get_module_proxy_class: Callable[[ModuleType], type[StaticProxy]],
+    get_module_scope_class: Callable[[ModuleType], type[StaticScope]],
 ) -> _DefinitionMapping:
     """
     Parses a module into a NamespaceDefinition.
@@ -2175,14 +2175,14 @@ def _parse_package(
     For packages (modules with __path__), uses pkgutil.iter_modules to discover submodules
     and importlib.import_module to lazily import them when accessed.
     """
-    proxy_class = get_module_proxy_class(module)
+    scope_class = get_module_scope_class(module)
     if hasattr(module, "__path__"):
         return _PackageDefinitionMapping(
             underlying=module,
-            proxy_class=proxy_class,
-            get_module_proxy_class=get_module_proxy_class,
+            scope_class=scope_class,
+            get_module_scope_class=get_module_scope_class,
         )
-    return _DefinitionMapping(underlying=module, proxy_class=proxy_class)
+    return _DefinitionMapping(underlying=module, scope_class=scope_class)
 
 
 Endofunction = Callable[[TResult], TResult]
@@ -2262,7 +2262,7 @@ def extern(callable: Callable[..., Any]) -> PatcherDefinition[Any]:
     This is syntactic sugar equivalent to :func:`patch_many` returning an empty collection.
     It registers the resource name in the lexical scope without providing any patches,
     making it clear that the value should come from injection from an outer lexical scope
-    via :class:`InstanceProxy` or :meth:`StaticProxy.__call__`.
+    via :class:`InstanceScope` or :meth:`StaticScope.__call__`.
 
     The decorated callable may have parameters for dependency injection, which will be
     resolved from the lexical scope when the resource is accessed. However, the callable's
@@ -2338,7 +2338,7 @@ def eager(definition: TMergerDefinition) -> TMergerDefinition:
     """
     Decorator to mark a MergerDefinition as eager.
 
-    Eager resources are evaluated immediately when the proxy is accessed,
+    Eager resources are evaluated immediately when the scope is accessed,
     rather than being lazily evaluated on first use.
 
     Example::
@@ -2375,9 +2375,9 @@ def local(definition: TMergerDefinition) -> TMergerDefinition:
 
 def evaluate(
     namespace: ModuleType | _DefinitionMapping,
-) -> StaticProxy:
+) -> StaticScope:
     """
-    Resolves a Proxy from the given object using the provided lexical scope.
+    Resolves a Scope from the given object using the provided lexical scope.
 
     :param namespace: Module or namespace definition (decorated with @scope) to resolve resources from.
     :return: An instance of the cls type with resolved mixins.
@@ -2389,11 +2389,11 @@ def evaluate(
     .. todo:: Phase 2: Pass ``symbol`` and ``base_symbols``
               when creating ``NestedMixinMapping``.
     """
-    lexical_scope: LexicalScope = ()
-    root_proxy_class: type[StaticProxy] = CachedProxy
+    captured_scopes: CapturedScopes = ()
+    root_scope_class: type[StaticScope] = CachedScope
 
-    def get_module_proxy_class(_module: ModuleType) -> type[StaticProxy]:
-        return CachedProxy
+    def get_module_scope_class(_module: ModuleType) -> type[StaticScope]:
+        return CachedScope
 
     namespace_definition: _DefinitionMapping
     if isinstance(namespace, _DefinitionMapping):
@@ -2401,7 +2401,7 @@ def evaluate(
     elif isinstance(namespace, ModuleType):
         namespace_definition = _parse_package(
             namespace,
-            get_module_proxy_class=get_module_proxy_class,
+            get_module_scope_class=get_module_scope_class,
         )
     else:
         assert_never(namespace)
@@ -2413,26 +2413,26 @@ def evaluate(
     root_mixin = RootMixinMapping(
         symbol=symbol,
     )
-    return root_proxy_class(
-        mixins={root_mixin: lexical_scope},
+    return root_scope_class(
+        mixins={root_mixin: captured_scopes},
         mixin=root_mixin,
     )
 
 
-def _make_jit_getter(name: str, index: int) -> Callable[[LexicalScope], "Node"]:
+def _make_jit_getter(name: str, index: int) -> Callable[[CapturedScopes], "Node"]:
     """Create a factory that retrieves a resource from lexical scope using JIT-compiled attribute access."""
-    # lambda lexical_scope: lexical_scope[index].{name}
+    # lambda captured_scopes: captured_scopes[index].{name}
     lambda_node = ast.Lambda(
         args=ast.arguments(
             posonlyargs=[],
-            args=[ast.arg(arg="lexical_scope")],
+            args=[ast.arg(arg="captured_scopes")],
             kwonlyargs=[],
             kw_defaults=[],
             defaults=[],
         ),
         body=ast.Attribute(
             value=ast.Subscript(
-                value=ast.Name(id="lexical_scope", ctx=ast.Load()),
+                value=ast.Name(id="captured_scopes", ctx=ast.Load()),
                 slice=ast.Constant(value=index),
                 ctx=ast.Load(),
             ),
@@ -2451,11 +2451,11 @@ def _resolve_dependencies_jit(
     symbol_table: SymbolTable,
     function: Callable[P, T],
     name: str,
-) -> Callable[[LexicalScope], T]:
+) -> Callable[[CapturedScopes], T]:
     """
     Resolve dependencies for a function using JIT-compiled AST.
 
-    The first parameter of the function is treated as a :class:`Proxy` if it is
+    The first parameter of the function is treated as a :class:`Scope` if it is
     positional-only. All other parameters are resolved from the symbol table.
 
     Special case: when param_name == name, uses outer symbol table to
@@ -2465,7 +2465,7 @@ def _resolve_dependencies_jit(
     :param function: The function for which to resolve dependencies.
     :param name: The name of the resource being resolved.
     :return: A wrapper function that takes a lexical scope (where the last element
-             is the current proxy) and returns the result of the original function.
+             is the current scope) and returns the result of the original function.
     """
     sig = signature(function)
     params = tuple(sig.parameters.values())
@@ -2473,7 +2473,7 @@ def _resolve_dependencies_jit(
     if not params:
         return lambda _ls: function()  # type: ignore
 
-    has_proxy = False
+    has_scope = False
     p0 = params[0]
     first_param_in_symbol_table = (
         symbol_table is not ChainMapSentinel.EMPTY and p0.name in symbol_table
@@ -2481,7 +2481,7 @@ def _resolve_dependencies_jit(
     if (p0.kind == p0.POSITIONAL_ONLY) or (
         p0.kind == p0.POSITIONAL_OR_KEYWORD and not first_param_in_symbol_table
     ):
-        has_proxy = True
+        has_scope = True
         kw_params = params[1:]
     else:
         kw_params = params
@@ -2493,7 +2493,7 @@ def _resolve_dependencies_jit(
     for p in kw_params:
         if p.name == name:
             # Same-name dependency: look up from outer symbol table
-            # Generates: symbol_table.parents[p.name].getter(lexical_scope)
+            # Generates: symbol_table.parents[p.name].getter(captured_scopes)
             value_expr = ast.Call(
                 func=ast.Attribute(
                     value=ast.Subscript(
@@ -2508,12 +2508,12 @@ def _resolve_dependencies_jit(
                     attr="getter",
                     ctx=ast.Load(),
                 ),
-                args=[ast.Name(id="lexical_scope", ctx=ast.Load())],
+                args=[ast.Name(id="captured_scopes", ctx=ast.Load())],
                 keywords=[],
             )
         else:
             # Normal dependency: resolve from symbol_table
-            # Generates: symbol_table[p.name].getter(lexical_scope)
+            # Generates: symbol_table[p.name].getter(captured_scopes)
             value_expr = ast.Call(
                 func=ast.Attribute(
                     value=ast.Subscript(
@@ -2524,7 +2524,7 @@ def _resolve_dependencies_jit(
                     attr="getter",
                     ctx=ast.Load(),
                 ),
-                args=[ast.Name(id="lexical_scope", ctx=ast.Load())],
+                args=[ast.Name(id="captured_scopes", ctx=ast.Load())],
                 keywords=[],
             )
         keywords.append(ast.keyword(arg=p.name, value=value_expr))
@@ -2534,12 +2534,12 @@ def _resolve_dependencies_jit(
         args=(
             [
                 ast.Subscript(
-                    value=ast.Name(id="lexical_scope", ctx=ast.Load()),
+                    value=ast.Name(id="captured_scopes", ctx=ast.Load()),
                     slice=ast.Constant(value=-1),
                     ctx=ast.Load(),
                 )
             ]
-            if has_proxy
+            if has_scope
             else []
         ),
         keywords=keywords,
@@ -2548,7 +2548,7 @@ def _resolve_dependencies_jit(
     lambda_node = ast.Lambda(
         args=ast.arguments(
             posonlyargs=[],
-            args=[ast.arg(arg="lexical_scope")],
+            args=[ast.arg(arg="captured_scopes")],
             kwonlyargs=[],
             kw_defaults=[],
             defaults=[],

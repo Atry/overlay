@@ -3,11 +3,11 @@ from typing import Any, Callable, Final, Iterable
 import pytest
 from dataclasses import dataclass
 from mixinject import (
-    LexicalScope,
+    CapturedScopes,
     SymbolTable,
     ChainMapSentinel,
     Node,
-    CachedProxy,
+    CachedScope,
     _DefinitionMapping,
     _NestedSymbolMapping,
     _RootSymbol,
@@ -17,8 +17,8 @@ from mixinject import RootMixinMapping, NestedMixinMapping
 
 
 def _empty_definition() -> _DefinitionMapping:
-    """Create a minimal empty proxy definition for testing."""
-    return _DefinitionMapping(proxy_class=CachedProxy, underlying=object())
+    """Create a minimal empty scope definition for testing."""
+    return _DefinitionMapping(scope_class=CachedScope, underlying=object())
 
 
 def _empty_root_symbol(definition: _DefinitionMapping) -> _RootSymbol:
@@ -39,9 +39,9 @@ def _empty_nested_symbol(
 
 def _empty_mixin() -> NestedMixinMapping:
     """Create a minimal dependency graph for testing."""
-    proxy_def = _empty_definition()
-    root_symbol = _empty_root_symbol(proxy_def)
-    nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
+    scope_def = _empty_definition()
+    root_symbol = _empty_root_symbol(scope_def)
+    nested_symbol = _empty_nested_symbol(root_symbol, scope_def)
     root_mixin = RootMixinMapping(symbol=root_symbol)
     return NestedMixinMapping(
         outer=root_mixin,
@@ -50,9 +50,9 @@ def _empty_mixin() -> NestedMixinMapping:
     )
 
 
-def _empty_proxy() -> CachedProxy:
-    """Create an empty proxy for testing."""
-    return CachedProxy(mixins={}, mixin=_empty_mixin())
+def _empty_scope() -> CachedScope:
+    """Create an empty scope for testing."""
+    return CachedScope(mixins={}, mixin=_empty_mixin())
 
 
 class _MockDefinition:
@@ -73,7 +73,7 @@ class _TestSymbol(_Symbol):
 
     def __post_init__(self) -> None:
         # Create a getitem-based getter instead of attribute-based
-        getter = lambda lexical_scope: lexical_scope[self._depth][self._resource_name]
+        getter = lambda captured_scopes: captured_scopes[self._depth][self._resource_name]
         object.__setattr__(self, "getter", getter)
 
     @property
@@ -115,13 +115,13 @@ def test_symbol_table_extension_consistency():
     extension through their symbol_table cached_property.
     """
     # Setup
-    proxy_inner = _empty_proxy()(a=1, b=2)
-    proxy_outer = _empty_proxy()(c=3, a=100)  # 'a' is shadowed in inner
+    scope_inner = _empty_scope()(a=1, b=2)
+    scope_outer = _empty_scope()(c=3, a=100)  # 'a' is shadowed in inner
 
     # ls_outer = (outer,)
-    ls_outer: LexicalScope = (proxy_outer,)
+    ls_outer: CapturedScopes = (scope_outer,)
     # ls_full = (outer, inner)
-    ls_full: LexicalScope = (proxy_outer, proxy_inner)
+    ls_full: CapturedScopes = (scope_outer, scope_inner)
 
     st_init: SymbolTable = ChainMapSentinel.EMPTY
 
@@ -135,7 +135,7 @@ def test_symbol_table_extension_consistency():
         c = _make_mock_definition("c")
         a = _make_mock_definition("a")
 
-    mock_outer_def = _DefinitionMapping(proxy_class=CachedProxy, underlying=_MockOuterNamespace())
+    mock_outer_def = _DefinitionMapping(scope_class=CachedScope, underlying=_MockOuterNamespace())
     root_symbol = _RootSymbol(definition=mock_outer_def)
     st_jit = root_symbol.symbol_table
 
@@ -159,7 +159,7 @@ def test_symbol_table_extension_consistency():
         a = _make_mock_definition("a")
         b = _make_mock_definition("b")
 
-    mock_inner_def = _DefinitionMapping(proxy_class=CachedProxy, underlying=_MockInnerNamespace())
+    mock_inner_def = _DefinitionMapping(scope_class=CachedScope, underlying=_MockInnerNamespace())
     nested_symbol = _NestedSymbolMapping(
         outer=root_symbol,
         name="inner",
@@ -182,17 +182,17 @@ def test_symbol_table_extension_consistency():
 
 def test_jit_factory_invalid_identifier():
     """Test if JIT factory handles names that are not valid identifiers but valid keys."""
-    proxy = _empty_proxy()(**{"not_identifier": "value"})
-    lexical_scope: LexicalScope = (proxy,)
+    scope = _empty_scope()(**{"not_identifier": "value"})
+    captured_scopes: CapturedScopes = (scope,)
 
     # Create a mock namespace with a Definition attribute
     class _MockNamespace:
         not_identifier = _make_mock_definition("not_identifier")
 
-    mock_def = _DefinitionMapping(proxy_class=CachedProxy, underlying=_MockNamespace())
+    mock_def = _DefinitionMapping(scope_class=CachedScope, underlying=_MockNamespace())
     root_symbol = _RootSymbol(definition=mock_def)
     symbol_table_jit = root_symbol.symbol_table
-    assert symbol_table_jit["not_identifier"].getter(lexical_scope) == "value"
+    assert symbol_table_jit["not_identifier"].getter(captured_scopes) == "value"
 
     # If we use a name that is not a valid identifier (contains space)
     # This cannot be tested directly as Python attributes cannot have spaces
@@ -214,12 +214,12 @@ def test_symbol_interning_identity_equality():
 
     class _MockOuterNamespace:
         Inner = _DefinitionMapping(
-            proxy_class=CachedProxy, underlying=_MockInnerNamespace()
+            scope_class=CachedScope, underlying=_MockInnerNamespace()
         )
         baz = _make_mock_definition("baz")
 
     mock_outer_def = _DefinitionMapping(
-        proxy_class=CachedProxy, underlying=_MockOuterNamespace()
+        scope_class=CachedScope, underlying=_MockOuterNamespace()
     )
     root_symbol = _RootSymbol(definition=mock_outer_def)
 
@@ -257,7 +257,7 @@ def test_symbol_hashability():
     class _MockNamespace:
         foo = _make_mock_definition("foo")
 
-    mock_def = _DefinitionMapping(proxy_class=CachedProxy, underlying=_MockNamespace())
+    mock_def = _DefinitionMapping(scope_class=CachedScope, underlying=_MockNamespace())
     root_symbol = _RootSymbol(definition=mock_def)
 
     # _SymbolMapping (root_symbol) should be hashable
@@ -271,7 +271,7 @@ def test_symbol_hashability():
         bar = _make_mock_definition("bar")
 
     nested_def = _DefinitionMapping(
-        proxy_class=CachedProxy, underlying=_MockNestedNamespace()
+        scope_class=CachedScope, underlying=_MockNestedNamespace()
     )
     nested_symbol = _NestedSymbolMapping(
         outer=root_symbol,

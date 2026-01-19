@@ -6,8 +6,8 @@ from unittest.mock import Mock
 
 import pytest
 from mixinject import (
-    LexicalScope,
-    Proxy,
+    CapturedScopes,
+    Scope,
     SymbolTable,
     _resolve_dependencies_jit,
     _Symbol,
@@ -29,7 +29,7 @@ _MOCK_DEFINITION = _MockDefinition()
 class _MockSymbol(_Symbol):
     """Mock symbol for testing that wraps a getter function."""
 
-    _getter_func: Final[Callable[[LexicalScope], Any]]
+    _getter_func: Final[Callable[[CapturedScopes], Any]]
     _depth: Final[int] = 0
     _resource_name: Final[str] = ""
     definition: Any = _MOCK_DEFINITION  # type: ignore[misc]
@@ -50,7 +50,7 @@ class _MockSymbol(_Symbol):
         raise NotImplementedError("_MockSymbol is not compilable")
 
 
-def _make_mock_symbol_table(mapping: dict[str, Callable[[LexicalScope], Any]]) -> SymbolTable:
+def _make_mock_symbol_table(mapping: dict[str, Callable[[CapturedScopes], Any]]) -> SymbolTable:
     """Create a symbol table from a dict of name -> getter function."""
     symbols: dict[str, _Symbol] = {
         name: _MockSymbol(_getter_func=getter) for name, getter in mapping.items()
@@ -62,7 +62,7 @@ def _resolve_dependencies_kwargs(
     symbol_table: SymbolTable,
     function: Callable[P, T],
     name: str,
-) -> Callable[[LexicalScope], T]:
+) -> Callable[[CapturedScopes], T]:
     """
     Resolve dependencies for a function using standard keyword arguments.
     (Testing version)
@@ -70,31 +70,31 @@ def _resolve_dependencies_kwargs(
     sig = signature(function)
     params = tuple(sig.parameters.values())
 
-    has_proxy = False
+    has_scope = False
     if params:
         p0 = params[0]
         if (p0.kind == p0.POSITIONAL_ONLY) or (
             p0.kind == p0.POSITIONAL_OR_KEYWORD and p0.name not in symbol_table
         ):
-            has_proxy = True
+            has_scope = True
             kw_params = params[1:]
         else:
             kw_params = params
     else:
         kw_params = []
 
-    def resolved_function(lexical_scope: LexicalScope) -> T:
+    def resolved_function(captured_scopes: CapturedScopes) -> T:
         kwargs = {
             param.name: (
-                symbol_table.parents[param.name].getter(lexical_scope)
+                symbol_table.parents[param.name].getter(captured_scopes)
                 if param.name == name
-                else symbol_table[param.name].getter(lexical_scope)
+                else symbol_table[param.name].getter(captured_scopes)
             )
             for param in kw_params
         }
 
-        if has_proxy:
-            return function(lexical_scope[0], **kwargs)  # type: ignore
+        if has_scope:
+            return function(captured_scopes[0], **kwargs)  # type: ignore
         else:
             return function(**kwargs)  # type: ignore
 
@@ -102,9 +102,9 @@ def _resolve_dependencies_kwargs(
 
 
 def test_resolve_dependencies_consistency():
-    lexical_scope: LexicalScope = ()
+    captured_scopes: CapturedScopes = ()
 
-    mock_proxy = Mock(spec=Proxy)
+    mock_scope = Mock(spec=Scope)
 
     # Mock symbol table
     symbol_table = _make_mock_symbol_table(
@@ -118,16 +118,16 @@ def test_resolve_dependencies_consistency():
     test_cases: list[Callable[..., Any]] = [
         # No arguments
         lambda: "no args",
-        # Only proxy (positional only)
-        lambda p, /: f"proxy only: {p}",
-        # Only proxy (name not in symbol table)
-        lambda proxy: f"proxy only: {proxy}",
-        # Mixed proxy and dependencies
+        # Only scope (positional only)
+        lambda p, /: f"scope only: {p}",
+        # Only scope (name not in symbol table)
+        lambda scope: f"scope only: {scope}",
+        # Mixed scope and dependencies
         lambda p, /, a, b: f"p={p}, a={a}, b={b}",
-        lambda proxy, a, b: f"proxy={proxy}, a={a}, b={b}",
+        lambda scope, a, b: f"scope={scope}, a={a}, b={b}",
         # Only dependencies
         lambda a, b: f"a={a}, b={b}",
-        # Dependency named as proxy but it IS in symbol table
+        # Dependency named as scope but it IS in symbol table
         lambda a: f"a={a}",
     ]
 
@@ -135,49 +135,49 @@ def test_resolve_dependencies_consistency():
         resolved_kwargs = _resolve_dependencies_kwargs(symbol_table, func, "dummy")
         resolved_jit = _resolve_dependencies_jit(symbol_table, func, "dummy")
 
-        result_kwargs = resolved_kwargs((mock_proxy, *lexical_scope))
-        result_jit = resolved_jit((mock_proxy, *lexical_scope))
+        result_kwargs = resolved_kwargs((mock_scope, *captured_scopes))
+        result_jit = resolved_jit((mock_scope, *captured_scopes))
 
         assert result_kwargs == result_jit, f"Consistency failed for {func}"
         if "no args" in str(result_kwargs):
             assert result_kwargs == "no args"
-        elif "proxy only" in str(result_kwargs):
-            # Check if mock_proxy or its string representation is in result
-            assert str(mock_proxy) in str(result_kwargs)
+        elif "scope only" in str(result_kwargs):
+            # Check if mock_scope or its string representation is in result
+            assert str(mock_scope) in str(result_kwargs)
 
 
 def test_resolve_dependencies_complex_signatures():
-    lexical_scope: LexicalScope = ()
+    captured_scopes: CapturedScopes = ()
 
-    mock_proxy = Mock(spec=Proxy)
+    mock_scope = Mock(spec=Scope)
     symbol_table = _make_mock_symbol_table({"a": lambda ls: 10, "b": lambda ls: 20})
 
     # Positional only argument named 'a' which is in symbol table
-    # Since it is positional only, it should be treated as proxy.
+    # Since it is positional only, it should be treated as scope.
     def func1(a, /, b):
         return (a, b)
 
     res_kwargs = _resolve_dependencies_kwargs(symbol_table, func1, "dummy")
     res_jit = _resolve_dependencies_jit(symbol_table, func1, "dummy")
 
-    assert res_kwargs((mock_proxy, *lexical_scope)) == (mock_proxy, 20)
-    assert res_jit((mock_proxy, *lexical_scope)) == (mock_proxy, 20)
+    assert res_kwargs((mock_scope, *captured_scopes)) == (mock_scope, 20)
+    assert res_jit((mock_scope, *captured_scopes)) == (mock_scope, 20)
 
     # Positional or keyword argument named 'a' which is in symbol table
-    # It should NOT be treated as proxy.
+    # It should NOT be treated as scope.
     def func2(a, b):
         return (a, b)
 
     res_kwargs = _resolve_dependencies_kwargs(symbol_table, func2, "dummy")
     res_jit = _resolve_dependencies_jit(symbol_table, func2, "dummy")
 
-    assert res_kwargs((mock_proxy, *lexical_scope)) == (10, 20)
-    assert res_jit((mock_proxy, *lexical_scope)) == (10, 20)
+    assert res_kwargs((mock_scope, *captured_scopes)) == (10, 20)
+    assert res_jit((mock_scope, *captured_scopes)) == (10, 20)
 
 
 def test_resolve_dependencies_same_name():
-    lexical_scope: LexicalScope = ()
-    mock_proxy = Mock(spec=Proxy)
+    captured_scopes: CapturedScopes = ()
+    mock_scope = Mock(spec=Scope)
 
     # Layered symbol table
     inner_symbols: dict[str, _Symbol] = {
@@ -195,15 +195,15 @@ def test_resolve_dependencies_same_name():
 
     # Test kwargs implementation
     res_kwargs = _resolve_dependencies_kwargs(symbol_table, func, "a")
-    assert res_kwargs((mock_proxy, *lexical_scope)) == "outer_a"
+    assert res_kwargs((mock_scope, *captured_scopes)) == "outer_a"
 
     # Test jit implementation
     res_jit = _resolve_dependencies_jit(symbol_table, func, "a")
-    assert res_jit((mock_proxy, *lexical_scope)) == "outer_a"
+    assert res_jit((mock_scope, *captured_scopes)) == "outer_a"
 
     # When name is different, it should use inner_table
     res_kwargs_diff = _resolve_dependencies_kwargs(symbol_table, func, "other")
-    assert res_kwargs_diff((mock_proxy, *lexical_scope)) == "inner_a"
+    assert res_kwargs_diff((mock_scope, *captured_scopes)) == "inner_a"
 
     res_jit_diff = _resolve_dependencies_jit(symbol_table, func, "other")
-    assert res_jit_diff((mock_proxy, *lexical_scope)) == "inner_a"
+    assert res_jit_diff((mock_scope, *captured_scopes)) == "inner_a"

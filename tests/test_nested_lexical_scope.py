@@ -5,9 +5,9 @@ from typing import Callable
 from mixinject import (
     Merger,
     Patcher,
-    Proxy,
-    StaticProxy,
-    CachedProxy,
+    Scope,
+    StaticScope,
+    CachedScope,
     WeakCachedScope,
     resource,
     extern,
@@ -16,7 +16,7 @@ from mixinject import (
     scope,
     Definition,
     MixinMapping,
-    LexicalScope,
+    CapturedScopes,
     RelativeReference as R,
 )
 
@@ -66,12 +66,12 @@ class Result:
 @dataclass(frozen=True)
 class Dual(Patcher[Any], Merger[Any, Any]):
     value: Any
-    _proxy_class: type[Proxy] | None = None
+    _scope_class: type[Scope] | None = None
 
     @property
     @override
-    def proxy_class(self) -> type[Proxy] | None:
-        return self._proxy_class
+    def scope_class(self) -> type[Scope] | None:
+        return self._scope_class
 
     @override
     def create(self, patches: Iterator[Any]) -> Any:
@@ -87,12 +87,12 @@ class Dual(Patcher[Any], Merger[Any, Any]):
 @dataclass(frozen=True)
 class PureMerger(Merger[Any, Any]):
     value: Any
-    _proxy_class: type[Proxy] | None = None
+    _scope_class: type[Scope] | None = None
 
     @property
     @override
-    def proxy_class(self) -> type[Proxy] | None:
-        return self._proxy_class
+    def scope_class(self) -> type[Scope] | None:
+        return self._scope_class
 
     @override
     def create(self, patches: Iterator[Any]) -> Any:
@@ -109,8 +109,8 @@ class _DirectSymbol:
 
     def compile(
         self, mixin: MixinMapping, /
-    ) -> Callable[[LexicalScope], Merger[Any, Any] | Patcher[Any]]:
-        return lambda _lexical_scope: self.item
+    ) -> Callable[[CapturedScopes], Merger[Any, Any] | Patcher[Any]]:
+        return lambda _captured_scopes: self.item
 
 
 @dataclass
@@ -123,9 +123,9 @@ class DirectDefinition(Definition):
         return _DirectSymbol(item=self.item)
 
 
-@pytest.mark.parametrize("proxy_class", [CachedProxy, WeakCachedScope])
-class TestNestedLexicalScope:
-    def test_nested_lexical_scope_lookup(self, proxy_class: type[Proxy]) -> None:
+@pytest.mark.parametrize("scope_class", [CachedScope, WeakCachedScope])
+class TestNestedCapturedScopes:
+    def test_nested_captured_scopes_lookup(self, scope_class: type[Scope]) -> None:
         """
         Non-same-name parameters can be looked up in outer lexical scope.
         """
@@ -146,7 +146,7 @@ class TestNestedLexicalScope:
         root = evaluate(Outer)
         assert root.Inner.inner_val == Result("inner-outer")
 
-    def test_evaluate_resource_dual_role_single(self, proxy_class: type[Proxy]) -> None:
+    def test_evaluate_resource_dual_role_single(self, scope_class: type[Scope]) -> None:
         """Test: Single Dual item -> selected as Merger."""
 
         @scope()
@@ -156,7 +156,7 @@ class TestNestedLexicalScope:
         root = evaluate(Namespace)
         assert root.target == Result("merger-A-")
 
-    def test_evaluate_resource_dual_and_patch(self, proxy_class: type[Proxy]) -> None:
+    def test_evaluate_resource_dual_and_patch(self, scope_class: type[Scope]) -> None:
         """Test: Dual + Dual -> One is Merger, other is Patch."""
 
         @scope()
@@ -182,7 +182,7 @@ class TestNestedLexicalScope:
         assert value == Result("merger-A-patch-B") or value == Result("merger-B-patch-A")
 
     def test_evaluate_resource_pure_merger_and_dual(
-        self, proxy_class: type[Proxy]
+        self, scope_class: type[Scope]
     ) -> None:
         """Test: Pure Merger + Dual -> Pure Merger selected, Dual is Patch."""
 
@@ -208,7 +208,7 @@ class TestNestedLexicalScope:
         assert root.Combined.target == Result("pure-P-patch-D")
 
     def test_evaluate_resource_multiple_pure_mergers_error(
-        self, proxy_class: type[Proxy]
+        self, scope_class: type[Scope]
     ) -> None:
         """Test: Multiple pure mergers -> ValueError."""
 
@@ -233,7 +233,7 @@ class TestNestedLexicalScope:
         with pytest.raises(ValueError, match="Multiple Factory definitions provided"):
             _ = root.Combined.target
 
-    def test_evaluate_resource_no_merger_error(self, proxy_class: type[Proxy]) -> None:
+    def test_evaluate_resource_no_merger_error(self, scope_class: type[Scope]) -> None:
         """Test: Only patches (no merger) -> NotImplementedError."""
 
         @dataclass(frozen=True)
@@ -252,7 +252,7 @@ class TestNestedLexicalScope:
         with pytest.raises(NotImplementedError, match="No Factory definition provided"):
             _ = root.target
 
-    def test_scope_as_patch(self, proxy_class: type[Proxy]) -> None:
+    def test_scope_as_patch(self, scope_class: type[Scope]) -> None:
         """Test: @scope used as a patch for another @scope.
 
         When Extension depends on resources from Base, it must declare
@@ -293,28 +293,28 @@ class TestNestedLexicalScope:
         assert root.Combined.extended_val == Result("base-extended")
         assert root.Combined.extra == Result("extra")
 
-    def test_scope_proxy_class_resolution(self, proxy_class: type[Proxy]) -> None:
-        """Test: Proxy class is determined by the scope declaring extend=."""
+    def test_scope_scope_class_resolution(self, scope_class: type[Scope]) -> None:
+        """Test: Scope class is determined by the scope declaring extend=."""
 
-        class CustomProxy(CachedProxy):
+        class CustomScope(CachedScope):
             pass
 
         @scope()
         class Root:
-            @scope(proxy_class=CachedProxy)
+            @scope(scope_class=CachedScope)
             class Base:
                 @resource
                 def val() -> str:
                     return "base"
 
-            @scope(proxy_class=CachedProxy)
+            @scope(scope_class=CachedScope)
             class Extension:
                 @resource
                 def extra() -> str:
                     return "extra"
 
-            # Combined explicitly sets proxy_class=CustomProxy
-            @scope(proxy_class=CustomProxy, extend=[
+            # Combined explicitly sets scope_class=CustomScope
+            @scope(scope_class=CustomScope, extend=[
                 R(levels_up=0, path=("Base",)),
                 R(levels_up=0, path=("Extension",)),
             ])
@@ -322,29 +322,29 @@ class TestNestedLexicalScope:
                 pass
 
         root = evaluate(Root)
-        # Combined's proxy_class (CustomProxy) is used
-        assert isinstance(root.Combined, CustomProxy)
+        # Combined's scope_class (CustomScope) is used
+        assert isinstance(root.Combined, CustomScope)
         assert not isinstance(root.Combined, WeakCachedScope)
 
-    def test_scope_proxy_class_uses_declaring_scope(self, proxy_class: type[Proxy]) -> None:
-        """Test: Combined scope uses its own proxy_class, not from extended scopes."""
+    def test_scope_scope_class_uses_declaring_scope(self, scope_class: type[Scope]) -> None:
+        """Test: Combined scope uses its own scope_class, not from extended scopes."""
 
         @scope()
         class Root:
-            @scope(proxy_class=WeakCachedScope)
+            @scope(scope_class=WeakCachedScope)
             class Base:
                 @resource
                 def val() -> str:
                     return "base"
 
-            @scope(proxy_class=CachedProxy)
+            @scope(scope_class=CachedScope)
             class Extension:
                 @resource
                 def extra() -> str:
                     return "extra"
 
-            # Combined uses CachedProxy regardless of what Base/Extension use
-            @scope(proxy_class=CachedProxy, extend=[
+            # Combined uses CachedScope regardless of what Base/Extension use
+            @scope(scope_class=CachedScope, extend=[
                 R(levels_up=0, path=("Base",)),
                 R(levels_up=0, path=("Extension",)),
             ])
@@ -352,8 +352,8 @@ class TestNestedLexicalScope:
                 pass
 
         root = evaluate(Root)
-        # Combined uses its own proxy_class (CachedProxy), not Base's WeakCachedScope
-        assert isinstance(root.Combined, CachedProxy)
+        # Combined uses its own scope_class (CachedScope), not Base's WeakCachedScope
+        assert isinstance(root.Combined, CachedScope)
         # Resources from both Base and Extension are accessible
         assert root.Combined.val == "base"
         assert root.Combined.extra == "extra"

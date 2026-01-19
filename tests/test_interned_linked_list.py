@@ -3,12 +3,12 @@ import gc
 from mixinject import (
     NestedMixinMapping,
     MixinMapping,
-    Proxy,
+    Scope,
     RootMixinMapping,
     evaluate,
     resource,
     scope,
-    CachedProxy,
+    CachedScope,
     _DefinitionMapping,
     _NestedSymbolMapping,
     _RootSymbol,
@@ -17,8 +17,8 @@ from mixinject import (
 
 
 def _empty_definition() -> _DefinitionMapping:
-    """Create a minimal empty proxy definition for testing."""
-    return _DefinitionMapping(proxy_class=CachedProxy, underlying=object())
+    """Create a minimal empty scope definition for testing."""
+    return _DefinitionMapping(scope_class=CachedScope, underlying=object())
 
 
 def _empty_root_symbol(definition: _DefinitionMapping) -> _RootSymbol:
@@ -41,16 +41,16 @@ class TestRoot:
     """Test root dependency graph behavior."""
 
     def test_root_hasintern_pool(self) -> None:
-        proxy_def = _empty_definition()
-        root_symbol = _empty_root_symbol(proxy_def)
+        scope_def = _empty_definition()
+        root_symbol = _empty_root_symbol(scope_def)
         root = RootMixinMapping(symbol=root_symbol)
         assert root.intern_pool is not None
 
     def test_different_roots_have_different_pools(self) -> None:
-        proxy_def1 = _empty_definition()
-        root_symbol1 = _empty_root_symbol(proxy_def1)
-        proxy_def2 = _empty_definition()
-        root_symbol2 = _empty_root_symbol(proxy_def2)
+        scope_def1 = _empty_definition()
+        root_symbol1 = _empty_root_symbol(scope_def1)
+        scope_def2 = _empty_definition()
+        root_symbol2 = _empty_root_symbol(scope_def2)
         root1 = RootMixinMapping(symbol=root_symbol1)
         root2 = RootMixinMapping(symbol=root_symbol2)
         assert root1.intern_pool is not root2.intern_pool
@@ -59,15 +59,15 @@ class TestRoot:
 class TestInterning:
     """Test interning behavior for O(1) equality.
 
-    Note: Interning now happens in proxy_factory and mount, not in __new__.
+    Note: Interning now happens in scope_factory and mount, not in __new__.
     Direct instantiation creates new objects each time.
     """
 
     def test_direct_instantiation_creates_new_objects(self) -> None:
-        """Direct instantiation without going through proxy_factory creates new objects."""
-        proxy_def = _empty_definition()
-        root_symbol = _empty_root_symbol(proxy_def)
-        nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
+        """Direct instantiation without going through scope_factory creates new objects."""
+        scope_def = _empty_definition()
+        root_symbol = _empty_root_symbol(scope_def)
+        nested_symbol = _empty_nested_symbol(root_symbol, scope_def)
         root = RootMixinMapping(symbol=root_symbol)
         child1 = NestedMixinMapping(outer=root, symbol=nested_symbol, name="test1")
         child2 = NestedMixinMapping(outer=root, symbol=nested_symbol, name="test2")
@@ -75,9 +75,9 @@ class TestInterning:
         assert child1 is not child2
 
     def test_different_parent_different_object(self) -> None:
-        proxy_def = _empty_definition()
-        root_symbol = _empty_root_symbol(proxy_def)
-        nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
+        scope_def = _empty_definition()
+        root_symbol = _empty_root_symbol(scope_def)
+        nested_symbol = _empty_nested_symbol(root_symbol, scope_def)
         root1 = RootMixinMapping(symbol=root_symbol)
         root2 = RootMixinMapping(symbol=root_symbol)
         child1 = NestedMixinMapping(outer=root1, symbol=nested_symbol, name="test")
@@ -85,9 +85,9 @@ class TestInterning:
         assert child1 is not child2
 
     def test_each_node_has_ownintern_pool(self) -> None:
-        proxy_def = _empty_definition()
-        root_symbol = _empty_root_symbol(proxy_def)
-        nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
+        scope_def = _empty_definition()
+        root_symbol = _empty_root_symbol(scope_def)
+        nested_symbol = _empty_nested_symbol(root_symbol, scope_def)
         root = RootMixinMapping(symbol=root_symbol)
         child1 = NestedMixinMapping(outer=root, symbol=nested_symbol, name="child1")
         child2 = NestedMixinMapping(outer=child1, symbol=nested_symbol, name="child2")
@@ -106,12 +106,12 @@ class TestInterning:
         root1 = evaluate(Root)
         root2 = evaluate(Root)
 
-        # Different mount calls create different proxies
+        # Different mount calls create different scopes
         assert root1 is not root2
         # But they should have different mixins since each mount creates a new root
 
     def test_interning_via_nested_scope_access(self) -> None:
-        """Accessing the same nested scope multiple times returns proxies with the same mixin."""
+        """Accessing the same nested scope multiple times returns scopes with the same mixin."""
         @scope()
         class Root:
             @scope()
@@ -124,11 +124,11 @@ class TestInterning:
         inner1 = root.Inner
         inner2 = root.Inner
 
-        # Cached proxy should return the same object
+        # Cached scope should return the same object
         assert inner1 is inner2
         # Therefore same mixin
-        assert isinstance(inner1, Proxy)
-        assert isinstance(inner2, Proxy)
+        assert isinstance(inner1, Scope)
+        assert isinstance(inner2, Scope)
         assert inner1.mixin is inner2.mixin
 
 
@@ -137,9 +137,9 @@ class TestWeakReference:
 
     def test_intern_pool_supports_weak_references(self) -> None:
         """The intern pool is a WeakValueDictionary."""
-        proxy_def = _empty_definition()
-        root_symbol = _empty_root_symbol(proxy_def)
-        nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
+        scope_def = _empty_definition()
+        root_symbol = _empty_root_symbol(scope_def)
+        nested_symbol = _empty_nested_symbol(root_symbol, scope_def)
         root = RootMixinMapping(symbol=root_symbol)
         # Add an entry manually to the pool
         child = NestedMixinMapping(outer=root, symbol=nested_symbol, name="test")
@@ -165,15 +165,15 @@ class TestSubclass:
         assert issubclass(NestedMixinMapping, MixinMapping)
 
     def test_root_instance_is_instance_of_mixin(self) -> None:
-        proxy_def = _empty_definition()
-        root_symbol = _empty_root_symbol(proxy_def)
+        scope_def = _empty_definition()
+        root_symbol = _empty_root_symbol(scope_def)
         root = RootMixinMapping(symbol=root_symbol)
         assert isinstance(root, MixinMapping)
 
     def test_child_instance_is_instance_of_mixin(self) -> None:
-        proxy_def = _empty_definition()
-        root_symbol = _empty_root_symbol(proxy_def)
-        nested_symbol = _empty_nested_symbol(root_symbol, proxy_def)
+        scope_def = _empty_definition()
+        root_symbol = _empty_root_symbol(scope_def)
+        nested_symbol = _empty_nested_symbol(root_symbol, scope_def)
         root = RootMixinMapping(symbol=root_symbol)
         child = NestedMixinMapping(outer=root, symbol=nested_symbol, name="test")
         assert isinstance(child, MixinMapping)
