@@ -1849,7 +1849,63 @@ def _resolve_mixin_reference(
     mixin: "MixinMapping",
     expected_type: type[TMixin],
 ) -> TMixin:
-    raise NotImplementedError("To be implemented")
+    """
+    Resolve a ResourceReference to a Mixin using the given mixin as starting point.
+
+    This is the compile-time analog of :func:`_resolve_resource_reference`. Instead of
+    traversing Proxy objects at runtime, it traverses MixinMapping objects at compile-time.
+
+    For RelativeReference:
+        - Navigate up `levels_up` levels from the given mixin via ``.outer``
+        - Then navigate down through ``path`` using ``mixin[key]``
+
+    For AbsoluteReference:
+        - Start from the root mixin (traverse up via ``.outer`` until reaching root)
+        - Navigate down through ``path`` using ``mixin[key]``
+
+    :param reference: The reference describing the path to the target mixin.
+    :param mixin: The starting mixin for relative references.
+    :param expected_type: The expected type of the resolved mixin.
+    :return: The resolved mixin of the expected type.
+    :raises ValueError: If navigation goes beyond the root mixin.
+    :raises TypeError: If intermediate or final resolved value is not of expected type.
+    """
+    match reference:
+        case RelativeReference(levels_up=levels_up, path=parts):
+            current: MixinMapping = mixin
+            for level in range(levels_up):
+                if not isinstance(current, NestedMixinMapping):
+                    raise ValueError(
+                        f"Cannot navigate up {levels_up} levels: "
+                        f"reached {type(current).__name__} (no outer) at level {level}"
+                    )
+                current = current.outer
+        case AbsoluteReference(path=parts):
+            # Navigate to root
+            current = mixin
+            while isinstance(current, NestedMixinMapping):
+                current = current.outer
+        case _ as unreachable:
+            assert_never(unreachable)
+
+    # Navigate through parts
+    for part_index, part in enumerate(parts):
+        resolved = current[part]
+        if not isinstance(resolved, MixinMapping):
+            path_so_far = ".".join(str(p) for p in parts[: part_index + 1])
+            raise TypeError(
+                f"Expected MixinMapping while resolving reference, "
+                f"got {type(resolved).__name__} at part '{part}' "
+                f"(path: {path_so_far})"
+            )
+        current = resolved
+
+    if not isinstance(current, expected_type):
+        raise TypeError(
+            f"Final resolved mixin is not {expected_type.__name__}: "
+            f"got {type(current).__name__}"
+        )
+    return current
 
 
 def _resolve_resource_reference(
@@ -1873,26 +1929,8 @@ def _resolve_resource_reference(
         paths through InstanceProxy (e.g., object1.MyInner where object1 is an
         InstanceProxy).
 
-    .. todo:: 添加 ``_resolve_mixin_reference`` 辅助函数，类似本函数，
-              但参数为 ``mixin: MixinMapping`` 而非 ``lexical_scope: LexicalScope``，
-              返回类型为 ``Callable[[LexicalScope], Evaluator]``
-              （实际上是 ``NestedMixinMapping``，它本质上是特殊的
-              ``Callable[[LexicalScope], Evaluator]``）。
-
-              该函数用于在 dependency graph 中查找静态的 ``Callable[[LexicalScope], Evaluator]``。
-              与 ``_resolve_resource_reference`` 的区别在于：
-
-              - ``_resolve_resource_reference``: 运行时解析，遍历 lexical_scope 中的 Proxy 对象
-              - ``_resolve_mixin_reference``: 编译时解析，遍历 mixin 中的
-                ``NestedMixinMapping``，返回可被 JIT 缓存的 callable
-
-              签名示例::
-
-                  def _resolve_mixin_reference(
-                      reference: ResourceReference[TKey],
-                      mixin: MixinMapping,
-                  ) -> Callable[[LexicalScope], Evaluator]:
-                      ...
+    .. seealso:: :func:`_resolve_mixin_reference` for the compile-time analog that
+                 traverses MixinMapping objects instead of Proxy objects.
     """
     match reference:
         case RelativeReference(levels_up=levels_up, path=parts):
