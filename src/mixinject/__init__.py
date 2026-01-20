@@ -821,7 +821,7 @@ def _compile_synthetic(
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
-class _SyntheticSymbol(ABC):
+class _SyntheticSymbol(Symbol):
     """
     Marker base class for synthetic symbols (no local definition, only inherited).
 
@@ -837,7 +837,7 @@ class _SyntheticSymbol(ABC):
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
-class _DefinedSymbol(ABC):
+class _DefinedSymbol(Symbol):
     """
     Marker base class for defined symbols (has local definition in current scope).
 
