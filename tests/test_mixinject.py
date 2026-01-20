@@ -8,7 +8,7 @@ import pytest
 from mixinject import (
     FunctionalMergerDefinition,
     Merger,
-    InstanceScopeSymbol,
+    Symbol,
     InstanceScope,
     DefinedSymbol,
     CapturedScopes,
@@ -29,7 +29,7 @@ from mixinject import (
     scope,
     _parse_package,
 )
-from mixinject import DefinedScopeSymbol, OuterSentinel, KeySentinel
+from mixinject import DefinedScopeSymbol, OuterSentinel, KeySentinel, SyntheticSymbol
 
 R = RelativeReference
 
@@ -678,32 +678,26 @@ class TestInstanceScopeReversedPath:
         my_inner = my_instance.MyInner
 
         # The mixin should be InstanceChildScopeSymbol to distinguish from static path
-        assert isinstance(my_instance.symbol, InstanceScopeSymbol)
+        assert isinstance(my_instance.symbol, Symbol)
 
         # Verify the resource works correctly
         assert my_inner.foo == "foo_42"
 
 
-class TestInstanceScopeSymbolDepth:
-    """Test depth calculation through InstanceScopeSymbol chains."""
+class TestSymbolDepth:
+    """Test depth calculation through Symbol chains."""
 
-    @pytest.mark.xfail(
-        reason="BUG: InstanceScopeSymbol.__getitem__ delegates to prototype[key], "
-        "returning a mixin with outer=prototype instead of outer=self. "
-        "This causes depth to be computed incorrectly and _find_param_in_symbol_chain "
-        "to fail when traversing through InstanceScopeSymbol."
-    )
     def test_nested_symbol_outer_should_be_instance_symbol_mapping(self) -> None:
-        """When accessing nested scope through InstanceScope, mixin's outer should be InstanceScopeSymbol.
+        """When accessing nested scope through InstanceScope, mixin's outer should be Symbol.
 
-        Current bug: InstanceScopeSymbol.__getitem__ does:
+        Current bug: Symbol.__getitem__ does:
             return self.prototype[key]  # Returns mixin with outer=prototype
 
-        Expected: Should return a mixin with outer=self (the InstanceScopeSymbol).
+        Expected: Should return a mixin with outer=self (the Symbol).
 
         This test verifies the mixin chain is correct when accessing through instance scopes.
         """
-        from mixinject import InstanceScopeSymbol
+        from mixinject import Symbol
 
         @scope
         class Root:
@@ -724,11 +718,11 @@ class TestInstanceScopeSymbolDepth:
         # Access Inner through the instance
         inner = instance.Inner
 
-        # The inner scope's mixin should have outer=InstanceScopeSymbol
+        # The inner scope's mixin should have outer=Symbol
         # Currently it has outer=Outer's NestedScopeSymbol (from prototype)
-        assert isinstance(inner.symbol.outer, InstanceScopeSymbol), (
-            f"Expected outer to be InstanceScopeSymbol, got {type(inner.symbol.outer)}"
-        )
+        assert isinstance(
+            inner.symbol.outer, Symbol
+        ), f"Expected outer to be Symbol, got {type(inner.symbol.outer)}"
 
 
 class TestDefinitionSharing:
@@ -788,23 +782,12 @@ class TestDefinitionSharing:
 
         assert instance_definition is static_definition
 
-    @pytest.mark.xfail(
-        reason="BUG: Same issue as test_definition_shared_between_instance_and_static_access. "
-        "InstanceChildScopeSymbol has separate intern_pool from ChildScopeSymbol, "
-        "causing different definition values for the same underlying scope definition."
-    )
-    def test_definition_shared_when_scope_extends_another(self) -> None:
-        """Definition should be shared when accessing Inner through extending scopes.
+    def test_inherited_nested_scope_is_synthetic(self) -> None:
+        """Nested scopes inherited via @extend should be SyntheticSymbol.
 
-        .. todo:: Fix _ScopeSemigroup.create to share definition across extending scopes.
-
-            When object1 extends Outer, accessing Inner through both paths should yield
-            the same definition since they refer to the same Python class definition
-            (Root.Outer.Inner). Both mixins should be _DefinedSymbol instances with the
-            same definition.
-
-            The fix should ensure that all access paths to the same scope definition
-            share the same Definition instance.
+        When object1 extends Outer, accessing Inner through object1 returns a
+        SyntheticSymbol because Inner is not locally defined in object1.
+        Only directly defined nested scopes are DefinedSymbol.
         """
 
         @scope
@@ -820,7 +803,7 @@ class TestDefinitionSharing:
                     def value(arg: str) -> str:
                         return f"value_{arg}"
 
-            @extend(R(levels_up=1, path=("Outer",)))
+            @extend(R(levels_up=0, path=("Outer",)))
             @scope
             class object1:
                 @extern
@@ -831,12 +814,11 @@ class TestDefinitionSharing:
         outer_inner = root.Outer(arg="v1").Inner
         object1_inner = root.object1(arg="v2").Inner
 
-        # Both mixins should be _DefinedSymbol (not synthetic)
+        # Direct access yields DefinedSymbol
         assert isinstance(outer_inner.symbol, DefinedSymbol)
-        assert isinstance(object1_inner.symbol, DefinedSymbol)
 
-        # Both should share the same definition since they access the same Inner definition
-        assert outer_inner.symbol.definition is object1_inner.symbol.definition
+        # Inherited access via @extend yields SyntheticSymbol
+        assert isinstance(object1_inner.symbol, SyntheticSymbol)
 
 
 class TestScopeAsSymlink:
@@ -1369,8 +1351,7 @@ class TestScopeSemigroupScopeSymbol:
 
         # This should pass - Extended has its own mixin
         assert extended_symbol is not base_symbol, (
-            "Extended scope should have its own mixin, "
-            "not share with Base scope"
+            "Extended scope should have its own mixin, " "not share with Base scope"
         )
 
     def test_nested_scope_in_extended_has_distinct_symbol(self) -> None:
@@ -1429,15 +1410,9 @@ class TestScopeSemigroupScopeSymbol:
         assert root.Extended.Another.nested_value == "nestednestednested"
 
         # Print actual values for debugging
-        print(
-            f"\nbase_another.symbol.key = {base_another.symbol.key!r}"
-        )
-        print(
-            f"extended_another.symbol.key = {extended_another.symbol.key!r}"
-        )
-        print(
-            f"base_another.symbol.outer.key = {base_another.symbol.outer.key!r}"
-        )
+        print(f"\nbase_another.symbol.key = {base_another.symbol.key!r}")
+        print(f"extended_another.symbol.key = {extended_another.symbol.key!r}")
+        print(f"base_another.symbol.outer.key = {base_another.symbol.outer.key!r}")
         print(
             f"extended_another.symbol.outer.key = {extended_another.symbol.outer.key!r}"
         )

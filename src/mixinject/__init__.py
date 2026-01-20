@@ -567,10 +567,25 @@ class HasDict:
     __slots__ = ("__dict__",)
 
 
+class PrototypeSymbolSentinel(Enum):
+    """Sentinel value for symbols that are not instance symbols."""
+
+    NOT_INSTANCE = auto()
+
+
+class InstanceSymbolSentinel(Enum):
+    """Sentinel value for instance_symbol when called on an already-instance symbol."""
+
+    ALREADY_INSTANCE = auto()
+
+
 @dataclass(kw_only=True, frozen=True, eq=False)
-class Symbol(ABC):
+class Symbol(ABC, Mapping[Hashable, "Symbol"]):
     """
     Base class for nodes in the dependency graph.
+
+    All symbols support the Mapping interface (``__getitem__``, ``__iter__``, ``__len__``).
+    Scope symbols have nested resources (len > 0), while leaf symbols have no items (len = 0).
 
     Conceptual Layer Distinction
     ============================
@@ -579,9 +594,8 @@ class Symbol(ABC):
 
     **Symbol Layer (Dependency Graph Nodes)**
 
-    - ``Symbol``: Base class
-    - ``ScopeSymbol``: Symbol containing nested resources
-    - ``NestedSymbol``: Leaf Symbol (non-Mapping)
+    - ``Symbol``: Base class (all symbols are Mappings)
+    - ``NestedScopeSymbol``: Scope Symbol with nested resources (len > 0)
     - ``NestedScopeSymbol``: Nested Scope Symbol (IS-A Mapping)
 
     **Evaluator Layer (Resource Evaluators)**
@@ -637,7 +651,7 @@ class Symbol(ABC):
         ├── ScopeSymbol (ABC, Mapping[Hashable, Symbol])
         │   │   __getitem__(key) → NestedMergerSymbol | NestedPatcherSymbol | NestedScopeSymbol
         │   │
-        │   ├── StaticScopeSymbol (ABC)
+        │   ├── Symbol (ABC)
         │   │   ├── RootScopeSymbol
         │   │   └── NestedScopeSymbol (IS-A Mapping, contains nested resources)
         │   │           __call__() → _NestedMappingMixin (an Evaluator: Merger ∩ Patcher)
@@ -683,8 +697,97 @@ class Symbol(ABC):
     .. todo:: Inherit from ``EvaluatorGetter``. Add ``@abstractmethod __call__``.
     """
 
-    outer: Final["ScopeSymbol | OuterSentinel"]
+    outer: Final["Symbol | OuterSentinel"]
     key: Final[Hashable | KeySentinel]
+    prototype: Final["Symbol | PrototypeSymbolSentinel"] = (
+        PrototypeSymbolSentinel.NOT_INSTANCE
+    )
+    intern_pool: Final[weakref.WeakValueDictionary[Hashable, "Symbol"]] = field(
+        default_factory=weakref.WeakValueDictionary
+    )
+
+    def __hash__(self) -> int:
+        return id(self)
+
+    def __eq__(self, other: object) -> bool:
+        return self is other
+
+    def __iter__(self) -> Iterator[Hashable]:
+        """Iterate over keys in this symbol.
+
+        For scope symbols, yields keys from definition and bases.
+        For leaf symbols, yields nothing (empty iterator).
+        """
+        seen: set[Hashable] = set()
+
+        # Keys from self.definition (only if DefinedSymbol with _ScopeDefinition)
+        if isinstance(self, DefinedSymbol):
+            definition = self.definition
+            if isinstance(definition, _ScopeDefinition):
+                for key in definition:
+                    if key not in seen:
+                        seen.add(key)
+                        yield key
+
+        # Keys from bases
+        for base in cast(Iterator["Symbol"], self.generate_strict_super()):
+            for key in base:
+                if key not in seen:
+                    seen.add(key)
+                    yield key
+
+    def __len__(self) -> int:
+        """Return the number of keys in this symbol."""
+        return sum(1 for _ in self)
+
+    def __getitem__(self, key: Hashable) -> "Symbol":
+        """Get or create the child Symbol for the specified key.
+
+        For scope symbols, compiles and caches nested symbols.
+        For leaf symbols, raises KeyError.
+        """
+        existing = self.intern_pool.get(key)
+        if existing is not None:
+            return existing
+
+        # Compile based on whether this is a synthetic or defined symbol
+        if isinstance(self, SyntheticSymbol):
+            nested_definition = None
+        elif isinstance(self, DefinedSymbol):
+            definition = self.definition
+            if isinstance(definition, _ScopeDefinition):
+                nested_definition = definition.get(key)
+            else:
+                # Leaf symbol - no nested items
+                raise KeyError(key)
+        else:
+            # Unknown symbol type - no nested items
+            raise KeyError(key)
+        if nested_definition is not None:
+            compiled_symbol = nested_definition.compile(self, cast(str, key))
+        else:
+
+            compiled_symbol = SyntheticSymbol(
+                key=key,
+                outer=self,
+            )
+            if not compiled_symbol.strict_super_indices:
+                raise KeyError(key)
+
+        self.intern_pool[key] = cast("Symbol", compiled_symbol)
+        return compiled_symbol
+
+    @cached_property
+    def instance(self) -> "Symbol | InstanceSymbolSentinel":
+        """Get or create the instance symbol for this symbol.
+
+        Returns InstanceSymbolSentinel.ALREADY_INSTANCE if this is already an instance symbol.
+        """
+        match self.prototype:
+            case PrototypeSymbolSentinel.NOT_INSTANCE:
+                return replace(self, prototype=self)
+            case Symbol():
+                return InstanceSymbolSentinel.ALREADY_INSTANCE
 
     @property
     def depth(self) -> int:
@@ -696,8 +799,8 @@ class Symbol(ABC):
         match self.outer:
             case OuterSentinel.ROOT:
                 return 0
-            case ScopeSymbol() as outer_scope:
-                return outer_scope.depth + 1
+            case Symbol() as outer_symbol:
+                return outer_symbol.depth + 1
 
     @cached_property
     def getter(self) -> Callable[[CapturedScopes], "Node"]:
@@ -763,17 +866,14 @@ class Symbol(ABC):
             (which replaces ``Scope.mixins``) via
             ``zip(mixin.generate_strict_super(), scope.captured_scopes_sequence)``.
         """
-        if isinstance(self, InstanceScopeSymbol):
-            return self.prototype.generate_strict_super()
-        else:
-            return iter(self.strict_super_indices.keys())
+        return iter(self.strict_super_indices.keys())
 
     @final
     @cached_property
     def union_indices(self) -> Mapping["Symbol", int]:
         """Collect base_indices from outer's strict super symbols."""
         match (self.outer, self.key):
-            case (ScopeSymbol() as outer_scope, key) if not isinstance(key, KeySentinel):
+            case (Symbol() as outer_scope, key) if not isinstance(key, KeySentinel):
                 return _collect_union_indices(outer_scope, key)
             case _:
                 return {}
@@ -784,10 +884,10 @@ class Symbol(ABC):
         self,
     ) -> dict["Symbol", NestedSymbolIndex]:
         match (self, self.outer):
-            case (DefinedSymbol(definition=definition), ScopeSymbol() as outer_scope):
+            case (DefinedSymbol(definition=definition), Symbol() as outer_scope):
                 return {
                     _resolve_symbol_reference(
-                        reference, outer_scope, ScopeSymbol
+                        reference, outer_scope, Symbol
                     ): NestedSymbolIndex(
                         primary_index=OwnBaseIndex(index=own_base_index),
                         secondary_index=SymbolIndexSentinel.OWN,
@@ -803,7 +903,7 @@ class Symbol(ABC):
         self,
     ) -> dict["Symbol", NestedSymbolIndex]:
         match (self, self.outer):
-            case (DefinedSymbol(definition=definition), ScopeSymbol() as outer_scope):
+            case (DefinedSymbol(definition=definition), Symbol() as outer_scope):
                 result: dict["Symbol", NestedSymbolIndex] = {}
                 return {
                     linearized_base: (
@@ -816,7 +916,7 @@ class Symbol(ABC):
                     # Linearized strict super symbols of the extend reference
                     for linearized_index, linearized_base in enumerate(
                         _resolve_symbol_reference(
-                            reference, outer_scope, NestedScopeSymbol
+                            reference, outer_scope, SemigroupSymbol
                         ).generate_strict_super()
                     )
                     if (linearized_base not in result)
@@ -919,142 +1019,6 @@ class Symbol(ABC):
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
-class ScopeSymbol(Symbol, Mapping[Hashable, "Symbol"]):
-    """Base class for dependency graphs supporting O(1) equality comparison.
-
-    Equal graphs are interned to the same object instance within the same root,
-    making equality comparison a simple identity check (O(1) instead of O(n)).
-
-    This class is immutable and hashable, suitable for use as dictionary keys.
-
-    .. todo:: Inherit from ``Mapping[Hashable, EvaluatorGetter]``.
-    """
-
-    intern_pool: Final[
-        weakref.WeakValueDictionary[Hashable, "Symbol"]
-    ] = field(default_factory=weakref.WeakValueDictionary)
-
-    def __hash__(self) -> int:
-        return id(self)
-
-    def __eq__(self, other: object) -> bool:
-        return self is other
-
-    def __iter__(self) -> Iterator[Hashable]:
-        seen: set[Hashable] = set()
-
-        # Keys from self.definition (only if _DefinedSymbol)
-        if isinstance(self, DefinedSymbol):
-            assert isinstance(self.definition, _ScopeDefinition)
-            for key in self.definition:
-                if key not in seen:
-                    seen.add(key)
-                    yield key
-
-        # Keys from bases
-        for base in cast(Iterator[ScopeSymbol], self.generate_strict_super()):
-            for key in base:
-                if key not in seen:
-                    seen.add(key)
-                    yield key
-
-    def __len__(self) -> int:
-        return sum(1 for _ in self)
-
-    def __getitem__(self, key: Hashable) -> "Symbol":
-        """
-        Get or create the child Symbol for the specified key.
-
-        For defined symbols, delegates to ``Definition.compile()``.
-        For synthetic symbols (inherited without local definition), creates
-        a synthetic symbol via ``_compile_synthetic()``.
-        """
-        existing = self.intern_pool.get(key)
-        if existing is not None:
-            return existing
-
-        # Compile based on whether this is a synthetic or defined symbol
-        if isinstance(self, SyntheticSymbol):
-            compiled_symbol = _compile_synthetic(key, self)
-        else:
-            assert isinstance(self, DefinedSymbol)
-            assert isinstance(self.definition, _ScopeDefinition)
-            nested_definition = self.definition.get(key)
-            if nested_definition is not None:
-                compiled_symbol = nested_definition.compile(self, cast(str, key))
-            else:
-                compiled_symbol = _compile_synthetic(key, self)
-
-        self.intern_pool[key] = cast("Symbol", compiled_symbol)
-        return compiled_symbol
-
-
-def _compile_synthetic(
-    key: Hashable,
-    outer_symbol: "ScopeSymbol",
-) -> "Symbol":
-    """
-    Create a Symbol for inherited-only resources.
-
-    For leaf resources (Merger, Resource, Patcher), creates a _SyntheticResourceSymbol
-    that returns an empty Patcher (similar to @extern).
-
-    For nested scopes (NestedScopeSymbol), creates a SyntheticScopeSymbol
-    that properly merges base scopes.
-
-    Validates that all base classes have consistent types using the
-    generate_is_symbol_mapping + reduce(assert_equal, ...) pattern.
-    """
-    base_symbols = _collect_union_indices(outer_symbol, key)
-
-    def generate_is_symbol_mapping() -> Iterator[bool]:
-        """Generate bool indicating whether each base symbol is a ScopeSymbol."""
-        for base_symbol in base_symbols:
-            yield isinstance(base_symbol, ScopeSymbol)
-
-    def assert_equal(a: T, b: T) -> T:
-        if a != b:
-            raise ValueError(
-                "Inconsistent symbol types for same-named resource across bases"
-            )
-        return a
-
-    try:
-        is_symbol_mapping = reduce(assert_equal, generate_is_symbol_mapping())
-    except TypeError as exception:
-        # reduce raises TypeError when iterator is empty (no bases have this key)
-        raise KeyError(key) from exception
-
-    if is_symbol_mapping:
-        return SyntheticScopeSymbol(
-            key=key,
-            outer=outer_symbol,
-        )
-
-    # For leaf resources, create _SyntheticResourceSymbol (empty Patcher)
-    return SyntheticResourceSymbol(
-        key=key,
-        outer=outer_symbol,
-    )
-
-
-@dataclass(kw_only=True, frozen=True, eq=False)
-class SyntheticSymbol(Symbol):
-    """
-    Marker base class for synthetic symbols (no local definition, only inherited).
-
-    Synthetic symbols are created when a resource or nested scope is inherited from
-    base classes but has no local definition in the current scope.
-
-    Subclasses
-    ==========
-
-    - ``_SyntheticResourceSymbol``: For leaf resources (Merger, Resource, Patcher)
-    - ``SyntheticScopeSymbol``: For nested scopes
-    """
-
-
-@dataclass(kw_only=True, frozen=True, eq=False)
 class DefinedSymbol(Symbol):
     """
     Marker base class for defined symbols (has local definition in current scope).
@@ -1075,19 +1039,11 @@ class DefinedSymbol(Symbol):
     definition: Final["Definition"]
 
 
-@dataclass(kw_only=True, frozen=True, eq=False)
-class StaticScopeSymbol(ScopeSymbol):
-
-    @cached_property
-    def instance_symbol(self) -> "InstanceScopeSymbol":
-        """Cache for the corresponding InstanceScopeSymbol."""
-        return InstanceScopeSymbol(prototype=self, outer=self.outer, key=self.key)
+class Mixin(ABC):
+    """Base class for Merger, Patcher, and SyntheticResourceMixin."""
 
 
-Mixin: TypeAlias = "Merger | Patcher"
-"""A Merger or Patcher that participates in resource evaluation."""
-
-TMixin_co = TypeVar("TMixin_co", bound="Merger | Patcher", covariant=True)
+TMixin_co = TypeVar("TMixin_co", bound=Mixin, covariant=True)
 
 
 class MixinGetter(ABC, Generic[TMixin_co]):
@@ -1194,7 +1150,7 @@ class NestedSymbolIndex:
     Index Examples
     ==============
 
-    Given ``nested_symbol: NestedScopeSymbol`` with ``key`` in ``outer: ScopeSymbol``,
+    Given ``nested_symbol: NestedScopeSymbol`` with ``key`` in ``outer: Symbol``,
     and integer indices ``i``, ``j``:
 
     - ``NestedSymbolIndex(primary_index=OuterBaseIndex(index=i), secondary_index=SymbolIndexSentinel.OWN)``::
@@ -1260,7 +1216,11 @@ class NestedSymbolIndex:
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
-class MergerSymbol(Symbol, MixinGetter["Merger[TPatch_contra, TResult_co]"], Generic[TPatch_contra, TResult_co]):
+class MergerSymbol(
+    Symbol,
+    MixinGetter["Merger[TPatch_contra, TResult_co]"],
+    Generic[TPatch_contra, TResult_co],
+):
     """
     Intermediate base class for Symbol subclasses that return Merger.
 
@@ -1298,6 +1258,24 @@ class PatcherSymbol(Symbol, MixinGetter["Patcher[TPatch_co]"], Generic[TPatch_co
         """Retrieve the Patcher for the given captured scopes."""
 
 
+@final
+@dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True, eq=False)
+class SyntheticSymbol(Symbol, MixinGetter["Synthetic"]):
+    """
+    Symbol for inherited-only resources (no local definition).
+
+    Synthetic symbols are created when a resource or nested scope is inherited from
+    base classes but has no local definition in the current scope.
+
+    SyntheticSymbol produces a ``Synthetic`` mixin that is excluded from merger
+    election. The actual Merger comes from base classes.
+    """
+
+    def bind(self, captured_scopes: CapturedScopes, /) -> "Synthetic":
+        """Return a Synthetic mixin."""
+        return Synthetic(symbol=self, captured_scopes=captured_scopes)
+
+
 TResult = TypeVar("TResult")
 
 
@@ -1324,7 +1302,7 @@ class FunctionalMergerSymbol(
         match self.outer:
             case OuterSentinel.ROOT:
                 raise ValueError("Root symbols do not have JIT-compiled functions")
-            case ScopeSymbol() as outer_scope:
+            case Symbol() as outer_scope:
                 return _resolve_dependencies_jit_using_symbol(
                     outer_scope,
                     definition.function,
@@ -1360,7 +1338,7 @@ class EndofunctionMergerSymbol(
         match self.outer:
             case OuterSentinel.ROOT:
                 raise ValueError("Root symbols do not have JIT-compiled functions")
-            case ScopeSymbol() as outer_scope:
+            case Symbol() as outer_scope:
                 return _resolve_dependencies_jit_using_symbol(
                     outer_scope,
                     definition.function,
@@ -1387,7 +1365,7 @@ class SinglePatcherSymbol(DefinedSymbol, PatcherSymbol[TPatch_co], Generic[TPatc
         match self.outer:
             case OuterSentinel.ROOT:
                 raise ValueError("Root symbols do not have JIT-compiled functions")
-            case ScopeSymbol() as outer_scope:
+            case Symbol() as outer_scope:
                 return _resolve_dependencies_jit_using_symbol(
                     outer_scope,
                     definition.function,
@@ -1416,7 +1394,7 @@ class MultiplePatcherSymbol(
         match self.outer:
             case OuterSentinel.ROOT:
                 raise ValueError("Root symbols do not have JIT-compiled functions")
-            case ScopeSymbol() as outer_scope:
+            case Symbol() as outer_scope:
                 return _resolve_dependencies_jit_using_symbol(
                     outer_scope,
                     definition.function,
@@ -1426,23 +1404,6 @@ class MultiplePatcherSymbol(
     @override
     def bind(self, captured_scopes: CapturedScopes, /) -> "MultiplePatcher[TPatch_co]":
         return MultiplePatcher(symbol=self, captured_scopes=captured_scopes)
-
-
-@final
-@dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True, eq=False)
-class SyntheticResourceSymbol(SyntheticSymbol, PatcherSymbol[Never]):
-    """NestedSymbol for inherited-only leaf resources (no local definition).
-
-    Similar to @extern, this produces an empty Patcher that contributes
-    no patches to the Merger election algorithm. The actual Evaluator
-    comes from base classes.
-
-    Type parameter is ``Never`` because this Patcher never yields any patches.
-    """
-
-    @override
-    def bind(self, captured_scopes: CapturedScopes, /) -> SyntheticResourceMixin:
-        return SyntheticResourceMixin(symbol=self, captured_scopes=captured_scopes)
 
 
 class SemigroupSymbol(MergerSymbol["StaticScope", "StaticScope"]):
@@ -1456,195 +1417,15 @@ class SemigroupSymbol(MergerSymbol["StaticScope", "StaticScope"]):
     Use ``isinstance(mixin, SemigroupSymbol)`` to check if a mixin returns
     an evaluator that is both Merger and Patcher (e.g., ``ScopeSemigroup``).
 
-    Currently, ``NestedScopeSymbol`` is the only subclass.
+    Subclass: ``DefinedScopeSymbol``.
     """
-
-
-@dataclass(kw_only=True, frozen=True, eq=False)
-class NestedScopeSymbol(StaticScopeSymbol, SemigroupSymbol):
-    """
-    Non-empty dependency graph node corresponding to nested Scope definitions.
-
-    Uses object.__eq__ and object.__hash__ (identity-based) for O(1) comparison.
-    This works because interned graphs within the same outer are the same object.
-
-    Implements ``Callable[[CapturedScopes], _NestedMappingMixin]`` to resolve resources
-    from a lexical scope into a scope semigroup.
-
-    Inherits ``HasDict`` via ``StaticScopeSymbol`` to enable ``@cached_property``
-    (which requires ``__dict__``) in a slots-based dataclass.
-
-    Subclasses
-    ==========
-
-    - ``SyntheticScopeSymbol``: For synthetic mixins (no local definition, only inherited)
-    - ``DefinedScopeSymbol``: For defined mixins (has local definition with extend references)
-
-    Conceptual Layer Distinction
-    ============================
-
-    **Important**: This class is a **Symbol** (IS-A Mapping), not a Semigroup.
-
-    - ``NestedScopeSymbol`` is a **Symbol layer** concept: a Mapping containing nested resources
-    - ``_NestedMappingMixin`` is an **Evaluator layer** concept: returned by ``__call__``
-
-    The name ``NestedScopeSymbol`` is retained because it IS-A Mapping (contains nested
-    resources). ``_NestedMappingMixin`` is a type of Evaluator that implements both ``Merger``
-    and ``Patcher`` interfaces.
-
-    ``__call__`` Semantics
-    ======================
-
-    ``__call__`` returns ``_NestedMappingMixin``, which implements both ``Merger`` and ``Patcher``
-    interfaces. This allows nested Scopes to simultaneously act as:
-
-    - **Merger**: Merge nested Scopes with the same name from multiple base classes
-    - **Patcher**: Extend existing nested Scopes
-
-    Compile-time Index Data Structures
-    ===================================
-
-    To support JIT and Proxy optimization, the following ``@cached_property`` need to be added:
-
-    ``merger_base_indices``
-    -----------------------
-
-    ::
-
-        @cached_property
-        def merger_base_indices(self) -> Mapping[NestedMergerSymbol, NestedSymbolIndex]:
-            '''Filter linearized_base_indices to keep only NestedMergerSymbol.
-
-            Use case: JIT/Proxy can directly access all pure Merger base classes without runtime isinstance checks.
-            '''
-            return {
-                base: index
-                for base, index in self.linearized_base_indices.items()
-                if isinstance(base, NestedMergerSymbol)
-            }
-
-    ``patcher_base_indices``
-    ------------------------
-
-    ::
-
-        @cached_property
-        def patcher_base_indices(self) -> Mapping[NestedPatcherSymbol, NestedSymbolIndex]:
-            '''Filter linearized_base_indices to keep only NestedPatcherSymbol.
-
-            Use case: JIT/Proxy can directly access all pure Patcher base classes without runtime isinstance checks.
-            '''
-            return {
-                base: index
-                for base, index in self.linearized_base_indices.items()
-                if isinstance(base, NestedPatcherSymbol)
-            }
-
-    ``mapping_base_indices``
-    ------------------------
-
-    ::
-
-        @cached_property
-        def mapping_base_indices(self) -> Mapping[NestedScopeSymbol, NestedSymbolIndex]:
-            '''Filter linearized_base_indices to keep only NestedScopeSymbol.
-
-            Use case: JIT/Proxy can directly access all Mapping base classes without runtime isinstance checks.
-            '''
-            return {
-                base: index
-                for base, index in self.linearized_base_indices.items()
-                if isinstance(base, NestedScopeSymbol)
-            }
-
-    JIT Usage Example
-    =================
-
-    ::
-
-        # JIT or Proxy can utilize typed indices for direct access
-        for merger, index in scope.mixin.merger_base_indices.items():
-            # No isinstance check needed, merger guaranteed to be NestedMergerSymbol
-            evaluator = merger(captured_scopes)  # Return type is Merger
-
-        for patcher, index in scope.mixin.patcher_base_indices.items():
-            # No isinstance check needed, patcher guaranteed to be NestedPatcherSymbol
-            evaluator = patcher(captured_scopes)  # Return type is Patcher
-
-    NestedSymbolIndex Collaboration
-    ===============================
-
-    ``NestedSymbolIndex`` provides O(1) random access capability. For example::
-
-        NestedSymbolIndex(primary_index=5, secondary_index=2)
-        # Represents: tuple(outer.generate_strict_super())[5].definition[name].compile(outer, name)[2]
-
-    Combined with typed indices, JIT can:
-
-    1. Pre-generate code paths for accessing specific Mergers
-    2. Pre-generate code paths for collecting all Patchers
-    3. Eliminate runtime ``isinstance`` checks
-    4. Use ``NestedSymbolIndex`` for O(1) random access instead of traversal
-
-    .. todo::
-
-        Add ``merger_base_indices``, ``patcher_base_indices``,
-        ``mapping_base_indices`` properties.
-    """
-
-    @abstractmethod
-    def bind(self, captured_scopes: CapturedScopes, /) -> "ScopeSemigroup":
-        """
-        Resolve resources from the given lexical scope into a _NestedMappingMixin.
-
-        This method creates a scope factory that:
-        1. Creates a mixin from this definition's definition
-        2. Includes mixins from any extended scopes (via extend references)
-        3. Returns a _NestedMappingMixin that can merge with other scopes
-        """
 
 
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True, eq=False)
-class SyntheticScopeSymbol(SyntheticSymbol, NestedScopeSymbol):
+class DefinedScopeSymbol(DefinedSymbol, SemigroupSymbol):
     """
-    NestedScopeSymbol for synthetic symbols (no local definition).
-
-    Synthetic mixins are created when a nested scope is inherited from base classes
-    but has no local definition in the current scope. They use default ``StaticScope``
-    and have no extend references.
-    """
-
-    def bind(self, captured_scopes: CapturedScopes, /) -> "ScopeSemigroup":
-        """Resolve resources using default StaticScope (no extend references)."""
-        match self.outer:
-            case OuterSentinel.ROOT:
-                raise NotImplementedError("TODO: support bind with root!")
-            case ScopeSymbol() as outer_scope:
-                pass
-        assert not isinstance(self.key, KeySentinel)
-
-        def scope_factory() -> StaticScope:
-            assert (
-                captured_scopes
-            ), "captured_scopes must not be empty when resolving resources"
-            return StaticScope(
-                symbols={self: captured_scopes},
-                symbol=self,
-            )
-
-        return ScopeSemigroup(
-            scope_factory=scope_factory,
-            access_path_outer=outer_scope,
-            key=self.key,
-        )
-
-
-@final
-@dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True, eq=False)
-class DefinedScopeSymbol(DefinedSymbol, NestedScopeSymbol):
-    """
-    NestedScopeSymbol for defined scopes (has local definition with extend references).
+    Scope symbol for defined scopes (has local definition with extend references).
 
     Defined mixins are created when a nested scope has a local definition in the current
     scope. They use the scope class from the definition and include extend references.
@@ -1658,7 +1439,7 @@ class DefinedScopeSymbol(DefinedSymbol, NestedScopeSymbol):
         match self.outer:
             case OuterSentinel.ROOT:
                 raise NotImplementedError("TODO: support bind with root!")
-            case ScopeSymbol() as outer_scope:
+            case Symbol() as outer_scope:
                 pass
         assert not isinstance(self.key, KeySentinel)
 
@@ -1667,9 +1448,7 @@ class DefinedScopeSymbol(DefinedSymbol, NestedScopeSymbol):
                 captured_scopes
             ), "captured_scopes must not be empty when resolving resources"
 
-            def generate_all_symbol_items() -> (
-                Iterator[tuple[StaticScopeSymbol, CapturedScopes]]
-            ):
+            def generate_all_symbol_items() -> Iterator[tuple[Symbol, CapturedScopes]]:
                 """
                 Generate all mixin items for the scope, including:
                 - CapturedScopes from this definition, keyed by scope's mixin
@@ -1694,34 +1473,6 @@ class DefinedScopeSymbol(DefinedSymbol, NestedScopeSymbol):
             access_path_outer=outer_scope,
             key=self.key,
         )
-
-
-@final
-@dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True, eq=False)
-class InstanceScopeSymbol(ScopeSymbol):
-    """Non-empty dependency graph node for InstanceScope.
-
-    Uses object.__eq__ and object.__hash__ (identity-based) for O(1) comparison.
-    This works because interned graphs with equal head within the same outer
-    are the same object.
-    """
-
-    prototype: Final[StaticScopeSymbol]
-    """
-    The static dependency graph that this instance is based on.
-    """
-
-    def __iter__(self) -> Iterator[Hashable]:
-        """Delegate to prototype."""
-        return iter(self.prototype)
-
-    def __len__(self) -> int:
-        """Delegate to prototype."""
-        return len(self.prototype)
-
-    def __getitem__(self, key: Hashable) -> "Symbol":
-        """Delegate to prototype."""
-        return self.prototype[key]
 
 
 Resource = NewType("Resource", object)
@@ -1785,7 +1536,7 @@ class Scope(Mapping[Hashable, "Node"], ABC):
     @abstractmethod
     def symbols(
         self,
-    ) -> Mapping[StaticScopeSymbol, CapturedScopes]:
+    ) -> Mapping[Symbol, CapturedScopes]:
         """The symbols that provide resources for this scope, keyed by symbol.
 
         Each scope's own properties (not from extend=) are stored at
@@ -1796,7 +1547,7 @@ class Scope(Mapping[Hashable, "Node"], ABC):
         """
         ...
 
-    symbol: "NestedScopeSymbol | InstanceScopeSymbol"
+    symbol: Symbol
     """The runtime access path from root to this scope, in reverse order.
 
     This path reflects how the scope was accessed at runtime, not where
@@ -1860,7 +1611,7 @@ class StaticScope(Scope):
     and supports ``__call__`` to create InstanceScope with additional kwargs.
     """
 
-    symbols: Mapping[StaticScopeSymbol, CapturedScopes]  # type: ignore[misc]
+    symbols: Mapping[Symbol, CapturedScopes]  # type: ignore[misc]
     """
     .. todo::
 
@@ -1874,7 +1625,7 @@ class StaticScope(Scope):
           ``Sequence[CapturedScopes]``
     """
 
-    symbol: StaticScopeSymbol  # type: ignore[misc]
+    symbol: Symbol  # type: ignore[misc]
 
     _cache: MutableMapping[Hashable, "Node"] = field(
         default_factory=dict, init=False, repr=False, compare=False
@@ -1896,10 +1647,14 @@ class StaticScope(Scope):
         """
         Create an InstanceScope with the given kwargs.
         """
+        instance_symbol = self.symbol.instance
+        assert isinstance(
+            instance_symbol, Symbol
+        ), "StaticScope.symbol should not already be an instance symbol"
         return InstanceScope(
             base_scope=self,
             kwargs=kwargs,
-            symbol=self.symbol.instance_symbol,
+            symbol=instance_symbol,
         )
 
 
@@ -1917,13 +1672,13 @@ class InstanceScope(Scope):
 
     base_scope: Final[StaticScope]
     kwargs: Final[Mapping[str, object]]
-    symbol: InstanceScopeSymbol  # type: ignore[misc]
+    symbol: Symbol  # type: ignore[misc]
 
     @property
     @override
     def symbols(
         self,
-    ) -> Mapping[StaticScopeSymbol, CapturedScopes]:
+    ) -> Mapping[Symbol, CapturedScopes]:
         return self.base_scope.symbols
 
     @override
@@ -1998,12 +1753,12 @@ A sequence of scopes representing the lexical scope, starting from the outermost
 Node: TypeAlias = Resource | Scope
 
 
-class Merger(Generic[TPatch_contra, TResult_co], ABC):
+class Merger(Mixin, Generic[TPatch_contra, TResult_co]):
     @abstractmethod
     def merge(self, patches: Iterator[TPatch_contra]) -> TResult_co: ...
 
 
-class Patcher(Iterable[TPatch_co], ABC):
+class Patcher(Mixin, Iterable[TPatch_co], Generic[TPatch_co]):
     """
     An Patcher provides extra data to be applied to a Node created by a ``Merger``.
     """
@@ -2086,19 +1841,21 @@ class MultiplePatcher(Patcher[TPatch_co]):
 
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True)
-class SyntheticResourceMixin(Patcher[Never]):
-    """Mixin for _SyntheticResourceSymbol. Empty patcher."""
+class Synthetic(Mixin):
+    """
+    Mixin for SyntheticSymbol.
 
-    symbol: Final["SyntheticResourceSymbol"]
+    This is NOT a Patcher or Merger. It is excluded from merger election
+    because it doesn't satisfy ``isinstance(item, Merger)`` or
+    ``isinstance(item, Patcher)`` in ``_evaluate_resource``.
+    """
+
+    symbol: Final["SyntheticSymbol"]
     captured_scopes: Final[CapturedScopes]
-
-    @override
-    def __iter__(self) -> Iterator[Never]:
-        return iter(())
 
 
 def _symbol_getitem(
-    symbol_mapping: StaticScopeSymbol,
+    symbol_mapping: Symbol,
     captured_scopes: CapturedScopes,
     key: Hashable,
     /,
@@ -2116,7 +1873,7 @@ def _symbol_getitem(
         mixin_result = cast(MixinGetter[Mixin], nested_symbol).bind(
             inner_captured_scopes
         )
-        # If mixin_result is a _NestedMappingMixin, set access_path_outer to the scope's symbol
+        # If mixin_result is a ScopeSemigroup, set access_path_outer to the scope's symbol
         if isinstance(mixin_result, ScopeSemigroup):
             return replace(mixin_result, access_path_outer=scope.symbol)
         return mixin_result
@@ -2125,13 +1882,13 @@ def _symbol_getitem(
 
 
 def _collect_union_indices(
-    outer_symbol: "ScopeSymbol", key: Hashable, /
+    outer_symbol: "Symbol", key: Hashable, /
 ) -> Mapping["Symbol", int]:
     """Collect base_indices from outer_symbol's strict super symbols."""
     return {
         cast("Symbol", item_symbol): index
         for index, base in enumerate(
-            cast(Iterator["ScopeSymbol"], outer_symbol.generate_strict_super())
+            cast(Iterator["Symbol"], outer_symbol.generate_strict_super())
         )
         if (item_symbol := base.get(key)) is not None
     }
@@ -2144,6 +1901,8 @@ def _evaluate_resource(
     Evaluate a resource by selecting a Merger and applying Patches.
 
     Algorithm for selecting the Merger:
+    0. SyntheticResourceMixin items are excluded from election (they are placeholders
+       for inherited-only resources and contribute no actual patches).
     1. If there is exactly one item that is a Merger but NOT a Patch (pure Merger),
        it is selected as the Merger. All other items (including those that are both)
        are treated as Patches.
@@ -2153,7 +1912,9 @@ def _evaluate_resource(
        (This assumes the semantics of these items satisfy commutativity).
     4. If there are no Mergers (pure or dual), a NotImplementedError is raised.
     """
-    items = tuple(resource_generator())
+    items = tuple(
+        item for item in resource_generator() if not isinstance(item, Synthetic)
+    )
     if not items:
         raise KeyError("No resource found")
 
@@ -2205,7 +1966,7 @@ class Definition(ABC):
     bases: tuple["ResourceReference[Hashable]", ...] = ()
 
     @abstractmethod
-    def compile(self, outer: ScopeSymbol, key: str, /) -> Symbol:
+    def compile(self, outer: Symbol, key: str, /) -> Symbol:
         """
         Compile this definition into a Symbol for the given outer ScopeSymbol.
 
@@ -2222,13 +1983,13 @@ class MergerDefinition(Definition, Generic[TPatch_contra, TResult_co]):
     is_local: bool = False
 
     @abstractmethod
-    def compile(self, outer: ScopeSymbol, key: str, /) -> Symbol:
+    def compile(self, outer: Symbol, key: str, /) -> Symbol:
         raise NotImplementedError()
 
 
 class PatcherDefinition(Definition, Generic[TPatch_co]):
     @abstractmethod
-    def compile(self, outer: ScopeSymbol, key: str, /) -> Symbol:
+    def compile(self, outer: Symbol, key: str, /) -> Symbol:
         raise NotImplementedError()
 
 
@@ -2240,7 +2001,7 @@ class FunctionalMergerDefinition(MergerDefinition[TPatch_contra, TResult_co]):
     function: Callable[..., Callable[[Iterator[TPatch_contra]], TResult_co]]
 
     def compile(
-        self, outer: ScopeSymbol, key: str, /
+        self, outer: Symbol, key: str, /
     ) -> "FunctionalMergerSymbol[TPatch_contra, TResult_co]":
         return FunctionalMergerSymbol(
             key=key,
@@ -2259,7 +2020,7 @@ class EndofunctionMergerDefinition(
     function: Callable[..., TResult]
 
     def compile(
-        self, outer: ScopeSymbol, key: str, /
+        self, outer: Symbol, key: str, /
     ) -> "EndofunctionMergerSymbol[TResult]":
         return EndofunctionMergerSymbol(
             key=key,
@@ -2275,9 +2036,7 @@ class SinglePatcherDefinition(PatcherDefinition[TPatch_co]):
 
     function: Callable[..., TPatch_co]
 
-    def compile(
-        self, outer: ScopeSymbol, key: str, /
-    ) -> "SinglePatcherSymbol[TPatch_co]":
+    def compile(self, outer: Symbol, key: str, /) -> "SinglePatcherSymbol[TPatch_co]":
         return SinglePatcherSymbol(
             key=key,
             outer=outer,
@@ -2292,9 +2051,7 @@ class MultiplePatcherDefinition(PatcherDefinition[TPatch_co]):
 
     function: Callable[..., Iterable[TPatch_co]]
 
-    def compile(
-        self, outer: ScopeSymbol, key: str, /
-    ) -> "MultiplePatcherSymbol[TPatch_co]":
+    def compile(self, outer: Symbol, key: str, /) -> "MultiplePatcherSymbol[TPatch_co]":
         return MultiplePatcherSymbol(
             key=key,
             outer=outer,
@@ -2319,7 +2076,7 @@ class ScopeSemigroup(Semigroup[StaticScope]):
     """
 
     scope_factory: Final[Callable[[], StaticScope]]
-    access_path_outer: Final[ScopeSymbol]
+    access_path_outer: Final[Symbol]
     key: Final[Hashable]
 
     @override
@@ -2335,28 +2092,9 @@ class ScopeSemigroup(Semigroup[StaticScope]):
             return (yield from patches)
 
         scopes_tuple = tuple(all_scopes())
-        match scopes_tuple:
-            case (single_scope,) if (
-                isinstance(single_scope.symbol, NestedScopeSymbol)
-                and single_scope.symbol.outer == self.access_path_outer
-            ):
-                current_symbol = single_scope.symbol
-            case ():
-                raise AssertionError(" at least one scope expected")
-            case _:
-                # Get symbol via __getitem__. The symbol should always exist because
-                # _NestedMappingMixin is created by NestedScopeSymbol.bind which
-                # passes access_path_outer=self.outer and key=self.key. That
-                # NestedScopeSymbol is stored in self.outer.intern_pool[self.key],
-                # so __getitem__ will find it via intern_pool lookup.
-                current_symbol = self.access_path_outer[self.key]
-                assert isinstance(current_symbol, NestedScopeSymbol)
-
         winner_class = _calculate_most_derived_class(*(type(p) for p in scopes_tuple))
 
-        def generate_all_symbol_items() -> (
-            Iterator[tuple[StaticScopeSymbol, CapturedScopes]]
-        ):
+        def generate_all_symbol_items() -> Iterator[tuple[Symbol, CapturedScopes]]:
             for scope in scopes_tuple:
                 yield from scope.symbols.items()
 
@@ -2375,7 +2113,7 @@ class ScopeSemigroup(Semigroup[StaticScope]):
 
         return winner_class(
             symbols=merged_symbols,
-            symbol=current_symbol,
+            symbol=self.access_path_outer[self.key],
         )
 
     @override
@@ -2392,7 +2130,7 @@ TSymbol = TypeVar("TSymbol", bound=Symbol)
 
 def _resolve_symbol_reference(
     reference: "ResourceReference[Hashable]",
-    starting_symbol: "ScopeSymbol",
+    starting_symbol: "Symbol",
     expected_type: type[TSymbol],
 ) -> TSymbol:
     """
@@ -2418,7 +2156,7 @@ def _resolve_symbol_reference(
     """
     match reference:
         case RelativeReference(levels_up=levels_up, path=parts):
-            current: ScopeSymbol = starting_symbol
+            current: Symbol = starting_symbol
             for level in range(levels_up):
                 match current.outer:
                     case OuterSentinel.ROOT:
@@ -2426,7 +2164,7 @@ def _resolve_symbol_reference(
                             f"Cannot navigate up {levels_up} levels: "
                             f"reached root at level {level}"
                         )
-                    case ScopeSymbol() as outer_scope:
+                    case Symbol() as outer_scope:
                         current = outer_scope
         case AbsoluteReference(path=parts):
             # Navigate to root
@@ -2435,7 +2173,7 @@ def _resolve_symbol_reference(
                 match current.outer:
                     case OuterSentinel.ROOT:
                         break
-                    case ScopeSymbol() as outer_scope:
+                    case Symbol() as outer_scope:
                         current = outer_scope
         case _ as unreachable:
             assert_never(unreachable)
@@ -2443,7 +2181,7 @@ def _resolve_symbol_reference(
     # Navigate through parts
     for part_index, part in enumerate(parts):
         resolved = current[part]
-        if not isinstance(resolved, ScopeSymbol):
+        if not isinstance(resolved, Symbol):
             path_so_far = ".".join(str(p) for p in parts[: part_index + 1])
             raise TypeError(
                 f"Expected ScopeSymbol while resolving reference, "
@@ -2557,7 +2295,7 @@ class _ScopeDefinition(
             raise KeyError(key)
         return val
 
-    def compile(self, outer: ScopeSymbol, key: str, /) -> "DefinedScopeSymbol":
+    def compile(self, outer: Symbol, key: str, /) -> "DefinedScopeSymbol":
         """
         Compile this definition mapping into a DefinedScopeSymbol.
 
@@ -2970,9 +2708,7 @@ def _make_jit_getter(name: str, index: int) -> Callable[[CapturedScopes], "Node"
     return eval(code, {})
 
 
-def _find_param_in_symbol_chain(
-    param_name: str, starting_symbol: ScopeSymbol
-) -> "Symbol":
+def _find_param_in_symbol_chain(param_name: str, starting_symbol: Symbol) -> "Symbol":
     """
     Find a parameter in the symbol chain (lexical scope + extends).
 
@@ -2984,7 +2720,7 @@ def _find_param_in_symbol_chain(
     :return: The Symbol (leaf or scope).
     :raises KeyError: If the parameter is not found in the symbol chain.
     """
-    current: ScopeSymbol = starting_symbol
+    current: Symbol = starting_symbol
     while True:
         if param_name in current:
             param_symbol = current[param_name]
@@ -2992,25 +2728,25 @@ def _find_param_in_symbol_chain(
         match current.outer:
             case OuterSentinel.ROOT:
                 raise KeyError(f"Parameter '{param_name}' not found in symbol chain")
-            case ScopeSymbol() as outer_scope:
+            case Symbol() as outer_scope:
                 current = outer_scope
 
 
-def _is_param_in_symbol_chain(param_name: str, starting_symbol: ScopeSymbol) -> bool:
+def _is_param_in_symbol_chain(param_name: str, starting_symbol: Symbol) -> bool:
     """Check if a parameter is resolvable from the symbol chain."""
-    current: ScopeSymbol = starting_symbol
+    current: Symbol = starting_symbol
     while True:
         if param_name in current:
             return True
         match current.outer:
             case OuterSentinel.ROOT:
                 return False
-            case ScopeSymbol() as outer_scope:
+            case Symbol() as outer_scope:
                 current = outer_scope
 
 
 def _resolve_dependencies_jit_using_symbol(
-    outer_symbol: ScopeSymbol,
+    outer_symbol: Symbol,
     function: Callable[P, T],
     name: str,
 ) -> Callable[[CapturedScopes], T]:
@@ -3062,7 +2798,7 @@ def _resolve_dependencies_jit_using_symbol(
                     raise ValueError(
                         f"Same-name dependency '{name}' at root level is not allowed"
                     )
-                case ScopeSymbol() as outer_scope:
+                case Symbol() as outer_scope:
                     param_symbol = _find_param_in_symbol_chain(
                         parameter.name, outer_scope
                     )

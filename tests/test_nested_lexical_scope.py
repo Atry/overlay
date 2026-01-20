@@ -14,7 +14,6 @@ from mixinject import (
     evaluate,
     scope,
     Definition,
-    ScopeSymbol,
     Symbol,
     CapturedScopes,
     RelativeReference as R,
@@ -131,7 +130,7 @@ class DirectDefinition(Definition):
 
     @override
     def compile(
-        self, outer: ScopeSymbol, key: str, /
+        self, outer: Symbol, key: str, /
     ) -> _DirectNestedSymbol:
         return _DirectNestedSymbol(
             key=key,
