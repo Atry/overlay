@@ -677,15 +677,23 @@ Once Jupyter Lab is running, the `jupyter` MCP server tools can connect to it fo
 - Executing code cells for debugging
 - Reading notebook outputs and results
 
-## IMPORTANT: 🛡️ Defensive Programming
+## IMPORTANT: ⚔️ Offensive Programming
 
-1. Postconditions via assert: If function A calls function B, function A can `assert` every condition it relies on about B's return value (type/shape/non-empty/key presence/order, etc.).
-2. Input errors raise ValueError: Invalid external/user input can raise `ValueError("reason")` immediately (no sentinel returns).
-3. No try/except unless explicitly requested: Do NOT add any `try/except` unless the user explicitly asks for it.
-4. Never suppress errors: Never use `try/except` to hide, swallow, or silence errors during debugging; always find and fix the root cause instead.
-5. Confirm before recoverable handling: If you believe an error is genuinely recoverable and a `try/except` handler is needed, STOP and ask the user for confirmation—do not add it autonomously.
-6. Self-explanatory code over comments: Replace comments with self-documenting code using `logger.debug()` statements or extracting logic into well-named functions that explain the intent (e.g., `def perform_initialization(): ...` instead of `# perform initialization`).
-7. No hardcoded indices: NEVER use hardcoded indices like `my_sequence[0]`. If a sequence contains exactly one element, use unpacking syntax `single_item, = my_sequence` instead of indexing to make the single-element expectation explicit and fail fast if the assumption is violated.
+This project follows **Offensive Programming** principles: fail fast, fail loud, and let bugs crash the program immediately rather than hiding them. The goal is to make bugs impossible to ignore by crashing early with clear error messages.
+
+1. **Crash on postcondition violations**: If function A calls function B, function A MUST `assert` every condition it relies on about B's return value (type/shape/non-empty/key presence/order, etc.). If the assertion fails, let the program crash—this exposes bugs in B immediately.
+2. **Crash on invalid input**: Invalid external/user input MUST raise `ValueError("reason")` immediately. No sentinel returns, no fallback values—crash and tell the caller exactly what went wrong.
+3. **No error recovery unless explicitly requested**: Do NOT add any `try/except` unless the user explicitly asks for it. Error recovery hides bugs and makes debugging harder.
+4. **Let it crash**: Never use `try/except` to hide, swallow, or silence errors. If something fails, let the crash expose the root cause. Suppressing errors is the enemy of bug discovery.
+5. **Ask before adding error handling**: If you believe an error is genuinely recoverable and a `try/except` handler is needed, STOP and ask the user for confirmation—do not add it autonomously.
+6. **Self-explanatory code over comments**: Replace comments with self-documenting code using `logger.debug()` statements or extracting logic into well-named functions that explain the intent (e.g., `def perform_initialization(): ...` instead of `# perform initialization`).
+7. **Crash on wrong assumptions**: NEVER use hardcoded indices like `my_sequence[0]`. If a sequence contains exactly one element, use unpacking syntax `single_item, = my_sequence` instead of indexing. This crashes immediately if the assumption is violated, exposing the bug.
+
+**Why Offensive Programming?**
+- Silent failures are worse than crashes—they corrupt data and hide bugs
+- A crash with a stack trace tells you exactly where the bug is
+- "Fail fast" means bugs are caught in development, not production
+- Recovery code often masks the real problem and introduces new bugs
 
 Do NOT write redundant asserts for facts already guaranteed by parameter or return type annotations (e.g. avoid `assert isinstance(count, int)` when the signature declares `count: int`). Focus asserts on semantic invariants not encoded in the static types (non-empty, ordering, relationships between values, normalized ranges, cross-field consistency, etc.).
 
@@ -693,29 +701,31 @@ Examples:
 
 ```python
 def fetch_profile(repo, user_id: str):
+    # Crash immediately if user_id is invalid—don't return None or a default
     if not user_id:
         raise ValueError("user_id must be non-empty")
     profile = repo.get(user_id)
+    # Crash if repo.get violates its contract—expose the bug in repo
     assert profile is not None, "repo.get must return a profile object"
     assert profile.id == user_id, f"Expected id {user_id}, got {profile.id}"
     return profile
 
 def process_results(results: list[str]):
-    # ✅ CORRECT: Unpacking makes single-element expectation explicit
+    # ✅ CORRECT: Unpacking crashes if assumption is wrong—bug exposed immediately
     single_result, = results
     return single_result.upper()
 
-    # ❌ WRONG: Hardcoded index silently succeeds with multiple elements
+    # ❌ WRONG: Hardcoded index silently succeeds with multiple elements—bug hidden
     # return results[0].upper()
 
-# Forbidden (suppresses root cause):
+# ❌ FORBIDDEN (suppresses root cause, hides bugs):
 # try:
 #     data = parse(raw)
 # except Exception:
-#     data = None  # NEVER do this
+#     data = None  # Bug is now invisible—NEVER do this
 ```
 
-Use `assert` for internal invariants about trusted code paths; use `ValueError` for invalid caller/user inputs. No other exception/handler policy changes are implied.
+Use `assert` for internal invariants about trusted code paths; use `ValueError` for invalid caller/user inputs. Let the program crash—crashes are your friend in finding bugs.
 
 
 ## Logging Best Practices
