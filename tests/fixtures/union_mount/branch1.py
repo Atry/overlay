@@ -13,7 +13,7 @@ def another_dependency() -> str:
     return "dependency_value"
 
 
-@scope()
+@scope
 class union_mount_point:
     """Provides foo resource via @scope semigroup."""
 

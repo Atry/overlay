@@ -148,13 +148,13 @@ class TestNestedCapturedScopes:
         Non-same-name parameters can be looked up in outer lexical scope.
         """
 
-        @scope()
+        @scope
         class Outer:
             @resource
             def outer_val() -> Result:
                 return Result("outer")
 
-            @scope()
+            @scope
             class Inner:
                 @resource
                 def inner_val(outer_val: Result) -> Result:
@@ -167,7 +167,7 @@ class TestNestedCapturedScopes:
     def test_evaluate_resource_dual_role_single(self, scope_class: type[Scope]) -> None:
         """Test: Single Dual item -> selected as Merger."""
 
-        @scope()
+        @scope
         class Namespace:
             target = DirectDefinition(Dual("A"))
 
@@ -177,13 +177,13 @@ class TestNestedCapturedScopes:
     def test_evaluate_resource_dual_and_patch(self, scope_class: type[Scope]) -> None:
         """Test: Dual + Dual -> One is Merger, other is Patch."""
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class N1:
                 target = DirectDefinition(Dual("A"))
 
-            @scope()
+            @scope
             class N2:
                 target = DirectDefinition(Dual("B"))
 
@@ -191,7 +191,7 @@ class TestNestedCapturedScopes:
                 R(levels_up=0, path=("N1",)),
                 R(levels_up=0, path=("N2",)),
             )
-            @scope()
+            @scope
             class Combined:
                 pass
 
@@ -205,13 +205,13 @@ class TestNestedCapturedScopes:
     ) -> None:
         """Test: Pure Merger + Dual -> Pure Merger selected, Dual is Patch."""
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class N1:
                 target = DirectDefinition(PureMerger("P"))
 
-            @scope()
+            @scope
             class N2:
                 target = DirectDefinition(Dual("D"))
 
@@ -219,7 +219,7 @@ class TestNestedCapturedScopes:
                 R(levels_up=0, path=("N1",)),
                 R(levels_up=0, path=("N2",)),
             )
-            @scope()
+            @scope
             class Combined:
                 pass
 
@@ -232,13 +232,13 @@ class TestNestedCapturedScopes:
     ) -> None:
         """Test: Multiple pure mergers -> ValueError."""
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class N1:
                 target = DirectDefinition(PureMerger("A"))
 
-            @scope()
+            @scope
             class N2:
                 target = DirectDefinition(PureMerger("B"))
 
@@ -246,7 +246,7 @@ class TestNestedCapturedScopes:
                 R(levels_up=0, path=("N1",)),
                 R(levels_up=0, path=("N2",)),
             )
-            @scope()
+            @scope
             class Combined:
                 pass
 
@@ -265,7 +265,7 @@ class TestNestedCapturedScopes:
             def __iter__(self) -> Iterator[Any]:
                 yield f"patch-{self.value}"
 
-        @scope()
+        @scope
         class N1:
             target = DirectDefinition(PurePatch("A"))
 
@@ -280,15 +280,15 @@ class TestNestedCapturedScopes:
         those dependencies using @extern to make them visible at compile time.
         """
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class Base:
                 @resource
                 def val() -> Result:
                     return Result("base")
 
-            @scope()
+            @scope
             class Extension:
                 @extern
                 def val() -> Result:
@@ -307,7 +307,7 @@ class TestNestedCapturedScopes:
                 R(levels_up=0, path=("Base",)),
                 R(levels_up=0, path=("Extension",)),
             )
-            @scope()
+            @scope
             class Combined:
                 pass
 

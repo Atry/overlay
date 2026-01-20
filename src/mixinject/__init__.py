@@ -242,13 +242,13 @@ Common patterns:
 
 **Multiple Scopes** (semigroup composition)::
 
-    @scope()
+    @scope
     class Base:
         @resource
         def foo() -> str:
             return "base_foo"
 
-    @scope()
+    @scope
     class Extension:
         @resource
         def bar() -> str:
@@ -312,7 +312,7 @@ transforming an outer scope's definition::
         def counter() -> int:
             return 0
 
-        @scope()
+        @scope
         class Inner:
             @resource
             def counter(counter: int) -> int:  # same-name parameter
@@ -456,7 +456,7 @@ creating an :class:`InstanceScope` that stores kwargs directly for lookup.
 Example::
 
     # Create a Scope and inject values using mount
-    @scope()
+    @scope
     class Config:
         @extern
         def setting(): ...
@@ -478,7 +478,7 @@ By using :meth:`Scope.__call__` in an outer scope to inject parameter values, re
 modules can access these values via symbol table lookup::
 
     # Provide base value in outer scope via mount
-    @scope()
+    @scope
     class Config:
         @extern
         def db_config(): ...
@@ -488,7 +488,7 @@ modules can access these values via symbol table lookup::
     outer_scope: CapturedScopes = (outer_scope,)
 
     # Resources in modules can obtain this value via same-named parameter
-    @scope()
+    @scope
     class Database:
         @extern
         def db_config(): ...
@@ -1807,7 +1807,7 @@ class Scope(Mapping[Hashable, "Node"], ABC):
 
         Problem example::
 
-            @scope()
+            @scope
             class MyScope:
                 @resource
                 def __str__() -> str:
@@ -2650,17 +2650,15 @@ class _PackageScopeDefinition(_ScopeDefinition):
             return _ScopeDefinition(underlying=submod)
 
 
-def scope() -> Callable[[object], _ScopeDefinition]:
+def scope(c: object) -> _ScopeDefinition:
     """
-    Decorator that converts a class into a NamespaceDefinition.
-    Nested classes MUST be decorated with @scope() to be included as sub-scopes.
-
-    Note: Always use @scope() with parentheses, not @scope without parentheses.
+    Decorator that converts a class into a ScopeDefinition.
+    Nested classes MUST be decorated with @scope to be included as sub-scopes.
 
     Example - Using @extend to inherit from another scope::
 
         @extend(RelativeReference(levels_up=1, path=("Base",)))
-        @scope()
+        @scope
         class MyScope:
             @patch
             def foo() -> Callable[[int], int]:
@@ -2668,23 +2666,23 @@ def scope() -> Callable[[object], _ScopeDefinition]:
 
     Example - Union mounting multiple scopes across modules::
 
-        Multiple ``@scope()`` definitions with the same name are automatically merged
+        Multiple ``@scope`` definitions with the same name are automatically merged
         as semigroups. This is the recommended way to create union mount points::
 
             # In branch0.py:
-            @scope()
+            @scope
             class union_mount_point:
                 pass  # Base empty scope
 
             # In branch1.py:
-            @scope()
+            @scope
             class union_mount_point:
                 @resource
                 def foo() -> str:
                     return "foo"
 
             # In branch2.py:
-            @scope()
+            @scope
             class union_mount_point:
                 @extern
                 def foo() -> str: ...
@@ -2699,11 +2697,7 @@ def scope() -> Callable[[object], _ScopeDefinition]:
             root.union_mount_point.bar  # "foo_bar"
 
     """
-
-    def wrapper(c: object) -> _ScopeDefinition:
-        return _ScopeDefinition(underlying=c)
-
-    return wrapper
+    return _ScopeDefinition(underlying=c)
 
 
 TDefinition = TypeVar("TDefinition", bound=Definition)
@@ -2724,7 +2718,7 @@ def extend(
     Example::
 
         @extend(RelativeReference(levels_up=1, path=("Base",)))
-        @scope()
+        @scope
         class MyScope:
             @patch
             def foo() -> Callable[[int], int]:
@@ -2802,7 +2796,7 @@ def merge(
         root = mount(branch0, branch1, branch2)
         root.deduplicated_tags  # frozenset(("tag1", "tag2_dependency_value"))
 
-    Note: For union mounting multiple scopes, use ``@scope()`` semigroups instead.
+    Note: For union mounting multiple scopes, use ``@scope`` semigroups instead.
     See :func:`scope` for examples.
     """
     return FunctionalMergerDefinition(function=callable)

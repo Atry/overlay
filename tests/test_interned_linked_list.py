@@ -71,7 +71,7 @@ class TestInterning:
 
     def test_interning_via_mount(self) -> None:
         """Interning happens when using mount."""
-        @scope()
+        @scope
         class Root:
             @resource
             def foo() -> int:
@@ -86,9 +86,9 @@ class TestInterning:
 
     def test_interning_via_nested_scope_access(self) -> None:
         """Accessing the same nested scope multiple times returns scopes with the same mixin."""
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class Inner:
                 @resource
                 def foo() -> int:

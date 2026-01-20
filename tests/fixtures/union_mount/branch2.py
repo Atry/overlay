@@ -17,7 +17,7 @@ def deduplicated_tags(another_dependency: str) -> str:
     return f"tag2_{another_dependency}"
 
 
-@scope()
+@scope
 class union_mount_point:
     """Provides bar resource via @scope semigroup, depending on foo from branch1."""
 

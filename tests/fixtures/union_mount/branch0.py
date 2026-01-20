@@ -10,7 +10,7 @@ def deduplicated_tags() -> Callable[[Iterator[str]], frozenset[str]]:
     return frozenset
 
 
-@scope()
+@scope
 class union_mount_point:
     """Base empty scope - other branches will merge their definitions into this."""
 

@@ -57,7 +57,7 @@ class TestSimpleResource:
     """Test basic resource definition and resolution."""
 
     def test_simple_resource_no_dependencies(self) -> None:
-        @scope()
+        @scope
         class Namespace:
             @resource
             def greeting() -> str:
@@ -67,7 +67,7 @@ class TestSimpleResource:
         assert root.greeting == "Hello"
 
     def test_resource_with_dependency(self) -> None:
-        @scope()
+        @scope
         class Namespace:
             @resource
             def name() -> str:
@@ -81,7 +81,7 @@ class TestSimpleResource:
         assert root.greeting == "Hello, World!"
 
     def test_multiple_dependencies(self) -> None:
-        @scope()
+        @scope
         class Namespace:
             @resource
             def first() -> str:
@@ -103,15 +103,15 @@ class TestPatch:
     """Test patch decorator."""
 
     def test_single_patch(self) -> None:
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class Base:
                 @resource
                 def value() -> int:
                     return 10
 
-            @scope()
+            @scope
             class Patcher:
                 @patch
                 def value() -> Callable[[int], int]:
@@ -121,7 +121,7 @@ class TestPatch:
                 R(levels_up=0, path=("Base",)),
                 R(levels_up=0, path=("Patcher",)),
             )
-            @scope()
+            @scope
             class Combined:
                 pass
 
@@ -129,21 +129,21 @@ class TestPatch:
         assert root.Combined.value == 20
 
     def test_multiple_patches(self) -> None:
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class Base:
                 @resource
                 def value() -> int:
                     return 10
 
-            @scope()
+            @scope
             class Patch1:
                 @patch
                 def value() -> Callable[[int], int]:
                     return lambda x: x + 5
 
-            @scope()
+            @scope
             class Patch2:
                 @patch
                 def value() -> Callable[[int], int]:
@@ -154,7 +154,7 @@ class TestPatch:
                 R(levels_up=0, path=("Patch1",)),
                 R(levels_up=0, path=("Patch2",)),
             )
-            @scope()
+            @scope
             class Combined:
                 pass
 
@@ -166,15 +166,15 @@ class TestPatches:
     """Test patches decorator (multiple patches from single callable)."""
 
     def test_patches_decorator(self) -> None:
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class Base:
                 @resource
                 def value() -> int:
                     return 10
 
-            @scope()
+            @scope
             class Patcher:
                 @patch_many
                 def value() -> tuple[Callable[[int], int], ...]:
@@ -184,7 +184,7 @@ class TestPatches:
                 R(levels_up=0, path=("Base",)),
                 R(levels_up=0, path=("Patcher",)),
             )
-            @scope()
+            @scope
             class Combined:
                 pass
 
@@ -196,13 +196,13 @@ class TestCapturedScopes:
     """Test lexical scope lookup (same name parameter)."""
 
     def test_same_name_lookup_via_nested_scope(self) -> None:
-        @scope()
+        @scope
         class Outer:
             @resource
             def counter() -> int:
                 return 0
 
-            @scope()
+            @scope
             class Inner:
                 @resource
                 def counter(counter: int) -> int:
@@ -235,21 +235,21 @@ class TestMerger:
     """Test merge decorator."""
 
     def test_custom_aggregation(self) -> None:
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class Base:
                 @merge
                 def tags() -> type[frozenset]:
                     return frozenset
 
-            @scope()
+            @scope
             class Provider1:
                 @patch
                 def tags() -> str:
                     return "tag1"
 
-            @scope()
+            @scope
             class Provider2:
                 @patch
                 def tags() -> str:
@@ -260,7 +260,7 @@ class TestMerger:
                 R(levels_up=0, path=("Provider1",)),
                 R(levels_up=0, path=("Provider2",)),
             )
-            @scope()
+            @scope
             class Combined:
                 pass
 
@@ -272,15 +272,15 @@ class TestUnionMount:
     """Test union mount semantics using @scope to combine namespaces."""
 
     def test_union_mount_multiple_namespaces(self) -> None:
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class Namespace1:
                 @resource
                 def foo() -> str:
                     return "foo_value"
 
-            @scope()
+            @scope
             class Namespace2:
                 @resource
                 def bar() -> str:
@@ -290,7 +290,7 @@ class TestUnionMount:
                 R(levels_up=0, path=("Namespace1",)),
                 R(levels_up=0, path=("Namespace2",)),
             )
-            @scope()
+            @scope
             class Combined:
                 pass
 
@@ -299,16 +299,16 @@ class TestUnionMount:
         assert root.Combined.bar == "bar_value"
 
     def test_union_mount_with_dependencies_across_namespaces(self) -> None:
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class Namespace1:
                 @resource
                 def base_value() -> str:
                     return "base"
 
             @extend(R(levels_up=0, path=("Namespace1",)))
-            @scope()
+            @scope
             class Namespace2:
                 @extern
                 def base_value() -> str: ...
@@ -323,15 +323,15 @@ class TestUnionMount:
     def test_deduplicated_tags_from_docstring(self) -> None:
         """Test union mounting with @scope(extend=...) to combine branches."""
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class branch0:
                 @merge
                 def deduplicated_tags() -> type[frozenset]:
                     return frozenset
 
-            @scope()
+            @scope
             class branch1:
                 @patch
                 def deduplicated_tags() -> str:
@@ -341,7 +341,7 @@ class TestUnionMount:
                 def another_dependency() -> str:
                     return "dependency_value"
 
-            @scope()
+            @scope
             class branch2:
                 @extern
                 def another_dependency() -> str: ...
@@ -355,7 +355,7 @@ class TestUnionMount:
                 R(levels_up=0, path=("branch1",)),
                 R(levels_up=0, path=("branch2",)),
             )
-            @scope()
+            @scope
             class Combined:
                 pass
 
@@ -367,15 +367,15 @@ class TestUnionMount:
     def test_union_mount_point_from_docstring(self) -> None:
         """Test union mounting with @scope(extend=...) to combine scope resources."""
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class branch1:
                 @resource
                 def foo() -> str:
                     return "foo"
 
-            @scope()
+            @scope
             class branch2:
                 @extern
                 def foo() -> str: ...
@@ -388,7 +388,7 @@ class TestUnionMount:
                 R(levels_up=0, path=("branch1",)),
                 R(levels_up=0, path=("branch2",)),
             )
-            @scope()
+            @scope
             class Combined:
                 pass
 
@@ -403,9 +403,9 @@ class TestExtendInstanceScopeProhibition:
     def test_extend_instance_scope_raises_type_error(self) -> None:
         """Extending from an InstanceScope should raise TypeError."""
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class MyOuter:
                 @extern
                 def i() -> int: ...
@@ -420,7 +420,7 @@ class TestExtendInstanceScopeProhibition:
 
             # This should fail because my_instance is an InstanceScope
             @extend(R(levels_up=0, path=("my_instance",)))
-            @scope()
+            @scope
             class Invalid:
                 pass
 
@@ -431,14 +431,14 @@ class TestExtendInstanceScopeProhibition:
     def test_extend_path_through_instance_scope_raises_type_error(self) -> None:
         """Extending from a path through InstanceScope should raise TypeError."""
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class MyOuter:
                 @extern
                 def i() -> int: ...
 
-                @scope()
+                @scope
                 class MyInner:
                     @resource
                     def foo() -> str:
@@ -451,7 +451,7 @@ class TestExtendInstanceScopeProhibition:
             # This should fail because my_instance is an InstanceScope,
             # even though MyInner is a StaticScope
             @extend(R(levels_up=0, path=("my_instance", "MyInner")))
-            @scope()
+            @scope
             class Invalid:
                 pass
 
@@ -471,21 +471,21 @@ class TestExtendInstanceScopeProhibition:
         the same scope.
         """
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class MyOuter:
                 @extern
                 def i() -> int: ...
 
-                @scope()
+                @scope
                 class Inner2:
                     @resource
                     def base_value() -> int:
                         return 100
 
                 @extend(R(levels_up=0, path=("Inner2",)))
-                @scope()
+                @scope
                 class Inner1:
                     @patch
                     def base_value(i: int) -> Callable[[int], int]:
@@ -519,16 +519,16 @@ class TestExtendNameResolution:
         which handles extends via _compile_synthetic and generate_strict_super().
         """
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class Base:
                 @resource
                 def base_value() -> int:
                     return 42
 
             @extend(R(levels_up=0, path=("Base",)))
-            @scope()
+            @scope
             class Extended:
                 # This should work: base_value should be resolved from Base
                 # Currently fails because symbol table doesn't include extended names
@@ -582,9 +582,9 @@ class TestScalaStylePathDependentTypes:
         requires each scope to provide its own patches with local dependencies.
         """
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class Base:
                 @resource
                 def foo() -> int:
@@ -592,27 +592,27 @@ class TestScalaStylePathDependentTypes:
 
             # object1 and object2 are scopes that provide different `i` values
             # Each has its own MyInner that extends Base and adds a patch using local i
-            @scope()
+            @scope
             class object1:
                 @resource
                 def i() -> int:
                     return 1
 
                 @extend(R(levels_up=1, path=("Base",)))
-                @scope()
+                @scope
                 class MyInner:
                     @patch
                     def foo(i: int) -> Callable[[int], int]:
                         return lambda x: x + i
 
-            @scope()
+            @scope
             class object2:
                 @resource
                 def i() -> int:
                     return 2
 
                 @extend(R(levels_up=1, path=("Base",)))
-                @scope()
+                @scope
                 class MyInner:
                     @patch
                     def foo(i: int) -> Callable[[int], int]:
@@ -623,7 +623,7 @@ class TestScalaStylePathDependentTypes:
                 R(levels_up=0, path=("object1", "MyInner")),
                 R(levels_up=0, path=("object2", "MyInner")),
             )
-            @scope()
+            @scope
             class MyObjectA:
                 @patch
                 def foo() -> Callable[[int], int]:
@@ -650,14 +650,14 @@ class TestInstanceScopeReversedPath:
     ) -> None:
         """When accessing nested scope through InstanceScope, path should use InstanceChildScopeSymbol."""
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class MyOuter:
                 @extern
                 def i() -> int: ...
 
-                @scope()
+                @scope
                 class MyInner:
                     @resource
                     def foo(i: int) -> str:
@@ -701,14 +701,14 @@ class TestInstanceScopeSymbolDepth:
         """
         from mixinject import InstanceScopeSymbol
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class Outer:
                 @extern
                 def arg() -> int: ...
 
-                @scope()
+                @scope
                 class Inner:
                     @resource
                     def value(arg: int) -> int:
@@ -733,14 +733,14 @@ class TestDefinitionSharing:
     def test_definition_shared_across_different_instance_args(self) -> None:
         """Definition should be shared when accessing Inner through different Outer instances."""
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class Outer:
                 @extern
                 def arg() -> str: ...
 
-                @scope()
+                @scope
                 class Inner:
                     @resource
                     def value(arg: str) -> str:
@@ -760,14 +760,14 @@ class TestDefinitionSharing:
     def test_definition_shared_between_instance_and_static_access(self) -> None:
         """Definition should be shared between InstanceScope and StaticScope access paths."""
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class Outer:
                 @extern
                 def arg() -> str: ...
 
-                @scope()
+                @scope
                 class Inner:
                     @resource
                     def value(arg: str) -> str:
@@ -803,21 +803,21 @@ class TestDefinitionSharing:
             share the same Definition instance.
         """
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class Outer:
                 @extern
                 def arg() -> str: ...
 
-                @scope()
+                @scope
                 class Inner:
                     @resource
                     def value(arg: str) -> str:
                         return f"value_{arg}"
 
             @extend(R(levels_up=1, path=("Outer",)))
-            @scope()
+            @scope
             class object1:
                 @extern
                 def arg() -> str: ...
@@ -842,7 +842,7 @@ class TestScopeAsSymlink:
         base_scope = StaticScope(symbols={}, symbol=_empty_symbol())
         inner_scope = base_scope(inner_value="inner")
 
-        @scope()
+        @scope
         class Namespace:
             @resource
             def linked() -> Scope:
@@ -980,7 +980,7 @@ class TestScopeCallable:
         - Other resources can depend on the parameter
         """
 
-        @scope()
+        @scope
         class Config:
             @extern
             def db_config() -> dict:
@@ -1017,7 +1017,7 @@ class TestScopeDir:
     def test_dir_returns_list(self) -> None:
         """Test that __dir__ returns a list."""
 
-        @scope()
+        @scope
         class Namespace:
             @resource
             def foo() -> str:
@@ -1030,7 +1030,7 @@ class TestScopeDir:
     def test_dir_includes_names(self) -> None:
         """Test that __dir__ includes all resource names."""
 
-        @scope()
+        @scope
         class Namespace:
             @resource
             def resource1() -> str:
@@ -1053,7 +1053,7 @@ class TestScopeDir:
     def test_dir_includes_builtin_attrs(self) -> None:
         """Test that __dir__ includes builtin attributes."""
 
-        @scope()
+        @scope
         class Namespace:
             @resource
             def foo() -> str:
@@ -1068,7 +1068,7 @@ class TestScopeDir:
     def test_dir_is_sorted(self) -> None:
         """Test that __dir__ returns a sorted list."""
 
-        @scope()
+        @scope
         class Namespace:
             @resource
             def zebra() -> str:
@@ -1089,15 +1089,15 @@ class TestScopeDir:
     def test_dir_with_multiple_symbols(self) -> None:
         """Test __dir__ with multiple mixins providing different resources."""
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class Namespace1:
                 @resource
                 def foo() -> str:
                     return "foo"
 
-            @scope()
+            @scope
             class Namespace2:
                 @resource
                 def bar() -> str:
@@ -1107,7 +1107,7 @@ class TestScopeDir:
                 R(levels_up=0, path=("Namespace1",)),
                 R(levels_up=0, path=("Namespace2",)),
             )
-            @scope()
+            @scope
             class Combined:
                 pass
 
@@ -1119,15 +1119,15 @@ class TestScopeDir:
     def test_dir_deduplicates_names(self) -> None:
         """Test that __dir__ deduplicates resource names when multiple mixins provide the same name."""
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class Namespace1:
                 @resource
                 def shared() -> str:
                     return "from_ns1"
 
-            @scope()
+            @scope
             class Namespace2:
                 @patch
                 def shared() -> Callable[[str], str]:
@@ -1137,7 +1137,7 @@ class TestScopeDir:
                 R(levels_up=0, path=("Namespace1",)),
                 R(levels_up=0, path=("Namespace2",)),
             )
-            @scope()
+            @scope
             class Combined:
                 pass
 
@@ -1148,7 +1148,7 @@ class TestScopeDir:
     def test_dir_works_with_cached_scope(self) -> None:
         """Test __dir__ works with StaticScope subclass."""
 
-        @scope()
+        @scope
         class Namespace:
             @resource
             def cached_resource() -> str:
@@ -1161,7 +1161,7 @@ class TestScopeDir:
     def test_dir_accessible_via_getattr(self) -> None:
         """Test that all resource names from __dir__ are accessible via getattr."""
 
-        @scope()
+        @scope
         class Namespace:
             @resource
             def accessible1() -> str:
@@ -1184,7 +1184,7 @@ class TestParameter:
     def test_parameter_with_keyword_argument_symbol(self) -> None:
         """Test that @extern registers a resource name and accepts injected values."""
 
-        @scope()
+        @scope
         class Config:
             @extern
             def database_url(): ...
@@ -1199,7 +1199,7 @@ class TestParameter:
     def test_parameter_with_dependencies(self) -> None:
         """Test that @extern can have its own dependencies."""
 
-        @scope()
+        @scope
         class Config:
             @resource
             def host() -> str:
@@ -1220,7 +1220,7 @@ class TestParameter:
     def test_parameter_without_base_value_raises_error(self) -> None:
         """Test that accessing a @extern without providing a base value raises NotImplementedError."""
 
-        @scope()
+        @scope
         class Config:
             @extern
             def database_url(): ...
@@ -1239,12 +1239,12 @@ class TestParameter:
     def test_parameter_equivalent_to_empty_patches(self) -> None:
         """Test that @extern is equivalent to @patch_many returning empty collection."""
 
-        @scope()
+        @scope
         class WithParameter:
             @extern
             def value(): ...
 
-        @scope()
+        @scope
         class WithEmptyPatches:
             @patch_many
             def value():
@@ -1259,7 +1259,7 @@ class TestParameter:
     def test_parameter_multiple_injections(self) -> None:
         """Test that multiple @extern resources can be injected together."""
 
-        @scope()
+        @scope
         class Config:
             @extern
             def host(): ...
@@ -1285,7 +1285,7 @@ class TestParameter:
         making it a placeholder that accepts injected values.
         """
 
-        @scope()
+        @scope
         class WithParameter:
             @extern
             def value(): ...
@@ -1294,7 +1294,7 @@ class TestParameter:
             def doubled(value: int) -> int:
                 return value * 2
 
-        @scope()
+        @scope
         class WithIdentityPatch:
             @patch
             def value() -> Callable[[int], int]:
@@ -1316,7 +1316,7 @@ class TestParameter:
     def test_patch_with_identity_endo_requires_base_value(self) -> None:
         """Test that @patch with identity endo requires a base value (like @extern)."""
 
-        @scope()
+        @scope
         class WithIdentityPatch:
             @patch
             def config() -> Callable[[dict], dict]:
@@ -1341,16 +1341,16 @@ class TestScopeSemigroupScopeSymbol:
         positions in the topology (B is accessed as "B", not "A").
         """
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class Base:
                 @resource
                 def value() -> int:
                     return 10
 
             @extend(R(levels_up=0, path=("Base",)))
-            @scope()
+            @scope
             class Extended:
                 @resource
                 def doubled(value: int) -> int:
@@ -1379,15 +1379,15 @@ class TestScopeSemigroupScopeSymbol:
         - extended_another.symbol.outer.key == "Extended"
         """
 
-        @scope()
+        @scope
         class Root:
-            @scope()
+            @scope
             class Base:
                 @resource
                 def value() -> int:
                     return 10
 
-                @scope()
+                @scope
                 class Another:
                     @resource
                     def nested_value() -> str:
@@ -1397,9 +1397,9 @@ class TestScopeSemigroupScopeSymbol:
                     def nested_value2() -> str:
                         return lambda x: x * 3
 
-            @scope()
+            @scope
             class Base2:
-                @scope()
+                @scope
                 class Another:
                     @patch
                     def nested_value() -> str:
@@ -1410,7 +1410,7 @@ class TestScopeSemigroupScopeSymbol:
                         return "nested"
 
             @extend(R(levels_up=0, path=("Base",)), R(levels_up=0, path=("Base2",)))
-            @scope()
+            @scope
             class Extended:
                 @resource
                 def doubled(value: int) -> int:
