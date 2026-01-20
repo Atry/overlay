@@ -38,7 +38,7 @@ FIXTURES_DIR = str(Path(__file__).parent / "fixtures")
 
 def _empty_definition() -> _ScopeDefinition:
     """Create a minimal empty scope definition for testing."""
-    return _ScopeDefinition(scope_class=StaticScope, underlying=object())
+    return _ScopeDefinition(underlying=object())
 
 
 def _empty_symbol() -> DefinedScopeSymbol:
@@ -860,10 +860,7 @@ class TestModuleParsing:
         try:
             import regular_pkg
 
-            scope_def = _parse_package(
-                regular_pkg,
-                get_module_scope_class=lambda _: StaticScope,
-            )
+            scope_def = _parse_package(regular_pkg)
             assert isinstance(scope_def, _PackageScopeDefinition)
         finally:
             sys.path.remove(FIXTURES_DIR)
@@ -902,10 +899,7 @@ class TestModuleParsing:
         try:
             import regular_mod
 
-            scope_def = _parse_package(
-                regular_mod,
-                get_module_scope_class=lambda _: StaticScope,
-            )
+            scope_def = _parse_package(regular_mod)
             assert isinstance(scope_def, _ScopeDefinition)
             assert not isinstance(scope_def, _PackageScopeDefinition)
         finally:
@@ -918,10 +912,7 @@ class TestModuleParsing:
             import ns_pkg
 
             assert hasattr(ns_pkg, "__path__")
-            scope_def = _parse_package(
-                ns_pkg,
-                get_module_scope_class=lambda _: StaticScope,
-            )
+            scope_def = _parse_package(ns_pkg)
             assert isinstance(scope_def, _PackageScopeDefinition)
 
             root = evaluate(ns_pkg)
@@ -961,10 +952,7 @@ class TestModuleParsing:
                 import ns_pkg
 
                 assert len(ns_pkg.__path__) == 2
-                scope_def = _parse_package(
-                    ns_pkg,
-                    get_module_scope_class=lambda _: StaticScope,
-                )
+                scope_def = _parse_package(ns_pkg)
                 assert isinstance(scope_def, _PackageScopeDefinition)
 
                 root = evaluate(ns_pkg)

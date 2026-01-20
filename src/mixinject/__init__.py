@@ -1708,7 +1708,7 @@ class DefinedScopeSymbol(DefinedSymbol, NestedScopeSymbol):
                     )
                     yield from extended_scope.symbols.items()
 
-            return self.definition.scope_class(
+            return StaticScope(
                 symbols=dict(generate_all_symbol_items()),
                 symbol=self,
             )
@@ -2561,7 +2561,6 @@ class _ScopeDefinition(
 ):
     """Base class for scope definitions that create Scope instances from underlying objects."""
 
-    scope_class: type[StaticScope]
     underlying: object
 
     def __iter__(self) -> Iterator[Hashable]:
@@ -2618,7 +2617,6 @@ class _ScopeDefinition(
 class _PackageScopeDefinition(_ScopeDefinition):
     """A definition for packages that discovers submodules via pkgutil."""
 
-    get_module_scope_class: Callable[[ModuleType], type[StaticScope]]
     underlying: ModuleType
 
     def __iter__(self) -> Iterator[Hashable]:
@@ -2630,13 +2628,11 @@ class _PackageScopeDefinition(_ScopeDefinition):
     @override
     def __getitem__(self, key: Hashable) -> Definition:
         """Get a Definition by key name, including lazily imported submodules."""
-        # 1. Try parent (attributes that are Definition)
         try:
             return super(_PackageScopeDefinition, self).__getitem__(key)
         except KeyError:
             pass
 
-        # 2. Import submodule
         full_name = f"{self.underlying.__name__}.{key}"
         try:
             spec = importlib.util.find_spec(full_name)
@@ -2648,31 +2644,18 @@ class _PackageScopeDefinition(_ScopeDefinition):
 
         submod = importlib.import_module(full_name)
 
-        # Create and return definition
         if hasattr(submod, "__path__"):
-            return _PackageScopeDefinition(
-                underlying=submod,
-                scope_class=self.get_module_scope_class(submod),
-                get_module_scope_class=self.get_module_scope_class,
-            )
+            return _PackageScopeDefinition(underlying=submod)
         else:
-            return _ScopeDefinition(
-                underlying=submod,
-                scope_class=self.get_module_scope_class(submod),
-            )
+            return _ScopeDefinition(underlying=submod)
 
 
-def scope(
-    *,
-    scope_class: type[StaticScope] = StaticScope,
-) -> Callable[[object], _ScopeDefinition]:
+def scope() -> Callable[[object], _ScopeDefinition]:
     """
     Decorator that converts a class into a NamespaceDefinition.
     Nested classes MUST be decorated with @scope() to be included as sub-scopes.
 
     Note: Always use @scope() with parentheses, not @scope without parentheses.
-
-    :param scope_class: The Scope subclass to use for this scope.
 
     Example - Using @extend to inherit from another scope::
 
@@ -2718,10 +2701,7 @@ def scope(
     """
 
     def wrapper(c: object) -> _ScopeDefinition:
-        return _ScopeDefinition(
-            underlying=c,
-            scope_class=scope_class,
-        )
+        return _ScopeDefinition(underlying=c)
 
     return wrapper
 
@@ -2758,10 +2738,7 @@ def extend(
     return decorator
 
 
-def _parse_package(
-    module: ModuleType,
-    get_module_scope_class: Callable[[ModuleType], type[StaticScope]],
-) -> _ScopeDefinition:
+def _parse_package(module: ModuleType) -> _ScopeDefinition:
     """
     Parses a module into a NamespaceDefinition.
 
@@ -2774,14 +2751,9 @@ def _parse_package(
     For packages (modules with __path__), uses pkgutil.iter_modules to discover submodules
     and importlib.import_module to lazily import them when accessed.
     """
-    scope_class = get_module_scope_class(module)
     if hasattr(module, "__path__"):
-        return _PackageScopeDefinition(
-            underlying=module,
-            scope_class=scope_class,
-            get_module_scope_class=get_module_scope_class,
-        )
-    return _ScopeDefinition(underlying=module, scope_class=scope_class)
+        return _PackageScopeDefinition(underlying=module)
+    return _ScopeDefinition(underlying=module)
 
 
 Endofunction = Callable[[TResult], TResult]
@@ -2987,26 +2959,19 @@ def evaluate(
 
     """
     captured_scopes: CapturedScopes = ()
-    root_scope_class: type[StaticScope] = StaticScope
-
-    def get_module_scope_class(_module: ModuleType) -> type[StaticScope]:
-        return StaticScope
 
     namespace_definition: _ScopeDefinition
     if isinstance(namespace, _ScopeDefinition):
         namespace_definition = namespace
     elif isinstance(namespace, ModuleType):
-        namespace_definition = _parse_package(
-            namespace,
-            get_module_scope_class=get_module_scope_class,
-        )
+        namespace_definition = _parse_package(namespace)
     else:
         assert_never(namespace)
 
     root_symbol = RootScopeSymbol(
         definition=namespace_definition,
     )
-    return root_scope_class(
+    return StaticScope(
         symbols={root_symbol: captured_scopes},
         symbol=root_symbol,
     )

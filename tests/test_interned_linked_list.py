@@ -8,14 +8,13 @@ from mixinject import (
     evaluate,
     resource,
     scope,
-    StaticScope,
     _ScopeDefinition,
 )
 
 
 def _empty_definition() -> _ScopeDefinition:
     """Create a minimal empty scope definition for testing."""
-    return _ScopeDefinition(scope_class=StaticScope, underlying=object())
+    return _ScopeDefinition(underlying=object())
 
 
 class TestRoot:
