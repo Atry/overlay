@@ -683,6 +683,10 @@ class Symbol(ABC):
     .. todo:: Inherit from ``EvaluatorGetter``. Add ``@abstractmethod __call__``.
     """
 
+    @property
+    @abstractmethod
+    def depth(self) -> int: ...
+
     @abstractmethod
     def generate_strict_super(self) -> Iterator[Symbol]:
         """
@@ -857,7 +861,7 @@ class DefinedSymbol(Symbol):
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
-class StaticScopeSymbol(HasDict, ScopeSymbol):
+class StaticScopeSymbol(ScopeSymbol):
 
     @cached_property
     def instance_symbol(self) -> "InstanceScopeSymbol":
@@ -871,7 +875,7 @@ Mixin: TypeAlias = "Merger | Patcher"
 TMixin_co = TypeVar("TMixin_co", bound="Merger | Patcher", covariant=True)
 
 
-class MixinGetter(Generic[TMixin_co], ABC):
+class MixinGetter(ABC, Generic[TMixin_co]):
     """
     ABC for retrieving a Mixin from a CapturedScopes context.
     """
@@ -891,6 +895,11 @@ class RootScopeSymbol(DefinedSymbol, StaticScopeSymbol):
     Each RootScopeSymbol instance has its own intern pool for interning
     NestedScopeSymbol nodes within that dependency graph.
     """
+
+    @property
+    def depth(self) -> int:
+        """Root symbol has depth 0."""
+        return 0
 
     def generate_strict_super(self) -> Iterator[Symbol]:
         """
@@ -1048,7 +1057,7 @@ class NestedSymbolIndex:
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
-class NestedSymbol(HasDict, Symbol, MixinGetter["Merger | Patcher"]):
+class NestedSymbol(Symbol, MixinGetter["Merger | Patcher"]):
     """
     Leaf Symbol corresponding to non-Mapping resource definitions.
 
@@ -1072,17 +1081,21 @@ class NestedSymbol(HasDict, Symbol, MixinGetter["Merger | Patcher"]):
     outer: Final[ScopeSymbol]
     key: Final[Hashable]
 
+    @final
     @cached_property
     def base_indices(self) -> Mapping["NestedSymbol", int]:
         """Collect base_indices from outer's strict super symbols."""
         return _collect_base_indices(self.outer, self.key)
 
     @cached_property
+    def _cached_depth(self) -> int:
+        """Compute depth in O(1) by leveraging outer's cached depth."""
+        return self.outer.depth + 1
+
+    @property
     def depth(self) -> int:
         """Compute depth in O(1) by leveraging outer's cached depth."""
-        if isinstance(self.outer, NestedScopeSymbol):
-            return self.outer.depth + 1
-        return 1
+        return self.outer.depth + 1
 
     @cached_property
     def getter(self) -> Callable[[CapturedScopes], "Node"]:
@@ -1217,7 +1230,10 @@ class FunctionalMergerSymbol(
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True, eq=False)
 class EndofunctionMergerSymbol(
-    DefinedSymbol, MergerSymbol["Endofunction[TResult]", TResult], Generic[TResult]
+    DefinedSymbol,
+    MergerSymbol["Endofunction[TResult]", TResult],
+    NestedSymbol,
+    Generic[TResult],
 ):
     """NestedSymbol for _EndofunctionDefinition.
 
@@ -1319,7 +1335,7 @@ class SemigroupSymbol(ABC):
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
-class NestedScopeSymbol(SemigroupSymbol, StaticScopeSymbol):
+class NestedScopeSymbol(StaticScopeSymbol, NestedSymbol, SemigroupSymbol):
     """
     Non-empty dependency graph node corresponding to nested Scope definitions.
 
@@ -1462,31 +1478,6 @@ class NestedScopeSymbol(SemigroupSymbol, StaticScopeSymbol):
         """
         return iter(self.linearized_base_indices.keys())
 
-    outer: Final[ScopeSymbol]
-    key: Final[Hashable]
-
-    @cached_property
-    def base_indices(self) -> Mapping["NestedScopeSymbol", int]:
-        """Collect base_indices from outer's strict super symbols."""
-        return cast(
-            Mapping["NestedScopeSymbol", int],
-            _collect_base_indices(self.outer, self.key),
-        )
-
-    @cached_property
-    def depth(self) -> int:
-        """Compute depth in O(1) by leveraging outer's cached depth."""
-        if isinstance(self.outer, NestedScopeSymbol):
-            return self.outer.depth + 1
-        return 1
-
-    @cached_property
-    def getter(self) -> Callable[[CapturedScopes], "Node"]:
-        """Create getter function for accessing this nested scope."""
-        index = self.depth - 1
-        if isinstance(self.key, str):
-            return _make_jit_getter(self.key, index)
-        return lambda captured_scopes: captured_scopes[index][self.key]
 
     @cached_property
     def _linearized_outer_base_indices(
