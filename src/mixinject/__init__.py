@@ -80,7 +80,7 @@ Example::
 
     root = mount(...)
     root.greeting  # "Hello!"
-    root.ignored_function  # AttributeError: 'CachedScope' object has no attribute 'ignored_function'
+    root.ignored_function  # AttributeError: 'StaticScope' object has no attribute 'ignored_function'
 
 Union Filesystem Analogy
 ========================
@@ -1553,7 +1553,7 @@ class SyntheticSymbolMapping(_SyntheticSymbol, NestedSymbolMapping):
     NestedSymbolMapping for synthetic symbols (no local definition).
 
     Synthetic mixins are created when a nested scope is inherited from base classes
-    but has no local definition in the current scope. They use default ``CachedScope``
+    but has no local definition in the current scope. They use default ``StaticScope``
     and have no extend references.
     """
 
@@ -1565,13 +1565,13 @@ class SyntheticSymbolMapping(_SyntheticSymbol, NestedSymbolMapping):
         return self._linearized_outer_base_indices
 
     def bind(self, captured_scopes: CapturedScopes, /) -> "_ScopeSemigroup":
-        """Resolve resources using default CachedScope (no extend references)."""
+        """Resolve resources using default StaticScope (no extend references)."""
 
         def scope_factory() -> StaticScope:
             assert (
                 captured_scopes
             ), "captured_scopes must not be empty when resolving resources"
-            return CachedScope(
+            return StaticScope(
                 symbols={self: captured_scopes},
                 symbol=self,
             )
@@ -1762,11 +1762,9 @@ class Scope(Mapping[Hashable, "Node"], ABC):
       Stores kwargs directly and delegates to base scope for other lookups.
 
     .. todo::
-        Merge Scope/CachedScope/WeakCachedScope into a single class that provides 26 combinations
-        of ResourceConfig behaviors on demand.
-
-        Provide ResourceConfig configuration through new decorators. Note that this configuration
-        is static, independent of Scope instances, and may be compiled into bytecode by Symbol in the future.
+        Provide ResourceConfig configuration through new decorators to support 26 combinations
+        of behaviors on demand. Note that this configuration is static, independent of Scope
+        instances, and may be compiled into bytecode by Symbol in the future.
         ```
         @dataclass
         class BuilderDefinition:
@@ -1877,12 +1875,12 @@ class Scope(Mapping[Hashable, "Node"], ABC):
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class StaticScope(Scope, ABC):
+class StaticScope(Scope):
     """
     A static scope representing class/module level definitions.
 
-    StaticScope stores symbols directly and supports ``__call__`` to create
-    InstanceScope with additional kwargs.
+    StaticScope stores symbols directly, caches resource lookups,
+    and supports ``__call__`` to create InstanceScope with additional kwargs.
     """
 
     symbols: Mapping[StaticSymbolMapping, CapturedScopes]  # type: ignore[misc]
@@ -1900,6 +1898,22 @@ class StaticScope(Scope, ABC):
     """
 
     symbol: StaticSymbolMapping  # type: ignore[misc]
+
+    _cache: MutableMapping[Hashable, "Node"] = field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
+
+    @override
+    def __getitem__(self, key: Hashable) -> "Node":
+        """
+        .. note:: This method uses the two-arg super() as a workaround for https://github.com/python/cpython/pull/124455
+        """
+        if key not in self._cache:
+            value = super(StaticScope, self).__getitem__(key)
+            self._cache[key] = value
+            return value
+        else:
+            return self._cache[key]
 
     def __call__(self, **kwargs: object) -> "InstanceScope":
         """
@@ -1967,37 +1981,6 @@ class InstanceScope(Scope):
     @override
     def __len__(self) -> int:
         return sum(1 for _ in self)
-
-
-@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class CachedScope(StaticScope):
-    """A StaticScope with cached resource lookups."""
-
-    _cache: MutableMapping[Hashable, "Node"] = field(
-        default_factory=dict, init=False, repr=False, compare=False
-    )
-
-    @override
-    def __getitem__(self, key: Hashable) -> "Node":
-        """
-        .. note:: This method uses the two-arg super() as a workaround for https://github.com/python/cpython/pull/124455
-        """
-        if key not in self._cache:
-            value = super(CachedScope, self).__getitem__(key)
-            self._cache[key] = value
-            return value
-        else:
-            return self._cache[key]
-
-
-@final
-@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class WeakCachedScope(CachedScope):
-    """A CachedScope with weak reference caching."""
-
-    _cache: MutableMapping[Hashable, "Node"] = field(
-        default_factory=WeakValueDictionary, init=False, repr=False, compare=False
-    )
 
 
 def _calculate_most_derived_class(first: type, *rest: type) -> type:
@@ -2616,7 +2599,7 @@ class _PackageDefinitionMapping(_DefinitionMapping):
 
 def scope(
     *,
-    scope_class: type[StaticScope] = CachedScope,
+    scope_class: type[StaticScope] = StaticScope,
     bases: Iterable["ResourceReference[Hashable]"] = (),
 ) -> Callable[[object], _DefinitionMapping]:
     """
@@ -2913,10 +2896,10 @@ def evaluate(
 
     """
     captured_scopes: CapturedScopes = ()
-    root_scope_class: type[StaticScope] = CachedScope
+    root_scope_class: type[StaticScope] = StaticScope
 
     def get_module_scope_class(_module: ModuleType) -> type[StaticScope]:
-        return CachedScope
+        return StaticScope
 
     namespace_definition: _DefinitionMapping
     if isinstance(namespace, _DefinitionMapping):

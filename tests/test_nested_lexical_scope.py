@@ -7,8 +7,6 @@ from mixinject import (
     Patcher,
     Scope,
     StaticScope,
-    CachedScope,
-    WeakCachedScope,
     resource,
     extern,
     patch,
@@ -142,7 +140,7 @@ class DirectDefinition(Definition):
         )
 
 
-@pytest.mark.parametrize("scope_class", [CachedScope, WeakCachedScope])
+@pytest.mark.parametrize("scope_class", [StaticScope])
 class TestNestedCapturedScopes:
     def test_nested_captured_scopes_lookup(self, scope_class: type[Scope]) -> None:
         """
@@ -315,18 +313,18 @@ class TestNestedCapturedScopes:
     def test_scope_scope_class_resolution(self, scope_class: type[Scope]) -> None:
         """Test: Scope class is determined by the scope declaring extend=."""
 
-        class CustomScope(CachedScope):
+        class CustomScope(StaticScope):
             pass
 
         @scope()
         class Root:
-            @scope(scope_class=CachedScope)
+            @scope(scope_class=StaticScope)
             class Base:
                 @resource
                 def val() -> str:
                     return "base"
 
-            @scope(scope_class=CachedScope)
+            @scope(scope_class=StaticScope)
             class Extension:
                 @resource
                 def extra() -> str:
@@ -343,27 +341,29 @@ class TestNestedCapturedScopes:
         root = evaluate(Root)
         # Combined's scope_class (CustomScope) is used
         assert isinstance(root.Combined, CustomScope)
-        assert not isinstance(root.Combined, WeakCachedScope)
 
     def test_scope_scope_class_uses_declaring_scope(self, scope_class: type[Scope]) -> None:
         """Test: Combined scope uses its own scope_class, not from extended scopes."""
 
+        class CustomScope(StaticScope):
+            pass
+
         @scope()
         class Root:
-            @scope(scope_class=WeakCachedScope)
+            @scope(scope_class=CustomScope)
             class Base:
                 @resource
                 def val() -> str:
                     return "base"
 
-            @scope(scope_class=CachedScope)
+            @scope(scope_class=StaticScope)
             class Extension:
                 @resource
                 def extra() -> str:
                     return "extra"
 
-            # Combined uses CachedScope regardless of what Base/Extension use
-            @scope(scope_class=CachedScope, bases=[
+            # Combined uses StaticScope regardless of what Base/Extension use
+            @scope(scope_class=StaticScope, bases=[
                 R(levels_up=0, path=("Base",)),
                 R(levels_up=0, path=("Extension",)),
             ])
@@ -371,8 +371,9 @@ class TestNestedCapturedScopes:
                 pass
 
         root = evaluate(Root)
-        # Combined uses its own scope_class (CachedScope), not Base's WeakCachedScope
-        assert isinstance(root.Combined, CachedScope)
+        # Combined uses its own scope_class (StaticScope), not Base's CustomScope
+        assert isinstance(root.Combined, StaticScope)
+        assert not isinstance(root.Combined, CustomScope)
         # Resources from both Base and Extension are accessible
         assert root.Combined.val == "base"
         assert root.Combined.extra == "extra"

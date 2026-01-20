@@ -8,7 +8,6 @@ import pytest
 from mixinject import (
     _MergerDefinition,
     Merger,
-    CachedScope,
     InstanceSymbolMapping,
     InstanceScope,
     _DefinedSymbol,
@@ -28,7 +27,6 @@ from mixinject import (
     evaluate,
     scope,
     _parse_package,
-    WeakCachedScope,
 )
 from mixinject import RootSymbolMapping, DefinedSymbolMapping
 
@@ -39,7 +37,7 @@ FIXTURES_DIR = str(Path(__file__).parent / "fixtures")
 
 def _empty_definition() -> _DefinitionMapping:
     """Create a minimal empty scope definition for testing."""
-    return _DefinitionMapping(scope_class=CachedScope, underlying=object())
+    return _DefinitionMapping(scope_class=StaticScope, underlying=object())
 
 
 def _empty_symbol() -> DefinedSymbolMapping:
@@ -221,13 +219,13 @@ class TestInstanceScope:
     """Test InstanceScope created via StaticScope.__call__."""
 
     def test_instance_scope_single_value(self) -> None:
-        base_scope = CachedScope(symbols={}, symbol=_empty_symbol())
+        base_scope = StaticScope(symbols={}, symbol=_empty_symbol())
         scope = base_scope(foo="bar")
         assert isinstance(scope, InstanceScope)
         assert scope.foo == "bar"
 
     def test_instance_scope_multiple_values(self) -> None:
-        base_scope = CachedScope(symbols={}, symbol=_empty_symbol())
+        base_scope = StaticScope(symbols={}, symbol=_empty_symbol())
         scope = base_scope(foo="bar", count=42, flag=True)
         assert isinstance(scope, InstanceScope)
         assert scope.foo == "bar"
@@ -852,7 +850,7 @@ class TestScopeAsSymlink:
     """Test Scope return values acting as symlinks."""
 
     def test_scope_symlink(self) -> None:
-        base_scope = CachedScope(symbols={}, symbol=_empty_symbol())
+        base_scope = StaticScope(symbols={}, symbol=_empty_symbol())
         inner_scope = base_scope(inner_value="inner")
 
         @scope()
@@ -875,7 +873,7 @@ class TestModuleParsing:
 
             scope_def = _parse_package(
                 regular_pkg,
-                get_module_scope_class=lambda _: CachedScope,
+                get_module_scope_class=lambda _: StaticScope,
             )
             assert isinstance(scope_def, _PackageDefinitionMapping)
         finally:
@@ -917,7 +915,7 @@ class TestModuleParsing:
 
             scope_def = _parse_package(
                 regular_mod,
-                get_module_scope_class=lambda _: CachedScope,
+                get_module_scope_class=lambda _: StaticScope,
             )
             assert isinstance(scope_def, _DefinitionMapping)
             assert not isinstance(scope_def, _PackageDefinitionMapping)
@@ -933,7 +931,7 @@ class TestModuleParsing:
             assert hasattr(ns_pkg, "__path__")
             scope_def = _parse_package(
                 ns_pkg,
-                get_module_scope_class=lambda _: CachedScope,
+                get_module_scope_class=lambda _: StaticScope,
             )
             assert isinstance(scope_def, _PackageDefinitionMapping)
 
@@ -976,7 +974,7 @@ class TestModuleParsing:
                 assert len(ns_pkg.__path__) == 2
                 scope_def = _parse_package(
                     ns_pkg,
-                    get_module_scope_class=lambda _: CachedScope,
+                    get_module_scope_class=lambda _: StaticScope,
                 )
                 assert isinstance(scope_def, _PackageDefinitionMapping)
 
@@ -1029,17 +1027,11 @@ class TestScopeCallable:
 
         v1 = Value()
 
-        # CachedScope.__call__ should return InstanceScope
-        cached = CachedScope(symbols={}, symbol=_empty_symbol())
-        instance1 = cached(x=v1)
+        # StaticScope.__call__ should return InstanceScope
+        static = StaticScope(symbols={}, symbol=_empty_symbol())
+        instance1 = static(x=v1)
         assert isinstance(instance1, InstanceScope)
         assert instance1.x is v1
-
-        # WeakCachedScope.__call__ should also return InstanceScope
-        weak = WeakCachedScope(symbols={}, symbol=_empty_symbol())
-        weak_instance = weak(x=v1)
-        assert isinstance(weak_instance, InstanceScope)
-        assert weak_instance.x is v1
 
 
 class TestScopeDir:
@@ -1179,7 +1171,7 @@ class TestScopeDir:
         assert result.count("shared") == 1
 
     def test_dir_works_with_cached_scope(self) -> None:
-        """Test __dir__ works with CachedScope subclass."""
+        """Test __dir__ works with StaticScope subclass."""
 
         @scope()
         class Namespace:
@@ -1190,19 +1182,6 @@ class TestScopeDir:
         root = evaluate(Namespace)
         result = dir(root)
         assert "cached_resource" in result
-
-    def test_dir_works_with_weak_cached_scope(self) -> None:
-        """Test __dir__ works with WeakCachedScope subclass."""
-
-        @scope()
-        class Namespace:
-            @resource
-            def weak_resource() -> str:
-                return "weak"
-
-        root = evaluate(Namespace)
-        result = dir(root)
-        assert "weak_resource" in result
 
     def test_dir_accessible_via_getattr(self) -> None:
         """Test that all resource names from __dir__ are accessible via getattr."""
