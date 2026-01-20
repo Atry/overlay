@@ -1097,6 +1097,40 @@ class NestedSymbol(HasDict, Symbol, MixinGetter["Merger | Patcher"]):
         """Generate the strict super symbols (all direct and transitive bases, excluding self)."""
         return iter(self.base_indices.keys())
 
+    @cached_property
+    def elected_merger_index(self) -> SymbolIndexSentinel | int:
+        """
+        Elect the merger from self and base symbols.
+
+        Implements the merger election algorithm at compile time:
+        1. If exactly one pure Merger exists, it is elected
+        2. If multiple pure Mergers exist, raises ValueError
+        3. If no pure Mergers exist, raises NotImplementedError
+
+        Returns:
+            SymbolIndexSentinel.OWN if self is the elected merger,
+            or the index in base_indices if a base symbol is elected.
+        """
+        self_is_pure_merger = isinstance(self, MergerSymbol)
+
+        pure_merger_indices: list[int] = [
+            index
+            for base_symbol, index in self.base_indices.items()
+            if isinstance(base_symbol, MergerSymbol)
+        ]
+
+        total_pure_mergers = len(pure_merger_indices) + (1 if self_is_pure_merger else 0)
+
+        if total_pure_mergers == 1:
+            if self_is_pure_merger:
+                return SymbolIndexSentinel.OWN
+            single_index, = pure_merger_indices
+            return single_index
+        elif total_pure_mergers > 1:
+            raise ValueError("Multiple Factory definitions provided")
+        else:
+            raise NotImplementedError("No Factory definition provided")
+
     @abstractmethod
     def bind(self, captured_scopes: CapturedScopes, /) -> "Merger | Patcher":
         """Retrieve the Mixin for the given captured scopes."""
