@@ -61,9 +61,9 @@ from dataclasses import dataclass
 
 @dataclass(kw_only=True, slots=True, frozen=True, weakref_slot=True)
 class User:
-    id: Final[int]
-    name: Final[str]
-    email: Final[str]
+    id: int
+    name: str
+    email: str
 ```
 
 **Why `@dataclass` over alternatives:**
@@ -91,25 +91,23 @@ class User:
 - Allows weak references to instances even with `slots=True`
 - Enables garbage collection of cyclic references
 
-**Use `Final` for field-level type hints:**
+**Note on `Final` type hints:**
+
+Frozen dataclasses (`frozen=True`) already enforce runtime immutability, so `Final` type hints could be omitted:
 
 ```python
-# ✓ GOOD - Final on field level
+# ✓ GOOD - frozen dataclass without Final (frozen already ensures immutability)
 @dataclass(kw_only=True, slots=True, frozen=True, weakref_slot=True)
 class Config:
-    name: Final[str]
+    name: str
+    value: int
+
+# ✗ UNNECESSARY - Final is redundant with frozen=True
+@dataclass(kw_only=True, slots=True, frozen=True, weakref_slot=True)
+class Config:
+    name: Final[str]  # Redundant: frozen already prevents mutation
     value: Final[int]
 ```
-
-**Why `Final` with `frozen=True`:**
-- `frozen=True` enforces runtime immutability
-- `Final` provides static type checking immutability guarantees
-- Together they provide both runtime and compile-time safety
-
-**IMPORTANT: All dataclass fields MUST be `Final` by default.**
-- Do NOT create non-`Final` fields without explicit user approval
-- If you need a mutable field, ask the user first and explain why
-- This rule applies to ALL dataclass fields, including those with `field(default_factory=...)`
 
 ### `@final` and `slots` Requirements for Dataclasses
 
@@ -121,7 +119,7 @@ Non-`@final` dataclasses are abstract base classes meant for inheritance only. D
 # ✗ BAD - instantiating a non-@final dataclass
 @dataclass(kw_only=True, eq=False)
 class _BaseNode(ABC):
-    name: Final[str]
+    name: str
 
 node = _BaseNode(name="test")  # FORBIDDEN: _BaseNode is not @final
 
@@ -129,7 +127,7 @@ node = _BaseNode(name="test")  # FORBIDDEN: _BaseNode is not @final
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
 class LeafNode(_BaseNode):
-    value: Final[int]
+    value: int
 
 node = LeafNode(name="test", value=42)  # OK: LeafNode is @final
 ```
@@ -141,13 +139,13 @@ node = LeafNode(name="test", value=42)  # OK: LeafNode is @final
 @final
 @dataclass(kw_only=True, frozen=True)
 class Config:
-    name: Final[str]
+    name: str
 
 # ✓ GOOD - @final dataclass with slots=True and weakref_slot=True
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True)
 class Config:
-    name: Final[str]
+    name: str
 ```
 
 **Rule 3: All non-`@final` dataclasses MUST NOT have `slots=True` or `weakref_slot=True`.**
@@ -158,12 +156,12 @@ This is because Python's `__slots__` does not support multiple inheritance when 
 # ✗ BAD - non-@final dataclass with slots (will break multiple inheritance)
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
 class _BaseMapping(ABC):
-    data: Final[dict[str, Any]]
+    data: dict[str, Any]
 
 # ✓ GOOD - non-@final dataclass without slots
 @dataclass(kw_only=True, eq=False)
 class _BaseMapping(ABC):
-    data: Final[dict[str, Any]]
+    data: dict[str, Any]
 ```
 
 **Using `@cached_property` with slots:**
@@ -175,7 +173,7 @@ When a `@final` dataclass needs `@cached_property`, inherit from `HasDict`:
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
 class ComputedNode(HasDict, _BaseNode):
-    raw_value: Final[int]
+    raw_value: int
 
     @cached_property
     def computed_value(self) -> int:
@@ -188,7 +186,7 @@ For non-`@final` dataclasses that need `@cached_property` and will be combined w
 # ✓ GOOD - non-@final dataclass with @cached_property
 @dataclass(kw_only=True, eq=False)
 class _CachingBase(HasDict, ABC):
-    source: Final[str]
+    source: str
 
     @cached_property
     def cached_result(self) -> bytes:
@@ -239,9 +237,9 @@ from hpcnc.model.loader import load_model
 # ✗ BAD - default values hide required parameters
 @dataclass(kw_only=True, slots=True, frozen=True, weakref_slot=True)
 class Config:
-    name: Final[str]
-    value: Final[int] = 0  # BAD: default value
-    role: Final[str] = "user"  # BAD: default value
+    name: str
+    value: int = 0  # BAD: default value
+    role: str = "user"  # BAD: default value
 
 def save_state(data: bytes, role: str = "ai") -> None:  # BAD: default value
     ...
@@ -249,9 +247,9 @@ def save_state(data: bytes, role: str = "ai") -> None:  # BAD: default value
 # ✓ GOOD - all parameters are explicit and required
 @dataclass(kw_only=True, slots=True, frozen=True, weakref_slot=True)
 class Config:
-    name: Final[str]
-    value: Final[int]
-    role: Final[str]
+    name: str
+    value: int
+    role: str
 
 def save_state(data: bytes, role: str) -> None:
     ...
@@ -282,8 +280,8 @@ def save_state(data: bytes, role: str) -> None:
 # ✗ BAD - using __post_init__ for derived values
 @dataclass(kw_only=True, slots=True, frozen=True, weakref_slot=True)
 class Rectangle:
-    width: Final[float]
-    height: Final[float]
+    width: float
+    height: float
     area: float = field(init=False)
 
     def __post_init__(self) -> None:
@@ -294,8 +292,8 @@ from functools import cached_property
 
 @dataclass(kw_only=True, slots=True, frozen=True, weakref_slot=True)
 class Rectangle:
-    width: Final[float]
-    height: Final[float]
+    width: float
+    height: float
 
     @cached_property
     def area(self) -> float:
@@ -508,8 +506,8 @@ class ResourceState(Enum):
 
 @dataclass(kw_only=True, slots=True, frozen=True, weakref_slot=True)
 class Container:
-    state: Final[ResourceState]
-    resource: Final[Resource | None]  # Can become inconsistent with state!
+    state: ResourceState
+    resource: Resource | None  # Can become inconsistent with state!
 
 # Problem: Two separate fields can become inconsistent
 # Even with frozen=True, creating new instances can have mismatched state/resource
@@ -531,7 +529,7 @@ class ResourceSentinel(Enum):
 
 @dataclass(kw_only=True, slots=True, frozen=True, weakref_slot=True)
 class Container:
-    resource: Final[Resource | ResourceSentinel]  # Single field, always consistent
+    resource: Resource | ResourceSentinel  # Single field, always consistent
 
 # Usage - create instances with the appropriate state
 container = Container(resource=ResourceSentinel.NOT_STARTED)  # Before init
@@ -563,21 +561,21 @@ In most cases, the simplest way to avoid `Optional` and `| None` is to make fiel
 # ✓ GOOD - immutable required fields (best design in most cases)
 @dataclass(kw_only=True, slots=True, frozen=True, weakref_slot=True)
 class User:
-    id: Final[int]        # Required, never None
-    name: Final[str]      # Required, never None
-    email: Final[str]     # Required, never None
+    id: int        # Required, never None
+    name: str      # Required, never None
+    email: str     # Required, never None
 
 # ✓ GOOD - if a field is truly optional, ask: should it be a separate type?
 @dataclass(kw_only=True, slots=True, frozen=True, weakref_slot=True)
 class BasicUser:
-    id: Final[int]
-    name: Final[str]
+    id: int
+    name: str
 
 @dataclass(kw_only=True, slots=True, frozen=True, weakref_slot=True)
 class VerifiedUser:
-    id: Final[int]
-    name: Final[str]
-    email: Final[str]     # Only verified users have email
+    id: int
+    name: str
+    email: str     # Only verified users have email
 ```
 
 **Other correct approaches:**
