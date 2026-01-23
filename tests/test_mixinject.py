@@ -9,14 +9,11 @@ from mixinject import (
     FunctionalMergerDefinition,
     Merger,
     Symbol,
-    InstanceScope,
     DefinedSymbol,
-    CapturedScopes,
     _PackageScopeDefinition,
     _ScopeDefinition,
     Scope,
     RelativeReference,
-    StaticScope,
     EndofunctionMergerDefinition,
     SinglePatcherDefinition,
     merge,
@@ -218,21 +215,37 @@ class TestCapturedScopes:
 
 
 class TestInstanceScope:
-    """Test InstanceScope created via StaticScope.__call__."""
+    """Test instance scope created via Scope.__call__."""
 
     def test_instance_scope_single_value(self) -> None:
-        base_scope = StaticScope(symbols={}, symbol=_empty_symbol())
-        scope = base_scope(foo="bar")
-        assert isinstance(scope, InstanceScope)
-        assert scope.foo == "bar"
+        @scope
+        class Config:
+            @extern
+            def foo() -> str: ...
+
+        base_scope = evaluate(Config)
+        instance = base_scope(foo="bar")
+        assert isinstance(instance, Scope)
+        assert instance.foo == "bar"
 
     def test_instance_scope_multiple_values(self) -> None:
-        base_scope = StaticScope(symbols={}, symbol=_empty_symbol())
-        scope = base_scope(foo="bar", count=42, flag=True)
-        assert isinstance(scope, InstanceScope)
-        assert scope.foo == "bar"
-        assert scope.count == 42
-        assert scope.flag is True
+        @scope
+        class Config:
+            @extern
+            def foo() -> str: ...
+
+            @extern
+            def count() -> int: ...
+
+            @extern
+            def flag() -> bool: ...
+
+        base_scope = evaluate(Config)
+        instance = base_scope(foo="bar", count=42, flag=True)
+        assert isinstance(instance, Scope)
+        assert instance.foo == "bar"
+        assert instance.count == 42
+        assert instance.flag is True
 
 
 class TestMerger:
@@ -404,8 +417,11 @@ class TestUnionMount:
 class TestExtendInstanceScopeProhibition:
     """Test that extend cannot reference a path through InstanceScope."""
 
-    def test_extend_instance_scope_raises_type_error(self) -> None:
-        """Extending from an InstanceScope should raise TypeError."""
+    def test_extend_instance_scope_raises_value_error(self) -> None:
+        """Extending from a resource returning Scope raises ValueError.
+
+        DefinedScopeSymbol cannot coexist with MergerSymbol or PatcherSymbol.
+        """
 
         @scope
         class Root:
@@ -422,18 +438,25 @@ class TestExtendInstanceScopeProhibition:
             def my_instance(MyOuter: Scope) -> Scope:
                 return MyOuter(i=42)
 
-            # This should fail because my_instance is an InstanceScope
             @extend(R(levels_up=0, path=("my_instance",)))
             @scope
-            class Invalid:
+            class Extended:
                 pass
 
-        with pytest.raises(TypeError, match="Cannot extend through InstanceScope"):
-            root = evaluate(Root)
-            _ = root.Invalid.foo
+        root = evaluate(Root)
+        with pytest.raises(
+            ValueError,
+            match="DefinedScopeSymbol cannot coexist with MergerSymbol or PatcherSymbol",
+        ):
+            _ = root.Extended.foo
 
-    def test_extend_path_through_instance_scope_raises_type_error(self) -> None:
-        """Extending from a path through InstanceScope should raise TypeError."""
+    def test_extend_path_through_resource_raises_attribute_error(self) -> None:
+        """Extending from a path through a resource raises AttributeError.
+
+        The path ("my_instance", "MyInner") tries to navigate through my_instance
+        which is a MergerSymbol (from @resource), not a DefinedScopeSymbol.
+        MergerSymbol doesn't support __getitem__ for nested keys.
+        """
 
         @scope
         class Root:
@@ -452,14 +475,13 @@ class TestExtendInstanceScopeProhibition:
             def my_instance(MyOuter: Scope) -> Scope:
                 return MyOuter(i=42)
 
-            # This should fail because my_instance is an InstanceScope,
-            # even though MyInner is a StaticScope
+            # This fails because my_instance is a MergerSymbol, not a scope
             @extend(R(levels_up=0, path=("my_instance", "MyInner")))
             @scope
             class Invalid:
                 pass
 
-        with pytest.raises(TypeError, match="Cannot extend through InstanceScope"):
+        with pytest.raises(AttributeError):
             root = evaluate(Root)
             _ = root.Invalid.foo
 
@@ -636,11 +658,11 @@ class TestScalaStylePathDependentTypes:
         root = evaluate(Root)
 
         # mixin is the runtime access path:
-        #   root.object1.MyInner.symbol == ("MyInner", "object1", "root")
-        #   root.object2.MyInner.symbol == ("MyInner", "object2", "root")
+        #   root.object1.MyInner.mixin.symbol == ("MyInner", "object1", "root")
+        #   root.object2.MyInner.mixin.symbol == ("MyInner", "object2", "root")
         object1_inner = root.object1.MyInner
         object2_inner = root.object2.MyInner
-        assert object1_inner.symbol != object2_inner.symbol
+        assert object1_inner.mixin.symbol != object2_inner.mixin.symbol
 
         # foo = 10 (Base) + 1 (object1.MyInner) + 2 (object2.MyInner) + 100 (MyObjectA) = 113
         assert root.MyObjectA.foo == 113
@@ -678,7 +700,7 @@ class TestInstanceScopeReversedPath:
         my_inner = my_instance.MyInner
 
         # The mixin should be InstanceChildScopeSymbol to distinguish from static path
-        assert isinstance(my_instance.symbol, Symbol)
+        assert isinstance(my_instance.mixin.symbol, Symbol)
 
         # Verify the resource works correctly
         assert my_inner.foo == "foo_42"
@@ -721,8 +743,8 @@ class TestSymbolDepth:
         # The inner scope's mixin should have outer=Symbol
         # Currently it has outer=Outer's NestedScopeSymbol (from prototype)
         assert isinstance(
-            inner.symbol.outer, Symbol
-        ), f"Expected outer to be Symbol, got {type(inner.symbol.outer)}"
+            inner.mixin.symbol.outer, Symbol
+        ), f"Expected outer to be Symbol, got {type(inner.mixin.symbol.outer)}"
 
 
 class TestDefinitionSharing:
@@ -750,8 +772,8 @@ class TestDefinitionSharing:
         inner2 = root.Outer(arg="v2").Inner
 
         # Use the mixin's definition directly
-        definition1 = inner1.symbol.definition
-        definition2 = inner2.symbol.definition
+        definition1 = inner1.mixin.symbol.definition
+        definition2 = inner2.mixin.symbol.definition
 
         assert definition1 is definition2
 
@@ -777,8 +799,8 @@ class TestDefinitionSharing:
         static_inner = root.Outer.Inner
 
         # Use the mixin's definition directly
-        instance_definition = instance_inner.symbol.definition
-        static_definition = static_inner.symbol.definition
+        instance_definition = instance_inner.mixin.symbol.definition
+        static_definition = static_inner.mixin.symbol.definition
 
         assert instance_definition is static_definition
 
@@ -815,18 +837,22 @@ class TestDefinitionSharing:
         object1_inner = root.object1(arg="v2").Inner
 
         # Direct access yields DefinedSymbol
-        assert isinstance(outer_inner.symbol, DefinedSymbol)
+        assert isinstance(outer_inner.mixin.symbol, DefinedSymbol)
 
         # Inherited access via @extend yields SyntheticSymbol
-        assert isinstance(object1_inner.symbol, SyntheticSymbol)
+        assert isinstance(object1_inner.mixin.symbol, SyntheticSymbol)
 
 
 class TestScopeAsSymlink:
     """Test Scope return values acting as symlinks."""
 
     def test_scope_symlink(self) -> None:
-        base_scope = StaticScope(symbols={}, symbol=_empty_symbol())
-        inner_scope = base_scope(inner_value="inner")
+        @scope
+        class Inner:
+            @extern
+            def inner_value() -> str: ...
+
+        inner_scope = evaluate(Inner)(inner_value="inner")
 
         @scope
         class Namespace:
@@ -982,19 +1008,23 @@ class TestScopeCallable:
         assert root.db_config == {"host": "localhost", "port": "5432"}
         assert root.connection_string == "localhost:5432"
 
-    def test_scope_call_returns_instance_scope(self) -> None:
-        """Test that calling a StaticScope returns an InstanceScope."""
+    def test_scope_call_returns_scope(self) -> None:
+        """Test that calling a Scope returns a Scope with kwargs bound."""
 
         class Value:
             pass
 
         v1 = Value()
 
-        # StaticScope.__call__ should return InstanceScope
-        static = StaticScope(symbols={}, symbol=_empty_symbol())
-        instance1 = static(x=v1)
-        assert isinstance(instance1, InstanceScope)
-        assert instance1.x is v1
+        @scope
+        class Config:
+            @extern
+            def x() -> Value: ...
+
+        root = evaluate(Config)
+        instance = root(x=v1)
+        assert isinstance(instance, Scope)
+        assert instance.x is v1
 
 
 class TestScopeDir:
@@ -1048,8 +1078,8 @@ class TestScopeDir:
         root = evaluate(Namespace)
         result = dir(root)
         assert "__class__" in result
-        assert "__getitem__" in result
-        assert "symbols" in result
+        assert "__call__" in result
+        assert "mixin" in result
 
     def test_dir_is_sorted(self) -> None:
         """Test that __dir__ returns a sorted list."""
@@ -1346,8 +1376,8 @@ class TestScopeSemigroupScopeSymbol:
 
         # The extended scope should have its own unique mixin
         # that represents its access path ("Extended", "Root"), not Base's path
-        base_symbol = root.Base.symbol
-        extended_symbol = root.Extended.symbol
+        base_symbol = root.Base.mixin.symbol
+        extended_symbol = root.Extended.mixin.symbol
 
         # This should pass - Extended has its own mixin
         assert extended_symbol is not base_symbol, (
@@ -1410,20 +1440,104 @@ class TestScopeSemigroupScopeSymbol:
         assert root.Extended.Another.nested_value == "nestednestednested"
 
         # Print actual values for debugging
-        print(f"\nbase_another.symbol.key = {base_another.symbol.key!r}")
-        print(f"extended_another.symbol.key = {extended_another.symbol.key!r}")
-        print(f"base_another.symbol.outer.key = {base_another.symbol.outer.key!r}")
+        print(f"\nbase_another.mixin.symbol.key = {base_another.mixin.symbol.key!r}")
         print(
-            f"extended_another.symbol.outer.key = {extended_another.symbol.outer.key!r}"
+            f"extended_another.mixin.symbol.key = {extended_another.mixin.symbol.key!r}"
+        )
+        print(
+            f"base_another.mixin.symbol.outer.key = {base_another.mixin.symbol.outer.key!r}"
+        )
+        print(
+            f"extended_another.mixin.symbol.outer.key = {extended_another.mixin.symbol.outer.key!r}"
         )
 
         # Verify key for both
-        assert base_another.symbol.key == "Another"
-        assert extended_another.symbol.key == "Another"
+        assert base_another.mixin.symbol.key == "Another"
+        assert extended_another.mixin.symbol.key == "Another"
 
         # Verify outer.key
-        assert base_another.symbol.outer.key == "Base"
-        assert extended_another.symbol.outer.key == "Extended"
+        assert base_another.mixin.symbol.outer.key == "Base"
+        assert extended_another.mixin.symbol.outer.key == "Extended"
 
         # Verify the nested resource is still accessible (with patch applied)
         assert extended_another.nested_value == "nestednestednested"
+
+
+class TestRelativeBases:
+    """Test relative_bases behavior for root symbols."""
+
+    def test_root_symbol_with_empty_bases_returns_empty_tuple(self) -> None:
+        """Root symbol with empty bases should return empty tuple."""
+        scope_def = _ScopeDefinition(underlying=object())
+        root_symbol = DefinedScopeSymbol(
+            definition=scope_def,
+            outer=OuterSentinel.ROOT,
+            key=KeySentinel.ROOT,
+        )
+        assert root_symbol.relative_bases == ()
+
+    def test_root_symbol_with_non_empty_bases_raises_type_error(self) -> None:
+        """Root symbol with non-empty bases should raise TypeError."""
+        scope_def = _ScopeDefinition(
+            underlying=object(),
+            bases=(R(levels_up=0, path=("foo",)),),
+        )
+        root_symbol = DefinedScopeSymbol(
+            definition=scope_def,
+            outer=OuterSentinel.ROOT,
+            key=KeySentinel.ROOT,
+        )
+        with pytest.raises(TypeError, match="Cannot compute relative_bases"):
+            _ = root_symbol.relative_bases
+
+
+class TestMissingDependency:
+    """Test error handling when a resource depends on a non-existent dependency."""
+
+    def test_resource_with_missing_dependency(self) -> None:
+        """A resource that depends on a non-existent resource should raise an error.
+
+        The error should clearly indicate:
+        1. Which resource failed to resolve
+        2. Which dependency is missing
+        """
+
+        @scope
+        class Namespace:
+            @resource
+            def greeting(nonexistent_dependency: str) -> str:
+                return f"Hello, {nonexistent_dependency}!"
+
+        root = evaluate(Namespace)
+        with pytest.raises(LookupError, match="greeting.*nonexistent_dependency"):
+            _ = root.greeting
+
+
+class TestInstanceScopeMixinImplementation:
+    """Test InstanceScopeMixin dataclass implementation details."""
+
+    def test_instance_scope_kwargs_applies_endofunction_patches(self) -> None:
+        """
+        When providing a value via __call__, endofunction patches should be applied.
+
+        Expected behavior:
+        - Define a scope with @extern for a parameter
+        - Add @patch that provides an endofunction to transform the value
+        - Call scope(param=value)
+        - Access param should return the transformed value (not the raw value)
+        """
+        from mixinject import Endofunction
+
+        @scope
+        class Config:
+
+            @patch
+            def greeting() -> Endofunction[str]:
+                return lambda s: s + "!"
+
+        base_scope = evaluate(Config)
+        instance = base_scope(greeting="Hello")
+
+        # The greeting should be "Hello!" (transformed by the endofunction)
+        # Current bug: returns "Hello" (raw value without transformation)
+        assert instance.greeting == "Hello!"

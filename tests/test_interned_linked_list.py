@@ -34,14 +34,14 @@ class TestRoot:
     def test_root_hasintern_pool(self) -> None:
         scope_def = _empty_definition()
         root = _root_symbol(scope_def)
-        assert root.intern_pool is not None
+        assert root._nested is not None
 
     def test_different_roots_have_different_pools(self) -> None:
         scope_def1 = _empty_definition()
         scope_def2 = _empty_definition()
         root1 = _root_symbol(scope_def1)
         root2 = _root_symbol(scope_def2)
-        assert root1.intern_pool is not root2.intern_pool
+        assert root1._nested is not root2._nested
 
 
 class TestInterning:
@@ -76,9 +76,9 @@ class TestInterning:
         root = _root_symbol(scope_def)
         child1 = DefinedScopeSymbol(outer=root, definition=nested_def, key="child1")
         child2 = DefinedScopeSymbol(outer=child1, definition=nested_def, key="child2")
-        assert child1.intern_pool is not root.intern_pool
-        assert child2.intern_pool is not child1.intern_pool
-        assert child2.intern_pool is not root.intern_pool
+        assert child1._nested is not root._nested
+        assert child2._nested is not child1._nested
+        assert child2._nested is not root._nested
 
     def test_interning_via_mount(self) -> None:
         """Interning happens when using mount."""
@@ -114,7 +114,7 @@ class TestInterning:
         # Therefore same mixin
         assert isinstance(inner1, Scope)
         assert isinstance(inner2, Scope)
-        assert inner1.symbol is inner2.symbol
+        assert inner1.mixin.symbol is inner2.mixin.symbol
 
 
 class TestWeakReference:
@@ -127,15 +127,15 @@ class TestWeakReference:
         root = _root_symbol(scope_def)
         # Add an entry manually to the pool
         child = DefinedScopeSymbol(outer=root, definition=nested_def, key="test")
-        root.intern_pool["test_key"] = child
+        root._nested["test_key"] = child
 
-        pool_size_before = len(root.intern_pool)
+        pool_size_before = len(root._nested)
         assert pool_size_before == 1
 
         del child
         gc.collect()
 
-        pool_size_after = len(root.intern_pool)
+        pool_size_after = len(root._nested)
         assert pool_size_after < pool_size_before
 
 

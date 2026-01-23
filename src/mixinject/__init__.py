@@ -503,13 +503,12 @@ Callables can be used not only to define resources but also to define and transf
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-import ast
 from dataclasses import dataclass, field, replace
 from enum import Enum, auto
 from functools import cached_property, reduce
 import importlib
 import importlib.util
-from inspect import signature
+from inspect import Parameter, signature
 import logging
 import os
 from pathlib import PurePath
@@ -568,6 +567,12 @@ class HasDict:
     __slots__ = ("__dict__",)
 
 
+class RelativeReferenceSentinel(Enum):
+    """Sentinel value for RelativeReference lookup failures."""
+
+    NOT_FOUND = auto()
+
+
 class PrototypeSymbolSentinel(Enum):
     """Sentinel value for symbols that are not instance symbols."""
 
@@ -585,8 +590,8 @@ TMixin_co = TypeVar("TMixin_co", bound="Mixin", covariant=True)
 
 @dataclass(kw_only=True, frozen=True, eq=False)
 class Symbol(
-    ABC,
     Mapping[Hashable, "Symbol"],
+    ABC,
     Generic[TMixin_co],
 ):
     """
@@ -710,13 +715,93 @@ class Symbol(
     prototype: Final["Symbol | PrototypeSymbolSentinel"] = (
         PrototypeSymbolSentinel.NOT_INSTANCE
     )
-    intern_pool: Final[weakref.WeakValueDictionary[Hashable, "Symbol"]] = field(
+    _nested: Final[weakref.WeakValueDictionary[Hashable, "Symbol"]] = field(
         default_factory=weakref.WeakValueDictionary
     )
 
+    def to_relative_reference(
+        self,
+        reference: "ResourceReference[Hashable]",
+    ) -> "RelativeReference[Hashable]":
+        """
+        Convert a ResourceReference to a RelativeReference using this symbol as starting point.
+
+        For RelativeReference: return as-is.
+        For AbsoluteReference: compute depth to root and create equivalent RelativeReference.
+
+        :param reference: The reference to convert.
+        :return: A RelativeReference equivalent to the input.
+        """
+        match reference:
+            case RelativeReference():
+                return reference
+            case AbsoluteReference(path=path):
+                depth = 0
+                current: Symbol = self
+                while True:
+                    match current.outer:
+                        case OuterSentinel.ROOT:
+                            break
+                        case Symbol() as outer_scope:
+                            depth += 1
+                            current = outer_scope
+                return RelativeReference(levels_up=depth, path=path)
+            case _ as unreachable:
+                assert_never(unreachable)
+
+    def resolve_relative_reference(
+        self,
+        reference: "RelativeReference[Hashable]",
+        expected_type: type[TSymbol],
+    ) -> TSymbol:
+        """
+        Resolve a RelativeReference to a Symbol using this symbol as starting point.
+
+        - Navigate up ``levels_up`` levels from this symbol via ``.outer``
+        - Then navigate down through ``path`` using ``symbol[key]``
+
+        :param reference: The RelativeReference describing the path to the target symbol.
+        :param expected_type: The expected type of the resolved symbol.
+        :return: The resolved symbol of the expected type.
+        :raises ValueError: If navigation goes beyond the root symbol.
+        :raises TypeError: If intermediate or final resolved value is not of expected type.
+        """
+        current: Symbol = self
+        for level in range(reference.levels_up):
+            match current.outer:
+                case OuterSentinel.ROOT:
+                    raise ValueError(
+                        f"Cannot navigate up {reference.levels_up} levels: "
+                        f"reached root at level {level}"
+                    )
+                case Symbol() as outer_scope:
+                    current = outer_scope
+
+        for part_index, part in enumerate(reference.path):
+            resolved = current[part]
+            if not isinstance(resolved, Symbol):
+                path_so_far = ".".join(str(p) for p in reference.path[: part_index + 1])
+                raise TypeError(
+                    f"Expected ScopeSymbol while resolving reference, "
+                    f"got {type(resolved).__name__} at part '{part}' "
+                    f"(path: {path_so_far})"
+                )
+            current = resolved
+
+        if not isinstance(current, expected_type):
+            raise TypeError(
+                f"Final resolved symbol is not {expected_type.__name__}: "
+                f"got {type(current).__name__}"
+            )
+        return current
+
     @abstractmethod
-    def bind(self, captured_scopes: "CapturedScopes", /) -> TMixin_co:
-        """Retrieve the Mixin for the given captured scopes."""
+    def bind(
+        self,
+        outer: "Mixin | OuterSentinel",
+        lexical_outer_index: "SymbolIndexSentinel | int",
+    ) -> TMixin_co:
+        """Retrieve the Mixin for the given outer mixin and lexical scope index."""
         ...
 
     def __hash__(self) -> int:
@@ -759,7 +844,7 @@ class Symbol(
         For scope symbols, compiles and caches nested symbols.
         For leaf symbols, raises KeyError.
         """
-        existing = self.intern_pool.get(key)
+        existing = self._nested.get(key)
         if existing is not None:
             return existing
 
@@ -787,7 +872,7 @@ class Symbol(
             if not compiled_symbol.strict_super_indices:
                 raise KeyError(key)
 
-        self.intern_pool[key] = cast("Symbol", compiled_symbol)
+        self._nested[key] = cast("Symbol", compiled_symbol)
         return compiled_symbol
 
     @cached_property
@@ -816,57 +901,81 @@ class Symbol(
                 return outer_symbol.depth + 1
 
     @cached_property
-    def getter(self) -> Callable[[CapturedScopes], "Node"]:
-        """Create getter function for accessing this resource.
-
-        Raises:
-            ValueError: If called on a root symbol (key=KeySentinel.ROOT).
-        """
-        match self.key:
-            case KeySentinel.ROOT:
-                raise ValueError("Root symbols do not have a getter")
-            case str() as string_key:
-                index = self.depth - 1
-                return _make_jit_getter(string_key, index)
-            case _ as hashable_key:
-                index = self.depth - 1
-                return lambda captured_scopes: captured_scopes[index][hashable_key]
-
-    @cached_property
-    def elected_merger_index(self) -> SymbolIndexSentinel | int:
+    def elected_merger_index(
+        self,
+    ) -> SymbolIndexSentinel | MergerElectionSentinel | int:
         """
         Elect the merger from self and base symbols.
 
         Implements the merger election algorithm at compile time:
+        0. If has DefinedScopeSymbol AND has (PatcherSymbol | MergerSymbol), raises ValueError
         1. If exactly one pure Merger exists, it is elected
         2. If multiple pure Mergers exist, raises ValueError
-        3. If no pure Mergers exist, raises NotImplementedError
+        3. If no pure Mergers but Semigroup exists, first Semigroup is elected
+        4. If no Merger/Semigroup but has Patcher, raises NotImplementedError
+        5. If no Merger/Semigroup, no Patcher, but has DefinedScopeSymbol, returns NO_MERGER
+        6. Otherwise, raises NotImplementedError
 
         Returns:
             SymbolIndexSentinel.OWN if self is the elected merger,
-            or the index in base_indices if a base symbol is elected.
+            int index if a base symbol is elected,
+            MergerElectionSentinel.NO_MERGER if scope symbol with no merger/patcher.
         """
-        self_is_pure_merger = isinstance(self, MergerSymbol)
 
-        pure_merger_indices: list[int] = [
-            index
-            for index, base_symbol in enumerate(self.generate_strict_super())
-            if isinstance(base_symbol, MergerSymbol)
-        ]
+        def generate_self_and_bases():
+            yield (SymbolIndexSentinel.OWN, self)
+            yield from enumerate(self.strict_super_indices)
 
-        total_pure_mergers = len(pure_merger_indices) + (
-            1 if self_is_pure_merger else 0
+        # Collect symbol types for validation
+        self_and_bases = tuple(generate_self_and_bases())
+
+        has_scope_symbol = any(
+            isinstance(base_symbol, DefinedScopeSymbol)
+            for _, base_symbol in self_and_bases
+        )
+        has_merger_or_patcher = any(
+            isinstance(base_symbol, (MergerSymbol, PatcherSymbol))
+            for _, base_symbol in self_and_bases
         )
 
-        if total_pure_mergers == 1:
-            if self_is_pure_merger:
-                return SymbolIndexSentinel.OWN
-            (single_index,) = pure_merger_indices
-            return single_index
-        elif total_pure_mergers > 1:
-            raise ValueError("Multiple Factory definitions provided")
-        else:
-            raise NotImplementedError("No Factory definition provided")
+        # Rule 0: DefinedScopeSymbol cannot coexist with MergerSymbol/PatcherSymbol
+        if has_scope_symbol and has_merger_or_patcher:
+            raise ValueError(
+                "DefinedScopeSymbol cannot coexist with MergerSymbol or PatcherSymbol"
+            )
+
+        pure_merger_indices = tuple(
+            index
+            for index, base_symbol in self_and_bases
+            if isinstance(base_symbol, MergerSymbol)
+            and not isinstance(base_symbol, PatcherSymbol)
+        )
+        match pure_merger_indices:
+            case (single_index,):
+                return single_index
+            case ():
+                semigroup_indices = tuple(
+                    index
+                    for index, base_symbol in self_and_bases
+                    if isinstance(base_symbol, SemigroupSymbol)
+                )
+                match semigroup_indices:
+                    case (first_index, *_):
+                        return first_index
+                    case ():
+                        # No merger and no semigroup, check for patchers
+                        has_patcher = any(
+                            isinstance(base_symbol, PatcherSymbol)
+                            for _, base_symbol in self_and_bases
+                        )
+                        if has_patcher:
+                            raise NotImplementedError("Patcher without Merger")
+                        # Check if self or bases contain DefinedScopeSymbol (scope that returns Scope)
+                        if has_scope_symbol:
+                            return MergerElectionSentinel.SCOPE
+                        raise NotImplementedError("No merger definition provided")
+            case _:
+                raise ValueError("Multiple pure merger definitions found")
 
     @final
     def generate_strict_super(self):
@@ -897,16 +1006,18 @@ class Symbol(
         self,
     ) -> dict["Symbol", NestedSymbolIndex]:
         match (self, self.outer):
-            case (DefinedSymbol(definition=definition), Symbol() as outer_scope):
+            case (DefinedSymbol() as defined_symbol, Symbol() as outer_scope):
                 return {
                     symbol: NestedSymbolIndex(
                         primary_index=OwnBaseIndex(index=own_base_index),
                         secondary_index=SymbolIndexSentinel.OWN,
                     )
-                    for own_base_index, reference in enumerate(definition.bases)
+                    for own_base_index, relative_reference in enumerate(
+                        defined_symbol.relative_bases
+                    )
                     if isinstance(
-                        symbol := _resolve_symbol_reference(
-                            reference, outer_scope, Symbol
+                        symbol := outer_scope.resolve_relative_reference(
+                            relative_reference, Symbol
                         ),
                         DefinedSymbol,
                     )
@@ -920,7 +1031,7 @@ class Symbol(
         self,
     ) -> dict["Symbol", NestedSymbolIndex]:
         match (self, self.outer):
-            case (DefinedSymbol(definition=definition), Symbol() as outer_scope):
+            case (DefinedSymbol() as defined_symbol, Symbol() as outer_scope):
                 return {
                     symbol: (
                         NestedSymbolIndex(
@@ -928,11 +1039,14 @@ class Symbol(
                             secondary_index=secondary_index,
                         )
                     )
-                    for own_base_index, reference in enumerate(definition.bases)
+                    for own_base_index, relative_reference in enumerate(
+                        defined_symbol.relative_bases
+                    )
                     # Linearized strict super symbols of the extend reference
                     for secondary_index, symbol in enumerate(
-                        _resolve_symbol_reference(
-                            reference, outer_scope, SemigroupSymbol
+                        outer_scope.resolve_relative_reference(
+                            relative_reference,
+                            Symbol,
                         ).generate_strict_super()
                     )
                     if isinstance(
@@ -1075,12 +1189,259 @@ class DefinedSymbol(Symbol):
 
     definition: "Definition"
 
+    @final
+    @cached_property
+    def relative_bases(self) -> tuple["RelativeReference[Hashable]", ...]:
+        """
+        Convert definition.bases from ResourceReference to RelativeReference.
+
+        This caches the conversion so that both direct_base_indices and
+        transitive_base_indices can reuse the result.
+        """
+        outer_scope = self.outer
+        if not isinstance(outer_scope, Symbol):
+            if self.definition.bases:
+                raise TypeError(
+                    f"Cannot compute relative_bases: outer is {outer_scope}, not a Symbol"
+                )
+            return ()
+        return tuple(
+            outer_scope.to_relative_reference(reference)
+            for reference in self.definition.bases
+        )
+
+
+class OuterSentinel(Enum):
+    """Sentinel value for symbols that have no outer scope (root symbols)."""
+
+    ROOT = auto()
+
 
 @dataclass(kw_only=True, frozen=True, eq=False)
-class Mixin(ABC):
+class Mixin(Mapping[Hashable, "Mixin"], ABC):
     """Base class for Merger, Patcher, and SyntheticResourceMixin."""
 
-    symbol: Final["Symbol[Self]"]
+    symbol: "Symbol[Self]"
+
+    outer: Mixin | OuterSentinel
+    """The outer Mixin or OuterSentinel.ROOT if this is a root Mixin."""
+
+    lexical_outer_index: "SymbolIndexSentinel | int"
+    """
+    Index to locate the lexical outer scope for dependency resolution.
+
+    - ``SymbolIndexSentinel.OWN``: lexical outer = ``outer``
+    - ``int``: lexical outer = ``outer.strict_super_mixins[index]``
+    """
+
+    def __hash__(self) -> int:
+        return id(self)
+
+    def __eq__(self, other: object) -> bool:
+        return self is other
+
+    def __iter__(self) -> Iterator[Hashable]:
+        return iter(self.symbol)
+
+    def __len__(self) -> int:
+        return len(self.symbol)
+
+    @property
+    def lexical_outer(self) -> "Mixin":
+        """
+        Get the lexical outer scope for dependency resolution.
+
+        The lexical outer is determined by ``lexical_outer_index``:
+        - ``SymbolIndexSentinel.OWN``: returns ``outer`` directly, or ``self`` for root mixin
+        - ``int``: returns ``outer.strict_super_mixins[index]``
+        """
+        match self.lexical_outer_index:
+            case SymbolIndexSentinel.OWN:
+                if isinstance(self.outer, Mixin):
+                    return self.outer
+                # Root mixin: lexical outer is self (for resolving siblings in root scope)
+                return self
+            case int() as index:
+                assert isinstance(self.outer, Mixin)
+                return self.outer.get_super(index)
+
+    def get_super(self, super_index: "SymbolIndexSentinel | int") -> "Mixin":
+        """
+        Get a super mixin by index.
+
+        :param super_index: The index to look up.
+            - ``SymbolIndexSentinel.OWN``: returns ``self``
+            - ``int``: returns ``self.strict_super_mixins[index]``
+        :return: The super mixin.
+        """
+        match super_index:
+            case SymbolIndexSentinel.OWN:
+                return self
+            case int() as index:
+                return self.strict_super_mixins[index]
+
+    _nested: MutableMapping[Hashable, "Mixin"] = field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
+
+    def __getitem__(self, key: Hashable) -> "Mixin":
+        if key not in self._nested:
+            self._nested[key] = self.symbol[key].bind(
+                outer=self,
+                lexical_outer_index=SymbolIndexSentinel.OWN,
+            )
+        return self._nested[key]
+
+    @cached_property
+    def strict_super_mixins(self) -> Sequence["Mixin"]:
+        return tuple(self.generate_strict_super_mixins())
+
+    @cached_property
+    def evaluated(self):
+        elected_index = self.symbol.elected_merger_index
+
+        # No merger and no patcher - return Scope wrapping self
+        if elected_index is MergerElectionSentinel.SCOPE:
+            return Scope(mixin=self)
+
+        merger = self.get_super(elected_index)
+        assert isinstance(merger, Merger)
+
+        def generate_patcher():
+            if elected_index != SymbolIndexSentinel.OWN:
+                if isinstance(self, Patcher):
+                    yield from self
+            for index, patcher in enumerate(self.strict_super_mixins):
+                if index != elected_index:
+                    if isinstance(patcher, Patcher):
+                        yield from patcher
+
+        return merger.merge(generate_patcher())
+
+    def resolve_relative_reference(
+        self,
+        reference: "RelativeReference[Hashable]",
+        lexical_outer_index: "SymbolIndexSentinel | int",
+    ) -> "Mixin":
+        """
+        Resolve a RelativeReference to a Mixin.
+
+        Starting point is ``self.outer`` (the scope where path navigation begins).
+
+        Navigation semantics for each ``levels_up`` step:
+        - If ``lexical_outer_index`` is ``OWN``: ``current = current.outer``
+        - If ``lexical_outer_index`` is ``int(i)``: ``current = current.strict_super_mixins[i].outer``
+
+        Then navigate down through ``path`` using ``mixin[key]``.
+
+        :param reference: The RelativeReference describing the path to the target mixin.
+        :param lexical_outer_index: The lexical outer index of the caller, used for navigation.
+        :return: The resolved mixin.
+        """
+        # Start from self.outer (the parent scope where we search)
+        if isinstance(self.outer, Mixin):
+            current: Mixin = self.outer
+        else:
+            current = self  # Root case: stay at self
+
+        current_lexical_index: SymbolIndexSentinel | int = lexical_outer_index
+
+        _logger.debug(
+            "resolve_relative_reference: self_key=%(self_key)s reference=%(reference)s "
+            "lexical_outer_index=%(lex_idx)s starting_current=%(current_key)s",
+            {
+                "self_key": self.symbol.key,
+                "reference": reference,
+                "lex_idx": lexical_outer_index,
+                "current_key": current.symbol.key,
+            },
+        )
+
+        for level in range(reference.levels_up):
+            _logger.debug(
+                "resolve_relative_reference: level=%(level)s current_key=%(current_key)s "
+                "current_lexical_index=%(lex_idx)s",
+                {
+                    "level": level,
+                    "current_key": current.symbol.key,
+                    "lex_idx": current_lexical_index,
+                },
+            )
+            # current = current.get_super(lexical_index).outer
+            base = current.get_super(current_lexical_index)
+            current_lexical_index = base.lexical_outer_index
+            assert isinstance(base.outer, Mixin)
+            current = base.outer
+            _logger.debug(
+                "resolve_relative_reference: after_level current_key=%(current_key)s",
+                {"current_key": current.symbol.key},
+            )
+
+        for part in reference.path:
+            _logger.debug(
+                "resolve_relative_reference: path_part=%(part)s current_key=%(current_key)s",
+                {"part": part, "current_key": current.symbol.key},
+            )
+            current = current[part]
+
+        _logger.debug(
+            "resolve_relative_reference: result_key=%(result_key)s",
+            {"result_key": current.symbol.key},
+        )
+        return current
+
+    def generate_strict_super_mixins(self):
+        _logger.debug(
+            "generate_strict_super_mixins: self_key=%(self_key)s self_type=%(self_type)s "
+            "outer_key=%(outer_key)s strict_super_indices=%(indices)s",
+            {
+                "self_key": self.symbol.key,
+                "self_type": type(self).__name__,
+                "outer_key": (
+                    self.outer.symbol.key if isinstance(self.outer, Mixin) else "ROOT"
+                ),
+                "indices": list(self.symbol.strict_super_indices.keys()),
+            },
+        )
+        for nested_index in self.symbol.strict_super_indices.values():
+            _logger.debug(
+                "generate_strict_super_mixins: processing nested_index=%(nested_index)s",
+                {"nested_index": nested_index},
+            )
+            match nested_index.primary_index:
+                case OuterBaseIndex(index=i):
+                    assert isinstance(self.outer, Mixin)
+                    # Get the base mixin from outer's strict_super_mixins
+                    base_mixin = self.outer.get_super(i)
+                    _logger.debug(
+                        "generate_strict_super_mixins: OuterBaseIndex i=%(i)s base_mixin_key=%(base_key)s",
+                        {"i": i, "base_key": base_mixin.symbol.key},
+                    )
+                    # Create mixin with:
+                    # - outer = self.outer (runtime instance)
+                    # - lexical_outer_index = i (points to base_mixin in inheritance chain)
+                    direct_mixin = base_mixin.symbol[self.symbol.key].bind(
+                        outer=self.outer,
+                        lexical_outer_index=i,
+                    )
+                case OwnBaseIndex(index=i):
+                    assert isinstance(self.symbol, DefinedSymbol)
+                    reference = self.symbol.relative_bases[i]
+                    _logger.debug(
+                        "generate_strict_super_mixins: OwnBaseIndex i=%(i)s reference=%(reference)s",
+                        {"i": i, "reference": reference},
+                    )
+                    direct_mixin = self.resolve_relative_reference(
+                        reference,
+                        lexical_outer_index=self.lexical_outer_index,
+                    )
+                case SymbolIndexSentinel.OWN:
+                    direct_mixin = self
+            _logger.debug(
+                "generate_strict_super_mixins: direct_mixin_key=%(key)s direct_mixin_type=%(type)s",
+                {"key": direct_mixin.symbol.key, "type": type(direct_mixin).__name__},
+            )
+            yield direct_mixin.get_super(nested_index.secondary_index)
 
 
 class SymbolIndexSentinel(Enum):
@@ -1089,10 +1450,13 @@ class SymbolIndexSentinel(Enum):
     OWN = auto()
 
 
-class OuterSentinel(Enum):
-    """Sentinel value for symbols that have no outer scope (root symbols)."""
+class MergerElectionSentinel(Enum):
+    """Sentinel value for merger election"""
 
-    ROOT = auto()
+    SCOPE = auto()
+    """
+    Indicates that the symbol is a scope with no merger or patcher.
+    """
 
 
 class KeySentinel(Enum):
@@ -1260,9 +1624,11 @@ class MergerSymbol(
 
     @abstractmethod
     def bind(
-        self, captured_scopes: CapturedScopes, /
+        self,
+        outer: "Mixin | OuterSentinel",
+        lexical_outer_index: "SymbolIndexSentinel | int",
     ) -> "Merger[TPatch_contra, TResult_co]":
-        """Retrieve the Merger for the given captured scopes."""
+        """Retrieve the Merger for the given outer scope."""
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
@@ -1279,8 +1645,12 @@ class PatcherSymbol(Symbol["Patcher[TPatch_co]"], Generic[TPatch_co]):
     """
 
     @abstractmethod
-    def bind(self, captured_scopes: CapturedScopes, /) -> "Patcher[TPatch_co]":
-        """Retrieve the Patcher for the given captured scopes."""
+    def bind(
+        self,
+        outer: "Mixin | OuterSentinel",
+        lexical_outer_index: "SymbolIndexSentinel | int",
+    ) -> "Patcher[TPatch_co]":
+        """Retrieve the Patcher for the given outer scope."""
 
 
 @final
@@ -1296,9 +1666,15 @@ class SyntheticSymbol(Symbol["Synthetic"]):
     election. The actual Merger comes from base classes.
     """
 
-    def bind(self, captured_scopes: CapturedScopes, /) -> "Synthetic":
+    def bind(
+        self,
+        outer: "Mixin | OuterSentinel",
+        lexical_outer_index: "SymbolIndexSentinel | int",
+    ) -> "Synthetic":
         """Return a Synthetic mixin."""
-        return Synthetic(symbol=self, captured_scopes=captured_scopes)
+        return Synthetic(
+            symbol=self, outer=outer, lexical_outer_index=lexical_outer_index
+        )
 
 
 TResult = TypeVar("TResult")
@@ -1314,10 +1690,10 @@ class FunctionalMergerSymbol(
     """NestedSymbol for _MergerDefinition."""
 
     @cached_property
-    def jit_compiled_function(
+    def compiled_function(
         self,
-    ) -> Callable[[CapturedScopes], Callable[[Iterator[TPatch_contra]], TResult_co]]:
-        """JIT-compiled function using mixin-based dependency resolution."""
+    ) -> Callable[["Mixin"], Callable[[Iterator[TPatch_contra]], TResult_co]]:
+        """Compiled function that takes a Mixin and returns the aggregation function."""
         definition = cast(
             "FunctionalMergerDefinition[TPatch_contra, TResult_co]", self.definition
         )
@@ -1326,18 +1702,20 @@ class FunctionalMergerSymbol(
         ), f"Merger key must be a string, got {type(self.key)}"
         match self.outer:
             case OuterSentinel.ROOT:
-                raise ValueError("Root symbols do not have JIT-compiled functions")
-            case Symbol() as outer_scope:
-                return _resolve_dependencies_jit_using_symbol(
-                    outer_scope,
-                    definition.function,
-                    self.key,
+                raise ValueError("Root symbols do not have compiled functions")
+            case Symbol() as outer_symbol:
+                return _compile_function_with_mixin(
+                    outer_symbol, definition.function, self.key
                 )
 
     def bind(
-        self, captured_scopes: CapturedScopes, /
+        self,
+        outer: "Mixin | OuterSentinel",
+        lexical_outer_index: "SymbolIndexSentinel | int",
     ) -> "FunctionalMerger[TPatch_contra, TResult_co]":
-        return FunctionalMerger(symbol=self, captured_scopes=captured_scopes)
+        return FunctionalMerger(
+            symbol=self, outer=outer, lexical_outer_index=lexical_outer_index
+        )
 
 
 @final
@@ -1353,24 +1731,30 @@ class EndofunctionMergerSymbol(
     """
 
     @cached_property
-    def jit_compiled_function(self) -> Callable[[CapturedScopes], TResult]:
-        """JIT-compiled function using mixin-based dependency resolution."""
+    def compiled_function(self) -> Callable[["Mixin"], TResult]:
+        """Compiled function that takes a Mixin and returns the base value."""
         definition = cast("EndofunctionMergerDefinition[TResult]", self.definition)
         assert isinstance(
             self.key, str
         ), f"Resource key must be a string, got {type(self.key)}"
         match self.outer:
             case OuterSentinel.ROOT:
-                raise ValueError("Root symbols do not have JIT-compiled functions")
+                raise ValueError("Root symbols do not have compiled functions")
             case Symbol() as outer_scope:
-                return _resolve_dependencies_jit_using_symbol(
+                return _compile_function_with_mixin(
                     outer_scope,
                     definition.function,
                     self.key,
                 )
 
-    def bind(self, captured_scopes: CapturedScopes, /) -> "EndofunctionMerger[TResult]":
-        return EndofunctionMerger(symbol=self, captured_scopes=captured_scopes)
+    def bind(
+        self,
+        outer: "Mixin | OuterSentinel",
+        lexical_outer_index: "SymbolIndexSentinel | int",
+    ) -> "EndofunctionMerger[TResult]":
+        return EndofunctionMerger(
+            symbol=self, outer=outer, lexical_outer_index=lexical_outer_index
+        )
 
 
 @final
@@ -1379,24 +1763,30 @@ class SinglePatcherSymbol(DefinedSymbol, PatcherSymbol[TPatch_co], Generic[TPatc
     """NestedSymbol for _SinglePatchDefinition."""
 
     @cached_property
-    def jit_compiled_function(self) -> Callable[[CapturedScopes], TPatch_co]:
-        """JIT-compiled function using mixin-based dependency resolution."""
+    def compiled_function(self) -> Callable[["Mixin"], TPatch_co]:
+        """Compiled function that takes a Mixin and returns the patch value."""
         definition = cast("SinglePatcherDefinition[TPatch_co]", self.definition)
         assert isinstance(
             self.key, str
         ), f"Patch key must be a string, got {type(self.key)}"
         match self.outer:
             case OuterSentinel.ROOT:
-                raise ValueError("Root symbols do not have JIT-compiled functions")
+                raise ValueError("Root symbols do not have compiled functions")
             case Symbol() as outer_scope:
-                return _resolve_dependencies_jit_using_symbol(
+                return _compile_function_with_mixin(
                     outer_scope,
                     definition.function,
                     self.key,
                 )
 
-    def bind(self, captured_scopes: CapturedScopes, /) -> "SinglePatcher[TPatch_co]":
-        return SinglePatcher(symbol=self, captured_scopes=captured_scopes)
+    def bind(
+        self,
+        outer: "Mixin | OuterSentinel",
+        lexical_outer_index: "SymbolIndexSentinel | int",
+    ) -> "SinglePatcher[TPatch_co]":
+        return SinglePatcher(
+            symbol=self, outer=outer, lexical_outer_index=lexical_outer_index
+        )
 
 
 @final
@@ -1407,24 +1797,30 @@ class MultiplePatcherSymbol(
     """NestedSymbol for _MultiplePatchDefinition."""
 
     @cached_property
-    def jit_compiled_function(self) -> Callable[[CapturedScopes], Iterable[TPatch_co]]:
-        """JIT-compiled function using mixin-based dependency resolution."""
+    def compiled_function(self) -> Callable[["Mixin"], Iterable[TPatch_co]]:
+        """Compiled function that takes a Mixin and returns the patch values."""
         definition = cast("MultiplePatcherDefinition[TPatch_co]", self.definition)
         assert isinstance(
             self.key, str
         ), f"Patch key must be a string, got {type(self.key)}"
         match self.outer:
             case OuterSentinel.ROOT:
-                raise ValueError("Root symbols do not have JIT-compiled functions")
+                raise ValueError("Root symbols do not have compiled functions")
             case Symbol() as outer_scope:
-                return _resolve_dependencies_jit_using_symbol(
+                return _compile_function_with_mixin(
                     outer_scope,
                     definition.function,
                     self.key,
                 )
 
-    def bind(self, captured_scopes: CapturedScopes, /) -> "MultiplePatcher[TPatch_co]":
-        return MultiplePatcher(symbol=self, captured_scopes=captured_scopes)
+    def bind(
+        self,
+        outer: "Mixin | OuterSentinel",
+        lexical_outer_index: "SymbolIndexSentinel | int",
+    ) -> "MultiplePatcher[TPatch_co]":
+        return MultiplePatcher(
+            symbol=self, outer=outer, lexical_outer_index=lexical_outer_index
+        )
 
 
 class SemigroupSymbol(
@@ -1438,343 +1834,89 @@ class SemigroupSymbol(
     scope symbols as valid merger candidates.
 
     Use ``isinstance(mixin, SemigroupSymbol)`` to check if a mixin returns
-    an evaluator that is both Merger and Patcher (e.g., ``ScopeSemigroup``).
+    an evaluator that is both Merger and Patcher (e.g., ``ScopeMixin``).
 
     Subclass: ``DefinedScopeSymbol``.
     """
 
     @abstractmethod
-    def bind(self, captured_scopes: CapturedScopes, /) -> "Semigroup[T]":
-        """Retrieve the Patcher for the given captured scopes."""
+    def bind(
+        self,
+        outer: "Mixin | OuterSentinel",
+        lexical_outer_index: "SymbolIndexSentinel | int",
+    ) -> "Semigroup[T]":
+        """Retrieve the Semigroup for the given outer scope."""
 
 
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True, eq=False)
-class DefinedScopeSymbol(DefinedSymbol, SemigroupSymbol):
+class DefinedScopeSymbol(DefinedSymbol, Symbol["StaticScopeMixin"]):
     """
     Scope symbol for defined scopes (has local definition with extend references).
 
     Defined mixins are created when a nested scope has a local definition in the current
     scope. They use the scope class from the definition and include extend references.
+
+    Note: This is NOT a SemigroupSymbol because ScopeMixin is not a Merger/Patcher.
+    When evaluated, Mixin.evaluated will return Scope(mixin=self) via NO_MERGER path.
     """
 
     definition: "_ScopeDefinition"
 
-    def bind(self, captured_scopes: CapturedScopes, /) -> "ScopeSemigroup":
+    def bind(
+        self,
+        outer: "Mixin | OuterSentinel",
+        lexical_outer_index: "SymbolIndexSentinel | int",
+    ) -> "StaticScopeMixin":
         """Resolve resources including extend references from definition."""
-        match self.outer:
-            case OuterSentinel.ROOT:
-                raise NotImplementedError("TODO: support bind with root!")
-            case Symbol() as outer_scope:
-                pass
-        assert not isinstance(self.key, KeySentinel)
-
-        def scope_factory() -> StaticScope:
-            assert (
-                captured_scopes
-            ), "captured_scopes must not be empty when resolving resources"
-
-            def generate_all_symbol_items() -> Iterator[tuple[Symbol, CapturedScopes]]:
-                """
-                Generate all mixin items for the scope, including:
-                - CapturedScopes from this definition, keyed by scope's mixin
-                - CapturedScopes from extended scopes, preserving their original keys
-                """
-                yield (self, captured_scopes)
-                for reference in self.definition.bases:
-                    extended_scope = _resolve_resource_reference(
-                        reference=reference,
-                        captured_scopes=captured_scopes,
-                        forbid_instance_scope=True,
-                    )
-                    yield from extended_scope.symbols.items()
-
-            return StaticScope(
-                symbols=dict(generate_all_symbol_items()),
-                symbol=self,
-            )
-
-        return ScopeSemigroup(
-            symbol=self,
-            scope_factory=scope_factory,
-            access_path_outer=outer_scope,
-            key=self.key,
+        return StaticScopeMixin(
+            symbol=self, outer=outer, lexical_outer_index=lexical_outer_index
         )
 
 
 Resource = NewType("Resource", object)
 
 
-class Scope(Mapping[Hashable, "Node"], ABC):
+@final
+@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
+class Scope:
     """
-    A Scope represents resources available via attributes or keys.
+    A Scope wraps a Mixin to provide resource access.
 
-    There are two types of scopes:
-
-    - ``StaticScope``: Represents class/module level static definitions.
-      Contains mixins and supports ``__call__`` to create instances.
-    - ``InstanceScope``: Created via ``StaticScope.__call__``.
-      Stores kwargs directly and delegates to base scope for other lookups.
-
-    .. todo::
-        Provide ResourceConfig configuration through new decorators to support 26 combinations
-        of behaviors on demand. Note that this configuration is static, independent of Scope
-        instances, and may be compiled into bytecode by Symbol in the future.
-        ```
-        @dataclass
-        class BuilderDefinition:
-            bind_captured_scopes: Callable[[CapturedScopes, str], Callable[[Scope, ResourceConfig], Evaluator]]
-            config: ResourceConfig
-            '''
-            Default config is inferred from ``inspect.signature`` and can be modified by annotations
-            '''
-
-        ```
-
-
-        Use the same Merger/Patcher interface to handle context managers/async, but the type of `TResult`
-        depends on ResourceConfig and could be Awaitable/ContextManager/AsyncContextManager, or a direct
-        synchronous type. The `TPatch` type of `@resource` also depends on ResourceConfig and could be
-        `Endofunction`/`ContextManagerEndofunction`/`AsyncEndofunction`/`AsyncContextManagerEndofunction`.
-        This means the same Merger/Patcher interface can handle synchronous/asynchronous/context manager cases.
-
-    .. todo::
-        Support defining methods, requiring dynamic class generation.
-
-        The current implementation provides resources by intercepting attribute access via ``__getattr__``,
-        but ``__getattr__`` is not a true method and cannot be used to define dunder methods (such as
-        ``__str__``, ``__repr__``, ``__eq__``, etc.). Python's dunder method lookup happens directly
-        in the class's ``__dict__`` and does not go through ``__getattr__``.
-
-        Problem example::
-
-            @scope
-            class MyScope:
-                @resource
-                def __str__() -> str:
-                    return "custom string representation"
-
-            root = mount(MyScope)
-            str(root)  # Won't call custom __str__, uses Scope's default __str__ instead
-
+    Scope is a simple wrapper that delegates attribute access to the wrapped mixin.
     """
 
-    @property
-    @abstractmethod
-    def symbols(
-        self,
-    ) -> Mapping[Symbol, CapturedScopes]:
-        """The symbols that provide resources for this scope, keyed by symbol.
-
-        Each scope's own properties (not from extend=) are stored at
-        symbols[self.symbol]. Extended scopes contribute their symbols
-        with their original symbol keys.
-
-        .. todo:: Replace ``dict`` with ``ChainMap``.
-        """
-        ...
-
-    symbol: Symbol
-    """The runtime access path from root to this scope, in reverse order.
-
-    This path reflects how the scope was accessed at runtime, not where
-    it was statically defined. For example, root.object1.MyInner and
-    root.object2.MyInner should have different symbols even if
-    MyInner is defined in the same place.
-    """
-
-    def __getitem__(self, key: Hashable) -> "Node":
-        def generate_resource() -> Iterator[Mixin]:
-            for current_symbol, captured_scopes in self.symbols.items():
-                try:
-                    factory_or_patch = _symbol_getitem(
-                        current_symbol, captured_scopes, key
-                    )
-                except KeyError:
-                    continue
-                yield factory_or_patch(self)
-
-        return _evaluate_resource(resource_generator=generate_resource)
+    mixin: Mixin
 
     def __getattr__(self, key: str) -> "Node":
         try:
-            return self[key]
+            child_mixin = self.mixin[key]
+            return child_mixin.evaluated
         except KeyError as e:
             raise AttributeError(name=key, obj=self) from e
 
-    def __iter__(self) -> Iterator[Hashable]:
-        visited: set[Hashable] = set()
-        for current_symbol in self.symbols.keys():
-            if isinstance(current_symbol, SyntheticSymbol):
-                # Synthetic symbols don't have their own keys
-                continue
-            assert isinstance(current_symbol, DefinedSymbol)
-            assert isinstance(current_symbol.definition, _ScopeDefinition)
-            for key in current_symbol.definition.keys():
-                if key not in visited:
-                    visited.add(key)
-                    yield key
-
-    def __len__(self) -> int:
-        return sum(1 for _ in self)
-
     @override
     def __dir__(self) -> Sequence[str]:
-        """
-        .. note:: This method uses the two-arg super() as a workaround for https://github.com/python/cpython/pull/124455
-        """
         return (
-            *(key for key in self if isinstance(key, str)),
+            *(key for key in self.mixin.symbol if isinstance(key, str)),
             *super(Scope, self).__dir__(),
         )
 
-
-@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class StaticScope(Scope):
-    """
-    A static scope representing class/module level definitions.
-
-    StaticScope stores symbols directly, caches resource lookups,
-    and supports ``__call__`` to create InstanceScope with additional kwargs.
-    """
-
-    symbols: Mapping[Symbol, CapturedScopes]  # type: ignore[misc]
-    """
-    .. todo::
-
-        Delete this field and replace with ``captured_scopes_sequence: Sequence[CapturedScopes]``
-        that is isomorphic to ``symbol.generate_strict_super()``.
-
-        This enables:
-
-        - Zip with ``generate_strict_super()`` to pair each Symbol with its CapturedScopes
-        - O(1) random access outer scope using ``NestedSymbolIndex`` to construct
-          ``Sequence[CapturedScopes]``
-    """
-
-    symbol: Symbol  # type: ignore[misc]
-
-    _cache: MutableMapping[Hashable, "Node"] = field(
-        default_factory=dict, init=False, repr=False, compare=False
-    )
-
-    @override
-    def __getitem__(self, key: Hashable) -> "Node":
+    def __call__(self, **kwargs: object) -> "Scope":
         """
-        .. note:: This method uses the two-arg super() as a workaround for https://github.com/python/cpython/pull/124455
-        """
-        if key not in self._cache:
-            value = super(StaticScope, self).__getitem__(key)
-            self._cache[key] = value
-            return value
-        else:
-            return self._cache[key]
+        Create an instance scope with the provided kwargs.
 
-    def __call__(self, **kwargs: object) -> "InstanceScope":
+        Creates a new InstanceScopeMixin with the same symbol but with kwargs bound.
+        When child resources are accessed, kwargs take precedence over symbol lookups.
         """
-        Create an InstanceScope with the given kwargs.
-        """
-        instance_symbol = self.symbol.instance
-        assert isinstance(
-            instance_symbol, Symbol
-        ), "StaticScope.symbol should not already be an instance symbol"
-        return InstanceScope(
-            base_scope=self,
+        assert isinstance(self.mixin, StaticScopeMixin)
+        instance_mixin = InstanceScopeMixin(
+            symbol=self.mixin.symbol,
+            outer=self.mixin.outer,
+            lexical_outer_index=self.mixin.lexical_outer_index,
             kwargs=kwargs,
-            symbol=instance_symbol,
         )
-
-
-@final
-@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class InstanceScope(Scope):
-    """
-    An instance scope created via StaticScope.__call__.
-
-    InstanceScope stores kwargs directly and checks them first during lookup,
-    then delegates to the base scope for other resources.
-
-    .. note:: kwargs keys are bounded by str because Python's **kwargs only accepts string keys.
-    """
-
-    base_scope: Final[StaticScope]
-    kwargs: Final[Mapping[str, object]]
-    symbol: Symbol  # type: ignore[misc]
-
-    @property
-    def symbols(
-        self,
-    ) -> Mapping[Symbol, CapturedScopes]:
-        return self.base_scope.symbols
-
-    @override
-    def __getitem__(self, key: Hashable) -> Node:
-        if isinstance(key, str) and key in self.kwargs:
-            value = self.kwargs[key]
-
-            def generate_resource() -> Iterator[Mixin]:
-                # Yield the kwargs value as a Merger
-                keyword_argument_symbol = KeywordArgumentSymbol(
-                    outer=self.symbol,
-                    key=key,
-                    base_value=cast(Resource, value),
-                )
-                yield keyword_argument_symbol.bind(())
-                # Also collect any Patchers from symbols
-                for current_symbol, captured_scopes in self.symbols.items():
-                    try:
-                        factory_or_patch = _symbol_getitem(
-                            current_symbol, captured_scopes, key
-                        )
-                    except KeyError:
-                        continue
-                    yield factory_or_patch(self)
-
-            return _evaluate_resource(resource_generator=generate_resource)
-        return super(InstanceScope, self).__getitem__(key)
-
-    @override
-    def __iter__(self) -> Iterator[Hashable]:
-        for key in self.kwargs:
-            yield key
-        for key in super(InstanceScope, self).__iter__():
-            if key not in self.kwargs:
-                yield key
-
-
-def _calculate_most_derived_class(first: type, *rest: type) -> type:
-    """Calculate the most derived class."""
-
-    candidates = (first,)
-    for new_candidate in rest:
-        if any(issubclass(candidate, new_candidate) for candidate in candidates):
-            continue
-        else:
-            candidates = (
-                *(
-                    candidate
-                    for candidate in candidates
-                    if not issubclass(new_candidate, candidate)
-                ),
-                new_candidate,
-            )
-
-    match candidates:
-        case (winner,):
-            return winner
-        case _:
-            raise TypeError(
-                "class conflict: "
-                "the class of a derived class "
-                "must be a (non-strict) subclass "
-                "of the classes of all its bases"
-            )
-
-
-CapturedScopes: TypeAlias = Sequence[Scope]
-"""
-A sequence of scopes representing the lexical scope, starting from the outermost scope to the innermost scope.
-"""
+        return Scope(mixin=instance_mixin)
 
 
 Node: TypeAlias = Resource | Scope
@@ -1791,9 +1933,6 @@ class Patcher(Mixin, Iterable[TPatch_co], Generic[TPatch_co]):
     """
 
 
-TScope = TypeVar("TScope", bound=StaticScope)
-
-
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True, eq=False)
 class KeywordArgumentSymbol(
@@ -1803,29 +1942,58 @@ class KeywordArgumentSymbol(
     """
     Symbol for keyword argument values passed to InstanceScope.
 
-    Represents a kwargs value as a Symbol, allowing KeywordArgumentMerger
-    to have a valid symbol reference like all other Mixin subclasses.
+    This is a placeholder symbol that allows KeywordArgumentMerger to have
+    a valid symbol reference like all other Mixin subclasses.
     """
 
     base_value: Final[TResult]
+    patches_mixin: "Mixin"
 
     def bind(
-        self, _captured_scopes: CapturedScopes, /
+        self,
+        outer: "Mixin | OuterSentinel",
+        lexical_outer_index: "SymbolIndexSentinel | int",
     ) -> "KeywordArgumentMerger[TResult]":
         return KeywordArgumentMerger(
             symbol=cast("Symbol[KeywordArgumentMerger[TResult]]", self),
+            outer=outer,
+            lexical_outer_index=lexical_outer_index,
             base_value=self.base_value,
+            patches_mixin=self.patches_mixin,
         )
 
 
 @final
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
 class KeywordArgumentMerger(
-    Generic[TResult], Merger[Callable[[TResult], TResult], TResult]
+    Merger[Callable[[TResult], TResult], TResult],
+    Generic[TResult],
 ):
-    """Merger that applies patches as endofunctions via reduce."""
+    """
+    Merger that applies patches as endofunctions via reduce.
+
+    When patches_mixin is provided, patches are collected from that mixin's
+    strict_super_mixins chain. This allows kwargs values to be transformed
+    by @patch decorators defined on the same resource.
+    """
 
     base_value: Final[TResult]
+    patches_mixin: "Mixin"
+
+    @cached_property
+    @override
+    def strict_super_mixins(self) -> Sequence["Mixin"]:
+        """
+        Include patches_mixin in the super mixins chain.
+
+        This allows the patches_mixin (and its chain) to provide patchers
+        that will be applied to the kwargs base value.
+        """
+        if self.patches_mixin is None:
+            return ()
+        # Include the patches_mixin itself (it may be a Patcher)
+        # and its strict_super_mixins chain
+        return (self.patches_mixin, *self.patches_mixin.strict_super_mixins)
 
     def merge(self, patches: Iterator[Callable[[TResult], TResult]]) -> TResult:
         return reduce(lambda acc, endo: endo(acc), patches, self.base_value)
@@ -1836,11 +2004,11 @@ class KeywordArgumentMerger(
 class FunctionalMerger(Merger[TPatch_contra, TResult_co]):
     """Mixin for _NestedMergerSymbol."""
 
-    symbol: Final["FunctionalMergerSymbol[TPatch_contra, TResult_co]"]
-    captured_scopes: Final[CapturedScopes]
+    symbol: "FunctionalMergerSymbol[TPatch_contra, TResult_co]"
 
     def merge(self, patches: Iterator[TPatch_contra]) -> TResult_co:
-        aggregation_function = self.symbol.jit_compiled_function(self.captured_scopes)
+        assert isinstance(self.outer, Mixin)
+        aggregation_function = self.symbol.compiled_function(self)
         return aggregation_function(patches)
 
 
@@ -1849,11 +2017,11 @@ class FunctionalMerger(Merger[TPatch_contra, TResult_co]):
 class EndofunctionMerger(Merger["Endofunction[TResult]", TResult]):
     """Mixin for _EndofunctionSymbol."""
 
-    symbol: Final["EndofunctionMergerSymbol[TResult]"]
-    captured_scopes: Final[CapturedScopes]
+    symbol: "EndofunctionMergerSymbol[TResult]"
 
     def merge(self, patches: Iterator["Endofunction[TResult]"]) -> TResult:
-        base_value = self.symbol.jit_compiled_function(self.captured_scopes)
+        assert isinstance(self.outer, Mixin)
+        base_value = self.symbol.compiled_function(self)
         return reduce(
             lambda accumulator, endofunction: endofunction(accumulator),
             patches,
@@ -1866,11 +2034,11 @@ class EndofunctionMerger(Merger["Endofunction[TResult]", TResult]):
 class SinglePatcher(Patcher[TPatch_co]):
     """Mixin for _SinglePatchSymbol."""
 
-    symbol: Final["SinglePatcherSymbol[TPatch_co]"]
-    captured_scopes: Final[CapturedScopes]
+    symbol: "SinglePatcherSymbol[TPatch_co]"
 
     def __iter__(self) -> Iterator[TPatch_co]:
-        yield self.symbol.jit_compiled_function(self.captured_scopes)
+        assert isinstance(self.outer, Mixin)
+        yield self.symbol.compiled_function(self)
 
 
 @final
@@ -1878,11 +2046,11 @@ class SinglePatcher(Patcher[TPatch_co]):
 class MultiplePatcher(Patcher[TPatch_co]):
     """Mixin for _NestedMultiplePatchSymbol."""
 
-    symbol: Final["MultiplePatcherSymbol[TPatch_co]"]
-    captured_scopes: Final[CapturedScopes]
+    symbol: "MultiplePatcherSymbol[TPatch_co]"
 
     def __iter__(self) -> Iterator[TPatch_co]:
-        yield from self.symbol.jit_compiled_function(self.captured_scopes)
+        assert isinstance(self.outer, Mixin)
+        yield from self.symbol.compiled_function(self)
 
 
 @final
@@ -1896,33 +2064,7 @@ class Synthetic(Mixin):
     ``isinstance(item, Patcher)`` in ``_evaluate_resource``.
     """
 
-    symbol: Final["SyntheticSymbol"]
-    captured_scopes: Final[CapturedScopes]
-
-
-def _symbol_getitem(
-    symbol_mapping: Symbol,
-    captured_scopes: CapturedScopes,
-    key: Hashable,
-    /,
-) -> Callable[[Scope], Mixin]:
-    """
-    Get a factory function from a dependency graph by key.
-
-    Uses ``symbol_mapping[key]`` to get the NestedSymbol (which IS-A Symbol),
-    then creates a closure that calls ``bind`` with the captured scopes.
-    """
-    nested_symbol = symbol_mapping[key]
-
-    def bind_scope(scope: Scope) -> Mixin:
-        inner_captured_scopes: CapturedScopes = (*captured_scopes, scope)
-        mixin_result = cast(Symbol[Mixin], nested_symbol).bind(inner_captured_scopes)
-        # If mixin_result is a ScopeSemigroup, set access_path_outer to the scope's symbol
-        if isinstance(mixin_result, ScopeSemigroup):
-            return replace(mixin_result, access_path_outer=scope.symbol)
-        return mixin_result
-
-    return bind_scope
+    symbol: "SyntheticSymbol"
 
 
 def _collect_union_indices(
@@ -1936,73 +2078,6 @@ def _collect_union_indices(
         )
         if (item_symbol := base.get(key)) is not None
     }
-
-
-def _evaluate_resource(
-    resource_generator: Callable[[], Iterator[Mixin]],
-) -> Node:
-    """
-    Evaluate a resource by selecting a Merger and applying Patches.
-
-    Algorithm for selecting the Merger:
-    0. SyntheticResourceMixin items are excluded from election (they are placeholders
-       for inherited-only resources and contribute no actual patches).
-    1. If there is exactly one item that is a Merger but NOT a Patch (pure Merger),
-       it is selected as the Merger. All other items (including those that are both)
-       are treated as Patches.
-    2. If there are multiple pure Mergers, a ValueError is raised.
-    3. If there are no pure Mergers, but there are items that are both Merger and Patch:
-       One is arbitrarily selected as the Merger, and the rest are treated as Patches.
-       (This assumes the semantics of these items satisfy commutativity).
-    4. If there are no Mergers (pure or dual), a NotImplementedError is raised.
-    """
-    items = tuple(
-        item for item in resource_generator() if not isinstance(item, Synthetic)
-    )
-    if not items:
-        raise KeyError("No resource found")
-
-    pure_mergers = [
-        item
-        for item in items
-        if isinstance(item, Merger) and not isinstance(item, Patcher)
-    ]
-    dual_items = [
-        item for item in items if isinstance(item, Merger) and isinstance(item, Patcher)
-    ]
-    pure_patches = [
-        item
-        for item in items
-        if not isinstance(item, Merger) and isinstance(item, Patcher)
-    ]
-
-    selected_merger: Merger
-    patches_to_apply: list[Patcher]
-
-    if len(pure_mergers) == 1:
-        selected_merger = pure_mergers[0]
-        # Dual items are treated as patches here
-        patches_to_apply = cast(list[Patcher], dual_items) + pure_patches
-    elif len(pure_mergers) > 1:
-        raise ValueError("Multiple Factory definitions provided")
-    else:
-        # No pure mergers
-        if not dual_items:
-            raise NotImplementedError("No Factory definition provided")
-
-        # Pick one dual item as merger
-        selected_merger = dual_items[0]
-        # Remaining dual items are patches
-        patches_to_apply = cast(list[Patcher], dual_items[1:]) + pure_patches
-
-    # Flatten the patches
-    flat_patches = (
-        patch_content
-        for patch_container in patches_to_apply
-        for patch_content in patch_container
-    )
-
-    return selected_merger.merge(flat_patches)
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
@@ -2108,199 +2183,74 @@ class Semigroup(Merger[T, T], Patcher[T], Generic[T]):
 
 
 @final
-@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class ScopeSemigroup(Semigroup[StaticScope]):
+@dataclass(kw_only=True, frozen=True, slots=True, weakref_slot=True)
+class StaticScopeMixin(Mixin):
     """
-    Semigroup for merging Scope instances from extended scopes.
+    Mixin for static scope access (no kwargs).
 
-    .. todo:: Change to only support merging ``StaticScope``, prohibit merging ``InstanceScope``.
-
-        The type signature should be changed to ``Merger[StaticScope, StaticScope]``, and add
-        assertions in the ``create`` method to ensure ``InstanceScope`` is not passed in.
+    Used when accessing scopes without instance parameters.
     """
 
-    scope_factory: Final[Callable[[], StaticScope]]
-    access_path_outer: Final[Symbol]
-    key: Final[Hashable]
+    symbol: "DefinedScopeSymbol"
 
-    def merge(self, patches: Iterator[StaticScope]) -> StaticScope:
-        """
-        Create a merged Scope from factory and patches.
 
-        .. todo:: Phase 9: Replace ``generate_all_symbol_items`` with ``ChainMap``.
-        """
+@final
+@dataclass(kw_only=True, frozen=True, slots=True, weakref_slot=True)
+class InstanceScopeMixin(Mixin):
+    """
+    Mixin for instance scope access (with kwargs).
 
-        def all_scopes() -> Iterator[StaticScope]:
-            yield from self
-            return (yield from patches)
+    Used when accessing scopes with instance parameters provided via Scope.__call__(**kwargs).
+    When a key is in kwargs, a KeywordArgumentMerger is created instead of looking up from symbol.
+    """
 
-        scopes_tuple = tuple(all_scopes())
-        winner_class = _calculate_most_derived_class(*(type(p) for p in scopes_tuple))
+    symbol: "DefinedScopeSymbol"
+    kwargs: Mapping[str, object]
 
-        def generate_all_symbol_items() -> Iterator[tuple[Symbol, CapturedScopes]]:
-            for scope in scopes_tuple:
-                yield from scope.symbols.items()
+    @override
+    def __getitem__(self, key: Hashable) -> Mixin:
+        if key not in self._nested:
+            _logger.debug(
+                "InstanceScopeMixin.__getitem__: self_key=%(self_key)s key=%(key)s "
+                "kwargs=%(kwargs)s",
+                {
+                    "self_key": self.symbol.key,
+                    "key": key,
+                    "kwargs": tuple(self.kwargs.keys()),
+                },
+            )
+            if isinstance(key, str) and key in self.kwargs:
+                _logger.debug(
+                    "InstanceScopeMixin.__getitem__: using kwargs for key=%(key)s",
+                    {"key": key},
+                )
+                # Get the original symbol's mixin to inherit its patchers
+                original_mixin = self.symbol[key].bind(
+                    outer=self,
+                    lexical_outer_index=SymbolIndexSentinel.OWN,
+                )
+                kwarg_symbol = KeywordArgumentSymbol(
+                    base_value=self.kwargs[key],
+                    outer=self.symbol,
+                    key=key,
+                    patches_mixin=original_mixin,
+                )
+                self._nested[key] = kwarg_symbol.bind(
+                    outer=self,
+                    lexical_outer_index=SymbolIndexSentinel.OWN,
+                )
+            else:
+                self._nested[key] = self.symbol[key].bind(
+                    outer=self,
+                    lexical_outer_index=SymbolIndexSentinel.OWN,
+                )
+        return super(InstanceScopeMixin, self).__getitem__(key)
 
-        all_symbol_items = list(generate_all_symbol_items())
-        merged_symbols = dict(all_symbol_items)
-        _logger.debug(
-            "scopes_count=%(scopes_count)d "
-            "total_symbol_items=%(total_symbol_items)d "
-            "unique_after_dict=%(unique_after_dict)d",
-            {
-                "scopes_count": len(scopes_tuple),
-                "total_symbol_items": len(all_symbol_items),
-                "unique_after_dict": len(merged_symbols),
-            },
-        )
 
-        return winner_class(
-            symbols=merged_symbols,
-            symbol=self.access_path_outer[self.key],
-        )
-
-    def __iter__(self) -> Iterator[StaticScope]:
-        scope = self.scope_factory()
-        assert isinstance(
-            scope, StaticScope
-        ), f"scope must be StaticScope, got {type(scope)}"
-        yield scope
+ScopeMixin: TypeAlias = StaticScopeMixin | InstanceScopeMixin
 
 
 TSymbol = TypeVar("TSymbol", bound=Symbol)
-
-
-def _resolve_symbol_reference(
-    reference: "ResourceReference[Hashable]",
-    starting_symbol: "Symbol",
-    expected_type: type[TSymbol],
-) -> TSymbol:
-    """
-    Resolve a ResourceReference to a Symbol using the given symbol as starting point.
-
-    This is the compile-time analog of :func:`_resolve_resource_reference`. Instead of
-    traversing Scope objects at runtime, it traverses ScopeSymbol objects at compile-time.
-
-    For RelativeReference:
-        - Navigate up `levels_up` levels from the given symbol via ``.outer``
-        - Then navigate down through ``path`` using ``symbol[key]``
-
-    For AbsoluteReference:
-        - Start from the root symbol (traverse up via ``.outer`` until reaching root)
-        - Navigate down through ``path`` using ``symbol[key]``
-
-    :param reference: The reference describing the path to the target symbol.
-    :param starting_symbol: The starting symbol for relative references.
-    :param expected_type: The expected type of the resolved symbol.
-    :return: The resolved symbol of the expected type.
-    :raises ValueError: If navigation goes beyond the root symbol.
-    :raises TypeError: If intermediate or final resolved value is not of expected type.
-    """
-    match reference:
-        case RelativeReference(levels_up=levels_up, path=parts):
-            current: Symbol = starting_symbol
-            for level in range(levels_up):
-                match current.outer:
-                    case OuterSentinel.ROOT:
-                        raise ValueError(
-                            f"Cannot navigate up {levels_up} levels: "
-                            f"reached root at level {level}"
-                        )
-                    case Symbol() as outer_scope:
-                        current = outer_scope
-        case AbsoluteReference(path=parts):
-            # Navigate to root
-            current = starting_symbol
-            while True:
-                match current.outer:
-                    case OuterSentinel.ROOT:
-                        break
-                    case Symbol() as outer_scope:
-                        current = outer_scope
-        case _ as unreachable:
-            assert_never(unreachable)
-
-    # Navigate through parts
-    for part_index, part in enumerate(parts):
-        resolved = current[part]
-        if not isinstance(resolved, Symbol):
-            path_so_far = ".".join(str(p) for p in parts[: part_index + 1])
-            raise TypeError(
-                f"Expected ScopeSymbol while resolving reference, "
-                f"got {type(resolved).__name__} at part '{part}' "
-                f"(path: {path_so_far})"
-            )
-        current = resolved
-
-    if not isinstance(current, expected_type):
-        raise TypeError(
-            f"Final resolved symbol is not {expected_type.__name__}: "
-            f"got {type(current).__name__}"
-        )
-    return current
-
-
-def _resolve_resource_reference(
-    reference: "ResourceReference[Hashable]",
-    captured_scopes: CapturedScopes,
-    forbid_instance_scope: bool = False,
-) -> Scope:
-    """
-    Resolve a ResourceReference to a Scope using the given lexical scope.
-
-    For RelativeReference:
-        - Navigate up `levels_up` levels from the innermost scope
-        - Then navigate down through `parts` by accessing attributes
-
-    For AbsoluteReference:
-        - Start from the root (outermost scope)
-        - Navigate down through `parts` by accessing attributes
-
-    :param forbid_instance_scope: If True, raises TypeError if any step in the
-        path resolves to an InstanceScope. Used by extend to prevent referencing
-        paths through InstanceScope (e.g., object1.MyInner where object1 is an
-        InstanceScope).
-
-    .. seealso:: :func:`_resolve_symbol_reference` for the compile-time analog that
-                 traverses ScopeSymbol objects instead of Scope objects.
-    """
-    match reference:
-        case RelativeReference(levels_up=levels_up, path=parts):
-            if levels_up > len(captured_scopes):
-                raise ValueError(
-                    f"Cannot navigate {levels_up} levels up from scope of depth {len(captured_scopes)}"
-                )
-            # Navigate up: levels_up=0 means innermost (last), levels_up=1 means outer, etc.
-            scope_index = len(captured_scopes) - 1 - levels_up
-            current: Scope | Resource = captured_scopes[scope_index]
-        case AbsoluteReference(path=parts):
-            if not captured_scopes:
-                raise ValueError(
-                    "Cannot resolve absolute reference with empty lexical scope"
-                )
-            current = captured_scopes[0]
-        case _ as unreachable:
-            assert_never(unreachable)
-
-    # Navigate through parts
-    traversed_parts: list[Hashable] = []
-    for part in parts:
-        resolved = current[part]
-        if not isinstance(resolved, Scope):
-            raise TypeError(
-                f"Expected Scope while resolving reference, got {type(resolved)} at part '{part}'"
-            )
-        traversed_parts.append(part)
-        if forbid_instance_scope and isinstance(resolved, InstanceScope):
-            raise TypeError(
-                f"Cannot extend through InstanceScope. "
-                f"Path {'.'.join(str(p) for p in traversed_parts)} resolved to an InstanceScope."
-            )
-        current = resolved
-
-    if not isinstance(current, Scope):
-        raise TypeError(f"Final resolved value is not a Scope: {type(current)}")
-    return current
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
@@ -2690,20 +2640,18 @@ def local(definition: TMergerDefinition) -> TMergerDefinition:
 
 def evaluate(
     namespace: ModuleType | _ScopeDefinition,
-) -> StaticScope:
+) -> Scope:
     """
-    Resolves a Scope from the given object using the provided lexical scope.
+    Resolves a Scope from the given object.
 
     :param namespace: Module or namespace definition (decorated with @scope) to resolve resources from.
-    :return: An instance of the cls type with resolved mixins.
+    :return: A Scope wrapping the root mixin.
 
     Example::
 
-        root = mount(MyNamespace)
+        root = evaluate(MyNamespace)
 
     """
-    captured_scopes: CapturedScopes = ()
-
     namespace_definition: _ScopeDefinition
     if isinstance(namespace, _ScopeDefinition):
         namespace_definition = namespace
@@ -2717,197 +2665,149 @@ def evaluate(
         outer=OuterSentinel.ROOT,
         key=KeySentinel.ROOT,
     )
-    return StaticScope(
-        symbols={root_symbol: captured_scopes},
-        symbol=root_symbol,
+    root_mixin = root_symbol.bind(
+        outer=OuterSentinel.ROOT,
+        lexical_outer_index=SymbolIndexSentinel.OWN,
     )
+    return Scope(mixin=root_mixin)
 
 
-def _make_jit_getter(name: str, index: int) -> Callable[[CapturedScopes], "Node"]:
-    """Create a factory that retrieves a resource from lexical scope using JIT-compiled attribute access."""
-    # lambda captured_scopes: captured_scopes[index].{name}
-    lambda_node = ast.Lambda(
-        args=ast.arguments(
-            posonlyargs=[],
-            args=[ast.arg(arg="captured_scopes")],
-            kwonlyargs=[],
-            kw_defaults=[],
-            defaults=[],
-        ),
-        body=ast.Attribute(
-            value=ast.Subscript(
-                value=ast.Name(id="captured_scopes", ctx=ast.Load()),
-                slice=ast.Constant(value=index),
-                ctx=ast.Load(),
-            ),
-            attr=name,
-            ctx=ast.Load(),
-        ),
-    )
-    module_node = ast.Expression(body=lambda_node)
-    ast.fix_missing_locations(module_node)
-    code = compile(module_node, filename="<mixinject__make_jit_factory>", mode="eval")
-    # No globals needed for this simple lambda
-    return eval(code, {})
-
-
-def _find_param_in_symbol_chain(param_name: str, starting_symbol: Symbol) -> "Symbol":
+def _get_param_relative_reference(
+    param_name: str, outer_symbol: Symbol
+) -> "RelativeReference[Hashable] | RelativeReferenceSentinel":
     """
-    Find a parameter in the symbol chain (lexical scope + extends).
+    Get a RelativeReference to a parameter using lexical scoping (Symbol chain).
 
-    Traverses up the outer chain to find the parameter. Each symbol's __getitem__
-    handles extends resolution, so we only need to traverse the lexical scope chain.
+    Traverses up the Symbol chain to find the parameter, counting levels.
+    Returns a RelativeReference that can be resolved from any Mixin bound to outer_symbol,
+    or RelativeReferenceSentinel.NOT_FOUND if the parameter is not found.
 
     :param param_name: The name of the parameter to find.
-    :param starting_symbol: The starting ScopeSymbol to search from.
-    :return: The Symbol (leaf or scope).
-    :raises KeyError: If the parameter is not found in the symbol chain.
+    :param outer_symbol: The Symbol to start searching from (lexical scope).
+    :return: RelativeReference describing how to reach the parameter,
+             or RelativeReferenceSentinel.NOT_FOUND if not found.
     """
-    current: Symbol = starting_symbol
+    levels_up = 0
+    current: Symbol = outer_symbol
     while True:
         if param_name in current:
-            param_symbol = current[param_name]
-            return param_symbol
+            return RelativeReference(levels_up=levels_up, path=(param_name,))
         match current.outer:
             case OuterSentinel.ROOT:
-                raise KeyError(f"Parameter '{param_name}' not found in symbol chain")
+                return RelativeReferenceSentinel.NOT_FOUND
             case Symbol() as outer_scope:
+                levels_up += 1
                 current = outer_scope
 
 
-def _is_param_in_symbol_chain(param_name: str, starting_symbol: Symbol) -> bool:
-    """Check if a parameter is resolvable from the symbol chain."""
-    current: Symbol = starting_symbol
-    while True:
-        if param_name in current:
-            return True
-        match current.outer:
-            case OuterSentinel.ROOT:
-                return False
-            case Symbol() as outer_scope:
-                current = outer_scope
-
-
-def _resolve_dependencies_jit_using_symbol(
+def _compile_function_with_mixin(
     outer_symbol: Symbol,
     function: Callable[P, T],
     name: str,
-) -> Callable[[CapturedScopes], T]:
+) -> Callable[[Mixin], T]:
     """
-    Resolve dependencies using the mixin chain.
+    Compile a function with pre-computed dependency references (lexical scoping).
 
-    For each parameter p:
-    1. param_symbol = _find_param_in_symbol_chain(p.name, outer_symbol)
-    2. Use param_symbol.getter for JIT code generation
+    Returns a function that takes a Mixin and:
+    1. Resolves dependencies using pre-computed RelativeReferences
+    2. Calls the original function with resolved dependencies
 
-    This handles both extends (via ScopeSymbol.__getitem__) and lexical scope
-    (via traversing the outer chain).
-
-    Special case: when param_name == name, starts search from outer_symbol.outer to
-    avoid self-dependency, mimicking pytest fixture behavior.
-
-    :param outer_symbol: The ScopeSymbol containing the resource being resolved.
+    :param outer_symbol: The Symbol containing the resource (lexical scope).
     :param function: The function for which to resolve dependencies.
-    :param name: The name of the resource being resolved.
-    :return: A wrapper function that takes captured scopes and returns the result.
+    :param name: The name of the resource being resolved (for self-dependency avoidance).
+    :return: A function that takes a Mixin and returns the result.
     """
     sig = signature(function)
     params = tuple(sig.parameters.values())
+    match params:
+        case (first_param, *keyword_params) if (
+            first_param.kind == first_param.POSITIONAL_ONLY
+        ):
+            has_positional = True
+        case keyword_params:
+            has_positional = False
 
-    if not params:
-        return lambda _captured_scopes: function()  # type: ignore
-
-    # Check if first parameter is a positional-only scope parameter
-    has_scope = False
-    first_param = params[0]
-    first_param_in_symbol = _is_param_in_symbol_chain(first_param.name, outer_symbol)
-    if (first_param.kind == first_param.POSITIONAL_ONLY) or (
-        first_param.kind == first_param.POSITIONAL_OR_KEYWORD
-        and not first_param_in_symbol
-    ):
-        has_scope = True
-        keyword_params = params[1:]
-    else:
-        keyword_params = params
-
-    # Pre-fetch getters at compile time
-    # For same-name parameters, start search from outer_symbol.outer to avoid self-dependency
-    getters: list[Callable[[CapturedScopes], Node]] = []
-    for parameter in keyword_params:
+    # Pre-compute RelativeReferences for each dependency (lexical scoping)
+    def compute_dependency_reference(
+        parameter: Parameter,
+    ) -> tuple[str, RelativeReference[Hashable], int]:
         if parameter.name == name:
-            # Same-name dependency: start search from outer mixin's parent
+            # Same-name dependency: start search from outer_symbol.outer (lexical)
             match outer_symbol.outer:
                 case OuterSentinel.ROOT:
                     raise ValueError(
                         f"Same-name dependency '{name}' at root level is not allowed"
                     )
-                case Symbol() as outer_scope:
-                    param_symbol = _find_param_in_symbol_chain(
-                        parameter.name, outer_scope
+                case Symbol() as search_symbol:
+                    pass
+            relative_reference_or_sentinel = _get_param_relative_reference(
+                parameter.name, search_symbol
+            )
+            match relative_reference_or_sentinel:
+                case RelativeReferenceSentinel.NOT_FOUND:
+                    raise LookupError(
+                        f"Resource '{name}' depends on '{parameter.name}' "
+                        f"which does not exist in scope"
                     )
+                case RelativeReference() as relative_reference:
+                    # Mark that we need to go up one extra level in Mixin chain
+                    return (parameter.name, relative_reference, 1)
         else:
-            # Normal dependency: resolve from outer_symbol chain
-            param_symbol = _find_param_in_symbol_chain(parameter.name, outer_symbol)
-        getters.append(param_symbol.getter)
+            # Normal dependency
+            relative_reference_or_sentinel = _get_param_relative_reference(
+                parameter.name, outer_symbol
+            )
+            match relative_reference_or_sentinel:
+                case RelativeReferenceSentinel.NOT_FOUND:
+                    raise LookupError(
+                        f"Resource '{name}' depends on '{parameter.name}' "
+                        f"which does not exist in scope"
+                    )
+                case RelativeReference() as relative_reference:
+                    return (parameter.name, relative_reference, 0)
 
-    # Generate JIT code: function(captured_scopes[-1], param0=getters[0](cs), param1=getters[1](cs), ...)
-    # Build keyword arguments
-    keywords = []
-    for index, parameter in enumerate(keyword_params):
-        # Generates: getters[index](captured_scopes)
-        value_expr = ast.Call(
-            func=ast.Subscript(
-                value=ast.Name(id="getters", ctx=ast.Load()),
-                slice=ast.Constant(value=index),
-                ctx=ast.Load(),
-            ),
-            args=[ast.Name(id="captured_scopes", ctx=ast.Load())],
-            keywords=[],
-        )
-        keywords.append(ast.keyword(arg=parameter.name, value=value_expr))
-
-    call_node = ast.Call(
-        func=ast.Name(id="function", ctx=ast.Load()),
-        args=(
-            [
-                ast.Subscript(
-                    value=ast.Name(id="captured_scopes", ctx=ast.Load()),
-                    slice=ast.Constant(value=-1),
-                    ctx=ast.Load(),
-                )
-            ]
-            if has_scope
-            else []
-        ),
-        keywords=keywords,
+    dependency_references = tuple(
+        compute_dependency_reference(parameter) for parameter in keyword_params
     )
 
-    lambda_node = ast.Lambda(
-        args=ast.arguments(
-            posonlyargs=[],
-            args=[ast.arg(arg="captured_scopes")],
-            kwonlyargs=[],
-            kw_defaults=[],
-            defaults=[],
-        ),
-        body=call_node,
-    )
+    # Return a compiled function that resolves dependencies at runtime
+    def compiled_wrapper(mixin: Mixin) -> T:
+        resolved_kwargs: dict[str, object] = {}
+        for param_name, ref, extra_levels in dependency_references:
+            # Navigate up extra levels via lexical_outer chain (for same-name dependencies)
+            search_mixin: Mixin = mixin
+            for _ in range(extra_levels):
+                search_mixin = search_mixin.lexical_outer
+            param_mixin = search_mixin.resolve_relative_reference(
+                ref,
+                lexical_outer_index=search_mixin.lexical_outer_index,
+            )
+            resolved_kwargs[param_name] = param_mixin.evaluated
 
-    module_node = ast.Expression(body=lambda_node)
-    ast.fix_missing_locations(module_node)
-    code = compile(
-        module_node,
-        filename="<mixinject__resolve_dependencies_jit_using_symbol>",
-        mode="eval",
-    )
+        return function(**resolved_kwargs)  # type: ignore
 
-    return eval(
-        code,
-        {
-            "function": function,
-            "getters": getters,
-        },
-    )
+    def compiled_wrapper_with_positional(mixin: Mixin) -> Callable[..., T]:
+        resolved_kwargs: dict[str, object] = {}
+        for param_name, ref, extra_levels in dependency_references:
+            # Navigate up extra levels via lexical_outer chain (for same-name dependencies)
+            search_mixin: Mixin = mixin
+            for _ in range(extra_levels):
+                search_mixin = search_mixin.lexical_outer
+            param_mixin = search_mixin.resolve_relative_reference(
+                ref,
+                lexical_outer_index=search_mixin.lexical_outer_index,
+            )
+            resolved_kwargs[param_name] = param_mixin.evaluated
+
+        def inner(positional_arg: object, /) -> T:
+            return function(positional_arg, **resolved_kwargs)  # type: ignore
+
+        return inner
+
+    if has_positional:
+        return compiled_wrapper_with_positional  # type: ignore
+    else:
+        return compiled_wrapper
 
 
 @final
@@ -2942,6 +2842,8 @@ ResourceReference: TypeAlias = AbsoluteReference[T] | RelativeReference[T]
 A reference to a resource in the lexical scope.
 
 This is a union type of AbsoluteReference and RelativeReference.
+
+.. todo:: Drop the type parameter T, enforce Hashable keys only.
 
 .. todo:: (Optional) Add ``LexicalReference`` type.
 
