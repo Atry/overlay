@@ -988,7 +988,7 @@ class Symbol(
                             for _, base_symbol in self_and_bases
                         )
                         if has_patcher:
-                            raise NotImplementedError("Patcher without Merger")
+                            return MergerElectionSentinel.PATCHER_ONLY
                         # Check if self or bases contain DefinedScopeSymbol (scope that returns Scope)
                         if has_scope_symbol:
                             return MergerElectionSentinel.SCOPE
@@ -1323,9 +1323,6 @@ class Mixin(Mapping[Hashable, "Mixin"], ABC):
         if elected_index is MergerElectionSentinel.SCOPE:
             return Scope(mixin=self)
 
-        merger = self.get_super(elected_index)
-        assert isinstance(merger, Merger)
-
         def generate_patcher():
             if elected_index != SymbolIndexSentinel.OWN:
                 if isinstance(self, Patcher):
@@ -1335,6 +1332,29 @@ class Mixin(Mapping[Hashable, "Mixin"], ABC):
                     if isinstance(patcher, Patcher):
                         yield from patcher
 
+        def apply_endofunction(accumulator: object, endofunction: object) -> object:
+            if not callable(endofunction):
+                raise TypeError(
+                    f"Patcher must yield callable endofunctions, got {type(endofunction).__name__}"
+                )
+            return endofunction(accumulator)
+
+        if elected_index is MergerElectionSentinel.PATCHER_ONLY:
+            if not isinstance(self.outer, InstanceScopeMixin):
+                raise NotImplementedError(
+                    f"Patcher-only resource '{self.symbol.key}' requires instance scope"
+                )
+            key = self.symbol.key
+            if not isinstance(key, str) or key not in self.outer.kwargs:
+                raise NotImplementedError(
+                    f"Patcher-only resource '{key}' requires kwargs"
+                )
+            return reduce(
+                apply_endofunction, generate_patcher(), self.outer.kwargs[key]
+            )
+
+        merger = self.get_super(elected_index)
+        assert isinstance(merger, Merger)
         return merger.merge(generate_patcher())
 
     def resolve_relative_reference(
@@ -1475,6 +1495,11 @@ class MergerElectionSentinel(Enum):
     SCOPE = auto()
     """
     Indicates that the symbol is a scope with no merger or patcher.
+    """
+
+    PATCHER_ONLY = auto()
+    """
+    Indicates that the symbol has patchers but no merger (and no scope symbol).
     """
 
 
@@ -1953,72 +1978,6 @@ class Patcher(Mixin, Iterable[TPatch_co], Generic[TPatch_co]):
 
 
 @final
-@dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True, eq=False)
-class KeywordArgumentSymbol(
-    MergerSymbol["Endofunction[TResult]", TResult],
-    Generic[TResult],
-):
-    """
-    Symbol for keyword argument values passed to InstanceScope.
-
-    This is a placeholder symbol that allows KeywordArgumentMerger to have
-    a valid symbol reference like all other Mixin subclasses.
-    """
-
-    base_value: Final[TResult]
-    patches_mixin: "Mixin"
-
-    def bind(
-        self,
-        outer: "Mixin | OuterSentinel",
-        lexical_outer_index: "SymbolIndexSentinel | int",
-    ) -> "KeywordArgumentMerger[TResult]":
-        return KeywordArgumentMerger(
-            symbol=cast("Symbol[KeywordArgumentMerger[TResult]]", self),
-            outer=outer,
-            lexical_outer_index=lexical_outer_index,
-            base_value=self.base_value,
-            patches_mixin=self.patches_mixin,
-        )
-
-
-@final
-@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class KeywordArgumentMerger(
-    Merger[Callable[[TResult], TResult], TResult],
-    Generic[TResult],
-):
-    """
-    Merger that applies patches as endofunctions via reduce.
-
-    When patches_mixin is provided, patches are collected from that mixin's
-    strict_super_mixins chain. This allows kwargs values to be transformed
-    by @patch decorators defined on the same resource.
-    """
-
-    base_value: Final[TResult]
-    patches_mixin: "Mixin"
-
-    @cached_property
-    @override
-    def strict_super_mixins(self) -> Sequence["Mixin"]:
-        """
-        Include patches_mixin in the super mixins chain.
-
-        This allows the patches_mixin (and its chain) to provide patchers
-        that will be applied to the kwargs base value.
-        """
-        if self.patches_mixin is None:
-            return ()
-        # Include the patches_mixin itself (it may be a Patcher)
-        # and its strict_super_mixins chain
-        return (self.patches_mixin, *self.patches_mixin.strict_super_mixins)
-
-    def merge(self, patches: Iterator[Callable[[TResult], TResult]]) -> TResult:
-        return reduce(lambda acc, endo: endo(acc), patches, self.base_value)
-
-
-@final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True)
 class FunctionalMerger(Merger[TPatch_contra, TResult_co]):
     """Mixin for _NestedMergerSymbol."""
@@ -2220,50 +2179,11 @@ class InstanceScopeMixin(Mixin):
     Mixin for instance scope access (with kwargs).
 
     Used when accessing scopes with instance parameters provided via Scope.__call__(**kwargs).
-    When a key is in kwargs, a KeywordArgumentMerger is created instead of looking up from symbol.
+    When evaluated, patcher-only resources use kwargs values as base values.
     """
 
     symbol: "DefinedScopeSymbol"
     kwargs: Mapping[str, object]
-
-    @override
-    def __getitem__(self, key: Hashable) -> Mixin:
-        if key not in self._nested:
-            _logger.debug(
-                "InstanceScopeMixin.__getitem__: self_key=%(self_key)s key=%(key)s "
-                "kwargs=%(kwargs)s",
-                {
-                    "self_key": self.symbol.key,
-                    "key": key,
-                    "kwargs": tuple(self.kwargs.keys()),
-                },
-            )
-            if isinstance(key, str) and key in self.kwargs:
-                _logger.debug(
-                    "InstanceScopeMixin.__getitem__: using kwargs for key=%(key)s",
-                    {"key": key},
-                )
-                # Get the original symbol's mixin to inherit its patchers
-                original_mixin = self.symbol[key].bind(
-                    outer=self,
-                    lexical_outer_index=SymbolIndexSentinel.OWN,
-                )
-                kwarg_symbol = KeywordArgumentSymbol(
-                    base_value=self.kwargs[key],
-                    outer=self.symbol,
-                    key=key,
-                    patches_mixin=original_mixin,
-                )
-                self._nested[key] = kwarg_symbol.bind(
-                    outer=self,
-                    lexical_outer_index=SymbolIndexSentinel.OWN,
-                )
-            else:
-                self._nested[key] = self.symbol[key].bind(
-                    outer=self,
-                    lexical_outer_index=SymbolIndexSentinel.OWN,
-                )
-        return super(InstanceScopeMixin, self).__getitem__(key)
 
 
 ScopeMixin: TypeAlias = StaticScopeMixin | InstanceScopeMixin

@@ -365,7 +365,7 @@ class TestMergerElection:
             _ = root.Combined.target
 
     def test_evaluate_resource_no_merger_error(self) -> None:
-        """Test: Only patches (no merger) -> NotImplementedError."""
+        """Test: Only patches (no merger) -> NotImplementedError when not in instance scope."""
 
         @scope
         class N1:
@@ -376,5 +376,5 @@ class TestMergerElection:
             )
 
         root = evaluate(N1)
-        with pytest.raises(NotImplementedError, match="Patcher without Merger"):
+        with pytest.raises(NotImplementedError, match="requires instance scope"):
             _ = root.target
