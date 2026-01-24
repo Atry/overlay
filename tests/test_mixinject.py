@@ -1542,3 +1542,49 @@ class TestInstanceScopeMixinImplementation:
         # The greeting should be "Hello!" (transformed by the endofunction)
         # Current bug: returns "Hello" (raw value without transformation)
         assert instance.greeting == "Hello!"
+
+
+class TestSyntheticScopeCallable:
+    """Test that inherited scopes (Synthetic) can also be called."""
+
+    def test_inherited_scope_can_be_called(self) -> None:
+        """
+        When accessing an inherited scope through @extend, calling it should work.
+
+        Scenario:
+        1. Base has a nested scope Inner with @extern parameter
+        2. Extended extends Base (inherits Inner)
+        3. Accessing Extended.Inner returns a Synthetic mixin (not StaticScopeMixin)
+        4. Calling Extended.Inner(arg=...) works because Mixin has __call__
+        """
+
+        @scope
+        class Root:
+            @scope
+            class Base:
+                @scope
+                class Inner:
+                    @extern
+                    def arg() -> str: ...
+
+                    @resource
+                    def value(arg: str) -> str:
+                        return f"value_{arg}"
+
+            @extend(R(levels_up=0, path=("Base",)))
+            @scope
+            class Extended:
+                @resource
+                def extra() -> int:
+                    return 42
+
+        root = evaluate(Root)
+
+        # Direct access works - Base.Inner is a StaticScopeMixin
+        base_inner_instance = root.Base.Inner(arg="direct")
+        assert base_inner_instance.value == "value_direct"
+
+        # Inherited access should also work - Extended.Inner is a Synthetic
+        # This will fail because Synthetic doesn't have __call__
+        extended_inner_instance = root.Extended.Inner(arg="inherited")
+        assert extended_inner_instance.value == "value_inherited"

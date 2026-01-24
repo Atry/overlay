@@ -1279,6 +1279,20 @@ class Mixin(Mapping[Hashable, "Mixin"], ABC):
             *super(Mixin, self).__dir__(),
         )
 
+    def __call__(self, **kwargs: object) -> "InstanceScopeMixin":
+        """
+        Create an instance scope with the provided kwargs.
+
+        Creates a new InstanceScopeMixin with the same symbol but with kwargs bound.
+        When child resources are accessed, kwargs take precedence over symbol lookups.
+        """
+        return InstanceScopeMixin(
+            symbol=self.symbol,
+            outer=self.outer,
+            lexical_outer_index=self.lexical_outer_index,
+            kwargs=kwargs,
+        )
+
     @property
     def lexical_outer(self) -> "Mixin":
         """
@@ -2143,20 +2157,6 @@ class StaticScopeMixin(Mixin):
 
     symbol: "DefinedScopeSymbol"
 
-    def __call__(self, **kwargs: object) -> "InstanceScopeMixin":
-        """
-        Create an instance scope with the provided kwargs.
-
-        Creates a new InstanceScopeMixin with the same symbol but with kwargs bound.
-        When child resources are accessed, kwargs take precedence over symbol lookups.
-        """
-        return InstanceScopeMixin(
-            symbol=self.symbol,
-            outer=self.outer,
-            lexical_outer_index=self.lexical_outer_index,
-            kwargs=kwargs,
-        )
-
 
 @final
 @dataclass(kw_only=True, frozen=True, slots=True, weakref_slot=True)
@@ -2164,11 +2164,10 @@ class InstanceScopeMixin(Mixin):
     """
     Mixin for instance scope access (with kwargs).
 
-    Used when accessing scopes with instance parameters provided via Scope.__call__(**kwargs).
+    Used when accessing scopes with instance parameters provided via Mixin.__call__(**kwargs).
     When evaluated, patcher-only resources use kwargs values as base values.
     """
 
-    symbol: "DefinedScopeSymbol"
     kwargs: Mapping[str, object]
 
 
