@@ -1279,14 +1279,14 @@ class Mixin(Mapping[Hashable, "Mixin"], ABC):
             *super(Mixin, self).__dir__(),
         )
 
-    def __call__(self, **kwargs: object) -> "InstanceScopeMixin":
+    def __call__(self, **kwargs: object) -> "InstanceScope":
         """
         Create an instance scope with the provided kwargs.
 
-        Creates a new InstanceScopeMixin with the same symbol but with kwargs bound.
+        Creates a new InstanceScope with the same symbol but with kwargs bound.
         When child resources are accessed, kwargs take precedence over symbol lookups.
         """
-        return InstanceScopeMixin(
+        return InstanceScope(
             symbol=self.symbol,
             outer=self.outer,
             lexical_outer_index=self.lexical_outer_index,
@@ -1368,7 +1368,7 @@ class Mixin(Mapping[Hashable, "Mixin"], ABC):
             return endofunction(accumulator)
 
         if elected_index is MergerElectionSentinel.PATCHER_ONLY:
-            if not isinstance(self.outer, InstanceScopeMixin):
+            if not isinstance(self.outer, InstanceScope):
                 raise NotImplementedError(
                     f"Patcher-only resource '{self.symbol.key}' requires instance scope"
                 )
@@ -1906,7 +1906,7 @@ class SemigroupSymbol(
     scope symbols as valid merger candidates.
 
     Use ``isinstance(mixin, SemigroupSymbol)`` to check if a mixin returns
-    an evaluator that is both Merger and Patcher (e.g., ``ScopeMixin``).
+    an evaluator that is both Merger and Patcher (e.g., ``Scope``).
 
     Subclass: ``DefinedScopeSymbol``.
     """
@@ -1922,14 +1922,14 @@ class SemigroupSymbol(
 
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True, eq=False)
-class DefinedScopeSymbol(DefinedSymbol, Symbol["StaticScopeMixin"]):
+class DefinedScopeSymbol(DefinedSymbol, Symbol["StaticScope"]):
     """
     Scope symbol for defined scopes (has local definition with extend references).
 
     Defined mixins are created when a nested scope has a local definition in the current
     scope. They use the scope class from the definition and include extend references.
 
-    Note: This is NOT a SemigroupSymbol because ScopeMixin is not a Merger/Patcher.
+    Note: This is NOT a SemigroupSymbol because Scope is not a Merger/Patcher.
     When evaluated, Mixin.evaluated will return self via MergerElectionSentinel.SCOPE path.
     """
 
@@ -1939,9 +1939,9 @@ class DefinedScopeSymbol(DefinedSymbol, Symbol["StaticScopeMixin"]):
         self,
         outer: "Mixin | OuterSentinel",
         lexical_outer_index: "SymbolIndexSentinel | int",
-    ) -> "StaticScopeMixin":
+    ) -> "StaticScope":
         """Resolve resources including extend references from definition."""
-        return StaticScopeMixin(
+        return StaticScope(
             symbol=self, outer=outer, lexical_outer_index=lexical_outer_index
         )
 
@@ -2148,7 +2148,7 @@ class Semigroup(Merger[T, T], Patcher[T], Generic[T]):
 
 @final
 @dataclass(kw_only=True, frozen=True, slots=True, weakref_slot=True)
-class StaticScopeMixin(Mixin):
+class StaticScope(Mixin):
     """
     Mixin for static scope access (no kwargs).
 
@@ -2160,7 +2160,7 @@ class StaticScopeMixin(Mixin):
 
 @final
 @dataclass(kw_only=True, frozen=True, slots=True, weakref_slot=True)
-class InstanceScopeMixin(Mixin):
+class InstanceScope(Mixin):
     """
     Mixin for instance scope access (with kwargs).
 
@@ -2171,7 +2171,7 @@ class InstanceScopeMixin(Mixin):
     kwargs: Mapping[str, object]
 
 
-ScopeMixin: TypeAlias = StaticScopeMixin | InstanceScopeMixin
+Scope: TypeAlias = StaticScope | InstanceScope
 
 
 TSymbol = TypeVar("TSymbol", bound=Symbol)
@@ -2564,12 +2564,12 @@ def local(definition: TMergerDefinition) -> TMergerDefinition:
 
 def evaluate(
     namespace: ModuleType | _ScopeDefinition,
-) -> StaticScopeMixin:
+) -> StaticScope:
     """
-    Resolves a StaticScopeMixin from the given object.
+    Resolves a StaticScope from the given object.
 
     :param namespace: Module or namespace definition (decorated with @scope) to resolve resources from.
-    :return: The root StaticScopeMixin.
+    :return: The root StaticScope.
 
     Example::
 

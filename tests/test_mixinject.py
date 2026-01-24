@@ -13,7 +13,7 @@ from mixinject import (
     DefinedSymbol,
     _PackageScopeDefinition,
     _ScopeDefinition,
-    ScopeMixin,
+    Scope,
     RelativeReference,
     EndofunctionMergerDefinition,
     SinglePatcherDefinition,
@@ -436,7 +436,7 @@ class TestExtendInstanceScopeProhibition:
                     return f"foo_{i}"
 
             @resource
-            def my_instance(MyOuter: ScopeMixin) -> ScopeMixin:
+            def my_instance(MyOuter: Scope) -> Scope:
                 return MyOuter(i=42)
 
             @extend(R(levels_up=0, path=("my_instance",)))
@@ -473,7 +473,7 @@ class TestExtendInstanceScopeProhibition:
                         return "inner_foo"
 
             @resource
-            def my_instance(MyOuter: ScopeMixin) -> ScopeMixin:
+            def my_instance(MyOuter: Scope) -> Scope:
                 return MyOuter(i=42)
 
             # This fails because my_instance is a MergerSymbol, not a scope
@@ -519,7 +519,7 @@ class TestExtendInstanceScopeProhibition:
                         return lambda x: x + i
 
             @resource
-            def my_instance(MyOuter: ScopeMixin) -> ScopeMixin:
+            def my_instance(MyOuter: Scope) -> Scope:
                 return MyOuter(i=42)
 
         root = evaluate(Root)
@@ -691,7 +691,7 @@ class TestInstanceScopeReversedPath:
                         return f"foo_{i}"
 
             @resource
-            def my_instance(MyOuter: ScopeMixin) -> ScopeMixin:
+            def my_instance(MyOuter: Scope) -> Scope:
                 return MyOuter(i=42)
 
         root = evaluate(Root)
@@ -858,7 +858,7 @@ class TestScopeAsSymlink:
         @scope
         class Namespace:
             @resource
-            def linked() -> ScopeMixin:
+            def linked() -> Scope:
                 return inner_scope
 
         root = evaluate(Namespace)
@@ -1514,8 +1514,8 @@ class TestMissingDependency:
             _ = root.greeting
 
 
-class TestInstanceScopeMixinImplementation:
-    """Test InstanceScopeMixin dataclass implementation details."""
+class TestInstanceScopeImplementation:
+    """Test InstanceScope dataclass implementation details."""
 
     def test_instance_scope_kwargs_applies_endofunction_patches(self) -> None:
         """
@@ -1554,7 +1554,7 @@ class TestSyntheticScopeCallable:
         Scenario:
         1. Base has a nested scope Inner with @extern parameter
         2. Extended extends Base (inherits Inner)
-        3. Accessing Extended.Inner returns a Synthetic mixin (not StaticScopeMixin)
+        3. Accessing Extended.Inner returns a Synthetic mixin (not StaticScope)
         4. Calling Extended.Inner(arg=...) works because Mixin has __call__
         """
 
@@ -1580,7 +1580,7 @@ class TestSyntheticScopeCallable:
 
         root = evaluate(Root)
 
-        # Direct access works - Base.Inner is a StaticScopeMixin
+        # Direct access works - Base.Inner is a StaticScope
         base_inner_instance = root.Base.Inner(arg="direct")
         assert base_inner_instance.value == "value_direct"
 
