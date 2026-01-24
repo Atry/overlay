@@ -19,7 +19,6 @@ from mixinject import (
     Patcher,
     PatcherSymbol,
     RelativeReference,
-    Scope,
     Semigroup,
     SemigroupSymbol,
     Symbol,

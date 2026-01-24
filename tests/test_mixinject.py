@@ -8,11 +8,12 @@ import pytest
 from mixinject import (
     FunctionalMergerDefinition,
     Merger,
+    Mixin,
     Symbol,
     DefinedSymbol,
     _PackageScopeDefinition,
     _ScopeDefinition,
-    Scope,
+    ScopeMixin,
     RelativeReference,
     EndofunctionMergerDefinition,
     SinglePatcherDefinition,
@@ -225,7 +226,7 @@ class TestInstanceScope:
 
         base_scope = evaluate(Config)
         instance = base_scope(foo="bar")
-        assert isinstance(instance, Scope)
+        assert isinstance(instance, Mixin)
         assert instance.foo == "bar"
 
     def test_instance_scope_multiple_values(self) -> None:
@@ -242,7 +243,7 @@ class TestInstanceScope:
 
         base_scope = evaluate(Config)
         instance = base_scope(foo="bar", count=42, flag=True)
-        assert isinstance(instance, Scope)
+        assert isinstance(instance, Mixin)
         assert instance.foo == "bar"
         assert instance.count == 42
         assert instance.flag is True
@@ -435,7 +436,7 @@ class TestExtendInstanceScopeProhibition:
                     return f"foo_{i}"
 
             @resource
-            def my_instance(MyOuter: Scope) -> Scope:
+            def my_instance(MyOuter: ScopeMixin) -> ScopeMixin:
                 return MyOuter(i=42)
 
             @extend(R(levels_up=0, path=("my_instance",)))
@@ -472,7 +473,7 @@ class TestExtendInstanceScopeProhibition:
                         return "inner_foo"
 
             @resource
-            def my_instance(MyOuter: Scope) -> Scope:
+            def my_instance(MyOuter: ScopeMixin) -> ScopeMixin:
                 return MyOuter(i=42)
 
             # This fails because my_instance is a MergerSymbol, not a scope
@@ -518,7 +519,7 @@ class TestExtendInstanceScopeProhibition:
                         return lambda x: x + i
 
             @resource
-            def my_instance(MyOuter: Scope) -> Scope:
+            def my_instance(MyOuter: ScopeMixin) -> ScopeMixin:
                 return MyOuter(i=42)
 
         root = evaluate(Root)
@@ -658,11 +659,11 @@ class TestScalaStylePathDependentTypes:
         root = evaluate(Root)
 
         # mixin is the runtime access path:
-        #   root.object1.MyInner.mixin.symbol == ("MyInner", "object1", "root")
-        #   root.object2.MyInner.mixin.symbol == ("MyInner", "object2", "root")
+        #   root.object1.MyInner.symbol == ("MyInner", "object1", "root")
+        #   root.object2.MyInner.symbol == ("MyInner", "object2", "root")
         object1_inner = root.object1.MyInner
         object2_inner = root.object2.MyInner
-        assert object1_inner.mixin.symbol != object2_inner.mixin.symbol
+        assert object1_inner.symbol != object2_inner.symbol
 
         # foo = 10 (Base) + 1 (object1.MyInner) + 2 (object2.MyInner) + 100 (MyObjectA) = 113
         assert root.MyObjectA.foo == 113
@@ -690,7 +691,7 @@ class TestInstanceScopeReversedPath:
                         return f"foo_{i}"
 
             @resource
-            def my_instance(MyOuter: Scope) -> Scope:
+            def my_instance(MyOuter: ScopeMixin) -> ScopeMixin:
                 return MyOuter(i=42)
 
         root = evaluate(Root)
@@ -699,8 +700,8 @@ class TestInstanceScopeReversedPath:
         my_instance = root.my_instance
         my_inner = my_instance.MyInner
 
-        # The mixin should be InstanceChildScopeSymbol to distinguish from static path
-        assert isinstance(my_instance.mixin.symbol, Symbol)
+        # The symbol should be InstanceChildScopeSymbol to distinguish from static path
+        assert isinstance(my_instance.symbol, Symbol)
 
         # Verify the resource works correctly
         assert my_inner.foo == "foo_42"
@@ -743,8 +744,8 @@ class TestSymbolDepth:
         # The inner scope's mixin should have outer=Symbol
         # Currently it has outer=Outer's NestedScopeSymbol (from prototype)
         assert isinstance(
-            inner.mixin.symbol.outer, Symbol
-        ), f"Expected outer to be Symbol, got {type(inner.mixin.symbol.outer)}"
+            inner.symbol.outer, Symbol
+        ), f"Expected outer to be Symbol, got {type(inner.symbol.outer)}"
 
 
 class TestDefinitionSharing:
@@ -772,8 +773,8 @@ class TestDefinitionSharing:
         inner2 = root.Outer(arg="v2").Inner
 
         # Use the mixin's definition directly
-        definition1 = inner1.mixin.symbol.definition
-        definition2 = inner2.mixin.symbol.definition
+        definition1 = inner1.symbol.definition
+        definition2 = inner2.symbol.definition
 
         assert definition1 is definition2
 
@@ -798,9 +799,9 @@ class TestDefinitionSharing:
         instance_inner = root.Outer(arg="v1").Inner
         static_inner = root.Outer.Inner
 
-        # Use the mixin's definition directly
-        instance_definition = instance_inner.mixin.symbol.definition
-        static_definition = static_inner.mixin.symbol.definition
+        # Use the symbol's definition directly
+        instance_definition = instance_inner.symbol.definition
+        static_definition = static_inner.symbol.definition
 
         assert instance_definition is static_definition
 
@@ -837,10 +838,10 @@ class TestDefinitionSharing:
         object1_inner = root.object1(arg="v2").Inner
 
         # Direct access yields DefinedSymbol
-        assert isinstance(outer_inner.mixin.symbol, DefinedSymbol)
+        assert isinstance(outer_inner.symbol, DefinedSymbol)
 
         # Inherited access via @extend yields SyntheticSymbol
-        assert isinstance(object1_inner.mixin.symbol, SyntheticSymbol)
+        assert isinstance(object1_inner.symbol, SyntheticSymbol)
 
 
 class TestScopeAsSymlink:
@@ -857,7 +858,7 @@ class TestScopeAsSymlink:
         @scope
         class Namespace:
             @resource
-            def linked() -> Scope:
+            def linked() -> ScopeMixin:
                 return inner_scope
 
         root = evaluate(Namespace)
@@ -1023,7 +1024,7 @@ class TestScopeCallable:
 
         root = evaluate(Config)
         instance = root(x=v1)
-        assert isinstance(instance, Scope)
+        assert isinstance(instance, Mixin)
         assert instance.x is v1
 
 
@@ -1079,7 +1080,7 @@ class TestScopeDir:
         result = dir(root)
         assert "__class__" in result
         assert "__call__" in result
-        assert "mixin" in result
+        assert "symbol" in result
 
     def test_dir_is_sorted(self) -> None:
         """Test that __dir__ returns a sorted list."""
@@ -1376,8 +1377,8 @@ class TestScopeSemigroupScopeSymbol:
 
         # The extended scope should have its own unique mixin
         # that represents its access path ("Extended", "Root"), not Base's path
-        base_symbol = root.Base.mixin.symbol
-        extended_symbol = root.Extended.mixin.symbol
+        base_symbol = root.Base.symbol
+        extended_symbol = root.Extended.symbol
 
         # This should pass - Extended has its own mixin
         assert extended_symbol is not base_symbol, (
@@ -1440,24 +1441,24 @@ class TestScopeSemigroupScopeSymbol:
         assert root.Extended.Another.nested_value == "nestednestednested"
 
         # Print actual values for debugging
-        print(f"\nbase_another.mixin.symbol.key = {base_another.mixin.symbol.key!r}")
+        print(f"\nbase_another.symbol.key = {base_another.symbol.key!r}")
         print(
-            f"extended_another.mixin.symbol.key = {extended_another.mixin.symbol.key!r}"
+            f"extended_another.symbol.key = {extended_another.symbol.key!r}"
         )
         print(
-            f"base_another.mixin.symbol.outer.key = {base_another.mixin.symbol.outer.key!r}"
+            f"base_another.symbol.outer.key = {base_another.symbol.outer.key!r}"
         )
         print(
-            f"extended_another.mixin.symbol.outer.key = {extended_another.mixin.symbol.outer.key!r}"
+            f"extended_another.symbol.outer.key = {extended_another.symbol.outer.key!r}"
         )
 
         # Verify key for both
-        assert base_another.mixin.symbol.key == "Another"
-        assert extended_another.mixin.symbol.key == "Another"
+        assert base_another.symbol.key == "Another"
+        assert extended_another.symbol.key == "Another"
 
         # Verify outer.key
-        assert base_another.mixin.symbol.outer.key == "Base"
-        assert extended_another.mixin.symbol.outer.key == "Extended"
+        assert base_another.symbol.outer.key == "Base"
+        assert extended_another.symbol.outer.key == "Extended"
 
         # Verify the nested resource is still accessible (with patch applied)
         assert extended_another.nested_value == "nestednestednested"

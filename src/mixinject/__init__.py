@@ -1265,6 +1265,20 @@ class Mixin(Mapping[Hashable, "Mixin"], ABC):
     def __len__(self) -> int:
         return len(self.symbol)
 
+    def __getattr__(self, key: str) -> "Node":
+        try:
+            child_mixin = self[key]
+            return child_mixin.evaluated
+        except KeyError as error:
+            raise AttributeError(name=key, obj=self) from error
+
+    @override
+    def __dir__(self) -> Sequence[str]:
+        return (
+            *(key for key in self.symbol if isinstance(key, str)),
+            *super(Mixin, self).__dir__(),
+        )
+
     @property
     def lexical_outer(self) -> "Mixin":
         """
@@ -1319,9 +1333,9 @@ class Mixin(Mapping[Hashable, "Mixin"], ABC):
     def evaluated(self):
         elected_index = self.symbol.elected_merger_index
 
-        # No merger and no patcher - return Scope wrapping self
+        # No merger and no patcher - return self directly
         if elected_index is MergerElectionSentinel.SCOPE:
-            return Scope(mixin=self)
+            return self
 
         def generate_patcher():
             if elected_index != SymbolIndexSentinel.OWN:
@@ -1902,7 +1916,7 @@ class DefinedScopeSymbol(DefinedSymbol, Symbol["StaticScopeMixin"]):
     scope. They use the scope class from the definition and include extend references.
 
     Note: This is NOT a SemigroupSymbol because ScopeMixin is not a Merger/Patcher.
-    When evaluated, Mixin.evaluated will return Scope(mixin=self) via NO_MERGER path.
+    When evaluated, Mixin.evaluated will return self via MergerElectionSentinel.SCOPE path.
     """
 
     definition: "_ScopeDefinition"
@@ -1921,49 +1935,7 @@ class DefinedScopeSymbol(DefinedSymbol, Symbol["StaticScopeMixin"]):
 Resource = NewType("Resource", object)
 
 
-@final
-@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class Scope:
-    """
-    A Scope wraps a Mixin to provide resource access.
-
-    Scope is a simple wrapper that delegates attribute access to the wrapped mixin.
-    """
-
-    mixin: Mixin
-
-    def __getattr__(self, key: str) -> "Node":
-        try:
-            child_mixin = self.mixin[key]
-            return child_mixin.evaluated
-        except KeyError as e:
-            raise AttributeError(name=key, obj=self) from e
-
-    @override
-    def __dir__(self) -> Sequence[str]:
-        return (
-            *(key for key in self.mixin.symbol if isinstance(key, str)),
-            *super(Scope, self).__dir__(),
-        )
-
-    def __call__(self, **kwargs: object) -> "Scope":
-        """
-        Create an instance scope with the provided kwargs.
-
-        Creates a new InstanceScopeMixin with the same symbol but with kwargs bound.
-        When child resources are accessed, kwargs take precedence over symbol lookups.
-        """
-        assert isinstance(self.mixin, StaticScopeMixin)
-        instance_mixin = InstanceScopeMixin(
-            symbol=self.mixin.symbol,
-            outer=self.mixin.outer,
-            lexical_outer_index=self.mixin.lexical_outer_index,
-            kwargs=kwargs,
-        )
-        return Scope(mixin=instance_mixin)
-
-
-Node: TypeAlias = Resource | Scope
+Node: TypeAlias = Resource | Mixin
 
 
 class Merger(Mixin, Generic[TPatch_contra, TResult_co]):
@@ -2170,6 +2142,20 @@ class StaticScopeMixin(Mixin):
     """
 
     symbol: "DefinedScopeSymbol"
+
+    def __call__(self, **kwargs: object) -> "InstanceScopeMixin":
+        """
+        Create an instance scope with the provided kwargs.
+
+        Creates a new InstanceScopeMixin with the same symbol but with kwargs bound.
+        When child resources are accessed, kwargs take precedence over symbol lookups.
+        """
+        return InstanceScopeMixin(
+            symbol=self.symbol,
+            outer=self.outer,
+            lexical_outer_index=self.lexical_outer_index,
+            kwargs=kwargs,
+        )
 
 
 @final
@@ -2579,12 +2565,12 @@ def local(definition: TMergerDefinition) -> TMergerDefinition:
 
 def evaluate(
     namespace: ModuleType | _ScopeDefinition,
-) -> Scope:
+) -> StaticScopeMixin:
     """
-    Resolves a Scope from the given object.
+    Resolves a StaticScopeMixin from the given object.
 
     :param namespace: Module or namespace definition (decorated with @scope) to resolve resources from.
-    :return: A Scope wrapping the root mixin.
+    :return: The root StaticScopeMixin.
 
     Example::
 
@@ -2608,7 +2594,7 @@ def evaluate(
         outer=OuterSentinel.ROOT,
         lexical_outer_index=SymbolIndexSentinel.OWN,
     )
-    return Scope(mixin=root_mixin)
+    return root_mixin
 
 
 def _get_param_relative_reference(

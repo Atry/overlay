@@ -3,8 +3,8 @@ import gc
 from mixinject import (
     DefinedSymbol,
     DefinedScopeSymbol,
+    Mixin,
     Symbol,
-    Scope,
     OuterSentinel,
     KeySentinel,
     evaluate,
@@ -112,9 +112,9 @@ class TestInterning:
         # Cached scope should return the same object
         assert inner1 is inner2
         # Therefore same mixin
-        assert isinstance(inner1, Scope)
-        assert isinstance(inner2, Scope)
-        assert inner1.mixin.symbol is inner2.mixin.symbol
+        assert isinstance(inner1, Mixin)
+        assert isinstance(inner2, Mixin)
+        assert inner1.symbol is inner2.symbol
 
 
 class TestWeakReference:
