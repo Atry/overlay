@@ -509,6 +509,7 @@ from functools import cached_property, reduce
 import importlib
 import importlib.util
 from inspect import Parameter, signature
+from itertools import chain
 import logging
 import os
 from pathlib import PurePath
@@ -899,6 +900,24 @@ class Symbol(
                 return 0
             case Symbol() as outer_symbol:
                 return outer_symbol.depth + 1
+
+    @cached_property
+    def is_local(self):
+        return any(
+            super_symbol.definition.is_local
+            for super_symbol in chain((self,), self.strict_super_indices)
+            if isinstance(super_symbol, DefinedSymbol)
+            and isinstance(super_symbol.definition, MergerDefinition)
+        )
+
+    @cached_property
+    def is_eager(self):
+        return any(
+            super_symbol.definition.is_eager
+            for super_symbol in chain((self,), self.strict_super_indices)
+            if isinstance(super_symbol, DefinedSymbol)
+            and isinstance(super_symbol.definition, MergerDefinition)
+        )
 
     @cached_property
     def elected_merger_index(
