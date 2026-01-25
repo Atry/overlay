@@ -27,9 +27,18 @@ from mixinject import (
     scope,
     _parse_package,
 )
-from mixinject import DefinedScopeSymbol, OuterSentinel, KeySentinel, SyntheticSymbol
+from mixinject import (
+    DefinedScopeSymbol,
+    OuterSentinel,
+    KeySentinel,
+    SyntheticSymbol,
+    LexicalReference,
+    FixtureReference,
+)
 
 R = RelativeReference
+L = LexicalReference
+F = FixtureReference
 
 FIXTURES_DIR = str(Path(__file__).parent / "fixtures")
 
@@ -1619,3 +1628,332 @@ class TestExtendWithModule:
             sys.modules.pop("union_mount.branch0", None)
             sys.modules.pop("union_mount.branch1", None)
             sys.modules.pop("union_mount.branch2", None)
+
+
+class TestLexicalReference:
+    """Test LexicalReference resolution following MIXIN spec."""
+
+    def test_property_found_returns_full_path(self) -> None:
+        """LexicalReference finds property in outer scope, returns full path."""
+        # Structure: root_symbol contains "target" as a child
+        outer_def = _ScopeDefinition(underlying=object())
+        root_symbol = DefinedScopeSymbol(
+            definition=outer_def,
+            outer=OuterSentinel.ROOT,
+            key=KeySentinel.ROOT,
+        )
+
+        # Create a "target" resource in root_symbol's children
+        target_def = _ScopeDefinition(underlying=object())
+        target_symbol = DefinedScopeSymbol(
+            definition=target_def,
+            outer=root_symbol,
+            key="target",
+        )
+        root_symbol._nested["target"] = target_symbol
+
+        # Create inner scope that references L(path=("target", "foo"))
+        inner_def = _ScopeDefinition(
+            underlying=object(),
+            bases=(L(path=("target", "foo")),),
+        )
+        inner_symbol = DefinedScopeSymbol(
+            definition=inner_def,
+            outer=root_symbol,
+            key="inner",
+        )
+
+        # "target" is found as property → full path returned
+        relative_bases = inner_symbol.relative_bases
+        assert len(relative_bases) == 1
+        assert relative_bases[0] == R(levels_up=0, path=("target", "foo"))
+
+    def test_self_reference_returns_rest_of_path(self) -> None:
+        """LexicalReference with self-reference (path[0] == outer.key) returns path[1:].
+
+        When path[0] matches the outer symbol's key but is NOT a property,
+        this is a self-reference and we skip the first segment.
+        """
+        # Structure: root_symbol -> middle_symbol (key="Middle") -> inner_symbol
+        # inner_symbol references L(path=("Middle", "foo"))
+        # "Middle" is NOT a property of middle_symbol, but IS middle_symbol's key
+        outer_def = _ScopeDefinition(underlying=object())
+        root_symbol = DefinedScopeSymbol(
+            definition=outer_def,
+            outer=OuterSentinel.ROOT,
+            key=KeySentinel.ROOT,
+        )
+
+        middle_def = _ScopeDefinition(underlying=object())
+        middle_symbol = DefinedScopeSymbol(
+            definition=middle_def,
+            outer=root_symbol,
+            key="Middle",
+        )
+        root_symbol._nested["Middle"] = middle_symbol
+
+        # inner_symbol references ("Middle", "foo")
+        inner_def = _ScopeDefinition(
+            underlying=object(),
+            bases=(L(path=("Middle", "foo")),),
+        )
+        inner_symbol = DefinedScopeSymbol(
+            definition=inner_def,
+            outer=middle_symbol,
+            key="inner",
+        )
+
+        # At level 0: outer_symbol = middle_symbol
+        # - "Middle" in middle_symbol? NO (Middle doesn't contain itself as property)
+        # - "Middle" == middle_symbol.key? YES → self-reference
+        # → RelativeReference(levels_up=0, path=("foo",))
+        relative_bases = inner_symbol.relative_bases
+        assert len(relative_bases) == 1
+        assert relative_bases[0] == R(levels_up=0, path=("foo",))
+
+    def test_self_reference_at_deeper_level(self) -> None:
+        """Self-reference check happens at each level, not just the first."""
+        # Structure: root (key=ROOT) -> A (key="A") -> B (key="B") -> inner
+        # inner references L(path=("A", "foo"))
+        # A is NOT a property of B, and "A" != B.key
+        # A is NOT a property of A, but "A" == A.key → self-reference at level 1
+        outer_def = _ScopeDefinition(underlying=object())
+        root_symbol = DefinedScopeSymbol(
+            definition=outer_def,
+            outer=OuterSentinel.ROOT,
+            key=KeySentinel.ROOT,
+        )
+
+        a_def = _ScopeDefinition(underlying=object())
+        a_symbol = DefinedScopeSymbol(
+            definition=a_def,
+            outer=root_symbol,
+            key="A",
+        )
+        root_symbol._nested["A"] = a_symbol
+
+        b_def = _ScopeDefinition(underlying=object())
+        b_symbol = DefinedScopeSymbol(
+            definition=b_def,
+            outer=a_symbol,
+            key="B",
+        )
+        a_symbol._nested["B"] = b_symbol
+
+        inner_def = _ScopeDefinition(
+            underlying=object(),
+            bases=(L(path=("A", "foo")),),
+        )
+        inner_symbol = DefinedScopeSymbol(
+            definition=inner_def,
+            outer=b_symbol,
+            key="inner",
+        )
+
+        # Level 0: outer_symbol = b_symbol
+        # - "A" in b_symbol? NO
+        # - "A" == b_symbol.key ("B")? NO
+        # Level 1: outer_symbol = a_symbol
+        # - "A" in a_symbol? NO
+        # - "A" == a_symbol.key ("A")? YES → self-reference
+        # → RelativeReference(levels_up=1, path=("foo",))
+        relative_bases = inner_symbol.relative_bases
+        assert len(relative_bases) == 1
+        assert relative_bases[0] == R(levels_up=1, path=("foo",))
+
+    def test_ambiguous_property_and_self_reference_raises_value_error(self) -> None:
+        """Ambiguous reference raises ValueError.
+
+        When a scope has key "A" AND contains a property "A", this is ambiguous
+        and raises ValueError to preserve future compatibility.
+        """
+        # Structure: root_symbol -> A (key="A", contains property "A") -> inner
+        outer_def = _ScopeDefinition(underlying=object())
+        root_symbol = DefinedScopeSymbol(
+            definition=outer_def,
+            outer=OuterSentinel.ROOT,
+            key=KeySentinel.ROOT,
+        )
+
+        # A has key="A"
+        a_def = _ScopeDefinition(underlying=object())
+        a_symbol = DefinedScopeSymbol(
+            definition=a_def,
+            outer=root_symbol,
+            key="A",
+        )
+        root_symbol._nested["A"] = a_symbol
+
+        # A also contains a property named "A" (ambiguous with self-reference)
+        child_a_def = _ScopeDefinition(underlying=object())
+        child_a_symbol = DefinedScopeSymbol(
+            definition=child_a_def,
+            outer=a_symbol,
+            key="A",
+        )
+        a_symbol._nested["A"] = child_a_symbol
+
+        # inner_symbol references ("A", "bar")
+        inner_def = _ScopeDefinition(
+            underlying=object(),
+            bases=(L(path=("A", "bar")),),
+        )
+        inner_symbol = DefinedScopeSymbol(
+            definition=inner_def,
+            outer=a_symbol,
+            key="inner",
+        )
+
+        # Level 0: outer_symbol = a_symbol
+        # - "A" in a_symbol? YES
+        # - "A" == a_symbol.key? YES
+        # → Ambiguous! Raises ValueError
+        with pytest.raises(ValueError, match="Ambiguous LexicalReference"):
+            _ = inner_symbol.relative_bases
+
+    def test_lexical_reference_multi_segment_path(self) -> None:
+        """LexicalReference with multi-segment path navigates after finding first."""
+
+        @scope
+        class Root:
+            @scope
+            class Container:
+                @resource
+                def value() -> str:
+                    return "nested_value"
+
+            @scope
+            class User:
+                # Find "Container" in Root, then navigate to "value"
+                pass
+
+        root = evaluate(Root)
+        assert root.Container.value == "nested_value"
+
+    def test_lexical_reference_not_found_raises_lookup_error(self) -> None:
+        """LexicalReference raises LookupError when first segment not found."""
+        scope_def = _ScopeDefinition(
+            underlying=object(),
+            bases=(L(path=("nonexistent",)),),
+        )
+        outer_def = _ScopeDefinition(underlying=object())
+        root_symbol = DefinedScopeSymbol(
+            definition=outer_def,
+            outer=OuterSentinel.ROOT,
+            key=KeySentinel.ROOT,
+        )
+        inner_symbol = DefinedScopeSymbol(
+            definition=scope_def,
+            outer=root_symbol,
+            key="inner",
+        )
+        with pytest.raises(LookupError, match="LexicalReference.*nonexistent.*not found"):
+            _ = inner_symbol.relative_bases
+
+    def test_lexical_reference_empty_path_raises_value_error(self) -> None:
+        """LexicalReference with empty path raises ValueError."""
+        scope_def = _ScopeDefinition(
+            underlying=object(),
+            bases=(L(path=()),),
+        )
+        outer_def = _ScopeDefinition(underlying=object())
+        root_symbol = DefinedScopeSymbol(
+            definition=outer_def,
+            outer=OuterSentinel.ROOT,
+            key=KeySentinel.ROOT,
+        )
+        inner_symbol = DefinedScopeSymbol(
+            definition=scope_def,
+            outer=root_symbol,
+            key="inner",
+        )
+        with pytest.raises(ValueError, match="LexicalReference path must not be empty"):
+            _ = inner_symbol.relative_bases
+
+
+class TestFixtureReference:
+    """Test FixtureReference with pytest fixture-style same-name skip semantics."""
+
+    def test_same_name_skips_first_match(self) -> None:
+        """FixtureReference with name == current_key skips first match."""
+
+        @scope
+        class Outer:
+            @resource
+            def counter() -> int:
+                return 0
+
+            @scope
+            class Inner:
+                @resource
+                def counter(counter: int) -> int:
+                    # This demonstrates the pattern: inner counter depends on outer counter
+                    return counter + 1
+
+        root = evaluate(Outer)
+        assert root.counter == 0
+        assert root.Inner.counter == 1
+
+    def test_different_name_does_normal_lookup(self) -> None:
+        """FixtureReference with name != current_key does normal lexical lookup."""
+
+        @scope
+        class Outer:
+            @resource
+            def other() -> str:
+                return "other_value"
+
+            @scope
+            class Inner:
+                @resource
+                def something(other: str) -> str:
+                    return f"got_{other}"
+
+        root = evaluate(Outer)
+        assert root.Inner.something == "got_other_value"
+
+    def test_fixture_reference_not_found_raises_lookup_error(self) -> None:
+        """FixtureReference raises LookupError when name not found."""
+        scope_def = _ScopeDefinition(
+            underlying=object(),
+            bases=(F(name="nonexistent"),),
+        )
+        outer_def = _ScopeDefinition(underlying=object())
+        root_symbol = DefinedScopeSymbol(
+            definition=outer_def,
+            outer=OuterSentinel.ROOT,
+            key=KeySentinel.ROOT,
+        )
+        inner_symbol = DefinedScopeSymbol(
+            definition=scope_def,
+            outer=root_symbol,
+            key="inner",
+        )
+        with pytest.raises(LookupError, match="FixtureReference.*nonexistent.*not found"):
+            _ = inner_symbol.relative_bases
+
+    def test_fixture_reference_same_name_at_root_level(self) -> None:
+        """FixtureReference same-name at deeper level still works if outer has the name."""
+
+        @scope
+        class Root:
+            @resource
+            def value() -> int:
+                return 10
+
+            @scope
+            class Level1:
+                @resource
+                def value(value: int) -> int:
+                    return value + 1
+
+                @scope
+                class Level2:
+                    @resource
+                    def value(value: int) -> int:
+                        return value + 1
+
+        root = evaluate(Root)
+        assert root.value == 10
+        assert root.Level1.value == 11
+        assert root.Level1.Level2.value == 12

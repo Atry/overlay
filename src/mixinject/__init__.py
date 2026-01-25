@@ -722,8 +722,8 @@ class Symbol(
 
     def to_relative_reference(
         self,
-        reference: "ResourceReference[Hashable]",
-    ) -> "RelativeReference[Hashable]":
+        reference: "ResourceReference",
+    ) -> "RelativeReference":
         """
         Convert a ResourceReference to a RelativeReference for resolution from outer scope.
 
@@ -736,6 +736,8 @@ class Symbol(
 
         For RelativeReference: return as-is.
         For AbsoluteReference: levels_up = depth(self.outer) = depth(self) - 1.
+        For LexicalReference: MIXIN-style lexical search with self-reference support.
+        For FixtureReference: pytest-style search, skip if name == self.key.
 
         :param reference: The reference to convert.
         :return: A RelativeReference for resolution from self.outer.
@@ -754,12 +756,69 @@ class Symbol(
                             depth += 1
                             current = outer_symbol
                 return RelativeReference(levels_up=depth - 1, path=path)
+            case LexicalReference(path=path):
+                # MIXIN-style resolution (see lib.nix lookUpVariable):
+                # At each level, check in order:
+                # 1. Is first_segment a property? → early binding, return full path
+                # 2. Is first_segment == that level's key? → self-reference, return path[1:]
+                # 3. Recurse to outer
+                if not path:
+                    raise ValueError("LexicalReference path must not be empty")
+                first_segment = path[0]
+                levels_up = 0
+                current: Symbol = self
+
+                while True:
+                    match current.outer:
+                        case OuterSentinel.ROOT:
+                            raise LookupError(
+                                f"LexicalReference '{first_segment}' not found"
+                            )
+                        case Symbol() as outer_symbol:
+                            is_property = first_segment in outer_symbol
+                            is_self_reference = first_segment == outer_symbol.key
+
+                            if is_property and is_self_reference:
+                                raise ValueError(
+                                    f"Ambiguous LexicalReference: '{first_segment}' is both "
+                                    f"a property of scope '{outer_symbol.key}' and the scope's "
+                                    f"own key (self-reference). Use explicit path to disambiguate."
+                                )
+                            if is_property:
+                                return RelativeReference(levels_up=levels_up, path=path)
+                            if is_self_reference:
+                                # Self-reference: skip first segment, navigate via rest
+                                return RelativeReference(levels_up=levels_up, path=path[1:])
+                            # Recurse to outer
+                            levels_up += 1
+                            current = outer_symbol
+            case FixtureReference(name=name):
+                # Pytest fixture style: single name, same-name skips first match
+                skip_first = name == self.key
+                levels_up = 0
+                current: Symbol = self
+
+                while True:
+                    match current.outer:
+                        case OuterSentinel.ROOT:
+                            raise LookupError(f"FixtureReference '{name}' not found")
+                        case Symbol() as outer_symbol:
+                            levels_up += 1
+                            # Skip first match if same-name
+                            if name in outer_symbol:
+                                if skip_first:
+                                    skip_first = False
+                                else:
+                                    return RelativeReference(
+                                        levels_up=levels_up, path=(name,)
+                                    )
+                            current = outer_symbol
             case _ as unreachable:
                 assert_never(unreachable)
 
     def resolve_relative_reference(
         self,
-        reference: "RelativeReference[Hashable]",
+        reference: "RelativeReference",
         expected_type: type[TSymbol],
     ) -> TSymbol:
         """
@@ -1217,7 +1276,7 @@ class DefinedSymbol(Symbol):
 
     @final
     @cached_property
-    def relative_bases(self) -> tuple["RelativeReference[Hashable]", ...]:
+    def relative_bases(self) -> tuple["RelativeReference", ...]:
         """
         Convert definition.bases from ResourceReference to RelativeReference.
 
@@ -1387,7 +1446,7 @@ class Mixin(Mapping[Hashable, "Mixin"], ABC):
 
     def resolve_relative_reference(
         self,
-        reference: "RelativeReference[Hashable]",
+        reference: "RelativeReference",
         lexical_outer_index: "SymbolIndexSentinel | int",
     ) -> "Mixin":
         """
@@ -2046,7 +2105,7 @@ def _collect_union_indices(
 
 @dataclass(kw_only=True, frozen=True, eq=False)
 class Definition(ABC):
-    bases: tuple["ResourceReference[Hashable]", ...] = ()
+    bases: tuple["ResourceReference", ...] = ()
 
     @abstractmethod
     def compile(self, outer: Symbol, key: str, /) -> Symbol:
@@ -2332,7 +2391,7 @@ TDefinition = TypeVar("TDefinition", bound=Definition)
 
 
 def extend(
-    *bases: "ResourceReference[Hashable]",
+    *bases: "ResourceReference",
 ) -> Callable[[TDefinition], TDefinition]:
     """
     Decorator that adds base references to a Definition.
@@ -2661,7 +2720,7 @@ def evaluate(
 
 def _get_param_relative_reference(
     param_name: str, outer_symbol: Symbol
-) -> "RelativeReference[Hashable] | RelativeReferenceSentinel":
+) -> "RelativeReference | RelativeReferenceSentinel":
     """
     Get a RelativeReference to a parameter using lexical scoping (Symbol chain).
 
@@ -2717,7 +2776,7 @@ def _compile_function_with_mixin(
     # Pre-compute RelativeReferences for each dependency (lexical scoping)
     def compute_dependency_reference(
         parameter: Parameter,
-    ) -> tuple[str, RelativeReference[Hashable], int]:
+    ) -> tuple[str, RelativeReference, int]:
         if parameter.name == name:
             # Same-name dependency: start search from outer_symbol.outer (lexical)
             match outer_symbol.outer:
@@ -2799,17 +2858,17 @@ def _compile_function_with_mixin(
 
 @final
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class AbsoluteReference(Generic[T]):
+class AbsoluteReference:
     """
     An absolute reference to a resource starting from the root scope.
     """
 
-    path: Final[tuple[T, ...]]
+    path: Final[tuple[Hashable, ...]]
 
 
 @final
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class RelativeReference(Generic[T]):
+class RelativeReference:
     """
     A reference to a resource relative to the current lexical scope.
 
@@ -2821,38 +2880,114 @@ class RelativeReference(Generic[T]):
     Number of levels to go up in the lexical scope.
     """
 
-    path: Final[tuple[T, ...]]
+    path: Final[tuple[Hashable, ...]]
 
 
-ResourceReference: TypeAlias = AbsoluteReference[T] | RelativeReference[T]
+@final
+@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
+class LexicalReference:
+    """
+    A lexical reference following MIXIN spec resolution algorithm.
+
+    Resolution starts from self.outer (not self), so self[path[0]] is never resolved.
+    This prevents infinite recursion when a symbol references its own name.
+
+    At each level (self.outer, self.outer.outer, ...), check:
+
+    1. Is path[0] BOTH a property AND the scope's key? → raise ValueError (ambiguous)
+    2. Is path[0] a property of that level? → early binding, return full path
+    3. Is path[0] == that level's key? → self-reference, return path[1:]
+    4. Recurse to outer
+
+    Note: If a scope has a property with the same name as its key, this is ambiguous
+    and raises ValueError. This strict behavior preserves future compatibility.
+
+    The returned RelativeReference has:
+
+    - levels_up: 0 means resolve from self.outer, 1 means self.outer.outer, etc.
+    - path: For property match, returns full path. For self-reference, returns path[1:].
+
+    Examples:
+        From symbol "inner" in scope A where A contains "target"::
+
+            LexicalReference(path=("target",)):
+            - Level 0 (A = self.outer): "target" in A? YES
+            - → RelativeReference(levels_up=0, path=("target",))
+
+        From symbol "inner" in scope A where A.key == "A"::
+
+            LexicalReference(path=("A", "foo")):
+            - Level 0 (A = self.outer): "A" in A? NO, "A" == A.key? YES
+            - → RelativeReference(levels_up=0, path=("foo",))  # path[1:], first segment dropped
+
+        From symbol "foo" in scope Container where Container["foo"] exists::
+
+            LexicalReference(path=("foo",)):
+            - Level 0 (Container = self.outer): "foo" in Container? YES
+            - → RelativeReference(levels_up=0, path=("foo",))
+            - Note: self["foo"] would be the symbol itself, but we start from self.outer,
+              so Container["foo"] is found (not self).
+
+        Ambiguous case (scope A has A.key == "A" AND A["A"] exists)::
+
+            LexicalReference(path=("A", "bar")):
+            - Level 0 (A = self.outer): "A" in A? YES, "A" == A.key? YES
+            - → raises ValueError: ambiguous reference
+            - Note: Both property and self-reference match. This is disallowed to preserve
+              future compatibility for choosing either semantic.
+    """
+
+    path: Final[tuple[Hashable, ...]]
+
+
+@final
+@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
+class FixtureReference:
+    """
+    A pytest-fixture-style reference with same-name skip semantics.
+
+    Resolution searches through self.outer, self.outer.outer, etc. for a symbol
+    containing a property with this name.
+
+    Same-name skip semantics: When resolved from a symbol whose key matches this
+    name, the first match is skipped. This allows a symbol to reference an outer
+    symbol with the same name, similar to pytest fixtures shadowing outer fixtures.
+
+    The returned RelativeReference has:
+
+    - levels_up: 1 means found in self.outer, 2 means self.outer.outer, etc.
+      Note: levels_up starts at 1 (not 0) because we count iterations.
+    - path: Always (name,) - a single-element tuple.
+
+    Examples:
+        From symbol "foo" in scope A where A contains "bar"::
+
+            FixtureReference(name="bar"):
+            - Level 1 (A = self.outer): "bar" in A? YES
+            - → RelativeReference(levels_up=1, path=("bar",))
+
+        From symbol "foo" in scope A where A["foo"] exists (same-name skip)::
+
+            FixtureReference(name="foo"):
+            - Level 1 (A = self.outer): "foo" in A? YES, but self.key == "foo", skip
+            - Level 2 (A.outer): "foo" in A.outer? YES (if found)
+            - → RelativeReference(levels_up=2, path=("foo",))
+    """
+
+    name: str
+
+
+ResourceReference: TypeAlias = (
+    AbsoluteReference | RelativeReference | LexicalReference | FixtureReference
+)
 """
 A reference to a resource in the lexical scope.
 
-This is a union type of AbsoluteReference and RelativeReference.
-
-.. todo:: Drop the type parameter T, enforce Hashable keys only.
-
-.. todo:: (Optional) Add ``LexicalReference`` type.
-
-    Add a third reference type that automatically finds the innermost scope containing the key::
-
-        @final
-        @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-        class LexicalReference(Generic[T]):
-            \"\"\"
-            A lexical reference that automatically finds the innermost scope containing the key.
-
-            Unlike RelativeReference which requires explicit levels_up,
-            LexicalReference searches upward from the current scope until it finds
-            a scope that contains the first element of the path.
-            \"\"\"
-            path: Final[tuple[T, ...]]
-
-    Update ``_resolve_symbol_reference`` to support ``LexicalReference``.
+This is a union type of AbsoluteReference, RelativeReference, LexicalReference, and FixtureReference.
 """
 
 
-def resource_reference_from_pure_path(path: PurePath) -> ResourceReference[str]:
+def resource_reference_from_pure_path(path: PurePath) -> ResourceReference:
     """
     Parse a PurePath into a ResourceReference[str].
 
