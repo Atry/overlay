@@ -9,10 +9,9 @@ from mixinject import (
     FunctionalMergerDefinition,
     Merger,
     Mixin,
-    Symbol,
-    DefinedSymbol,
-    _PackageScopeDefinition,
-    _ScopeDefinition,
+    MixinSymbol,
+    PackageScopeDefinition,
+    ScopeDefinition,
     Scope,
     RelativeReference,
     EndofunctionMergerDefinition,
@@ -26,12 +25,8 @@ from mixinject import (
     evaluate,
     scope,
     _parse_package,
-)
-from mixinject import (
-    DefinedScopeSymbol,
     OuterSentinel,
     KeySentinel,
-    SyntheticSymbol,
     LexicalReference,
     FixtureReference,
 )
@@ -43,23 +38,23 @@ F = FixtureReference
 FIXTURES_DIR = str(Path(__file__).parent / "fixtures")
 
 
-def _empty_definition() -> _ScopeDefinition:
+def _empty_definition() -> ScopeDefinition:
     """Create a minimal empty scope definition for testing."""
-    return _ScopeDefinition(underlying=object())
+    return ScopeDefinition(bases=(), underlying=object())
 
 
-def _empty_symbol() -> DefinedScopeSymbol:
+def _empty_symbol() -> MixinSymbol:
     """Create a minimal dependency graph for testing."""
     scope_def = _empty_definition()
     nested_def = _empty_definition()
-    root_symbol = DefinedScopeSymbol(
-        definition=scope_def,
+    root_symbol = MixinSymbol(
+        definitions=(scope_def,),
         outer=OuterSentinel.ROOT,
         key=KeySentinel.ROOT,
     )
-    return DefinedScopeSymbol(
+    return MixinSymbol(
         outer=root_symbol,
-        definition=nested_def,
+        definitions=(nested_def,),
         key="test",
     )
 
@@ -423,6 +418,71 @@ class TestUnionMount:
         assert root.Combined.foo == "foo"
         assert root.Combined.bar == "foo_bar"
 
+    def test_evaluate_root_level_union_mount_different_names(self) -> None:
+        """Test union mounting at root level with different resource names."""
+
+        @scope
+        class Namespace1:
+            @resource
+            def foo() -> str:
+                return "foo_value"
+
+        @scope
+        class Namespace2:
+            @resource
+            def bar() -> str:
+                return "bar_value"
+
+        root = evaluate(Namespace1, Namespace2)
+        assert root.foo == "foo_value"
+        assert root.bar == "bar_value"
+
+    def test_evaluate_root_level_union_mount_with_extern(self) -> None:
+        """Test union mounting at root level with @extern dependency."""
+
+        @scope
+        class Provider:
+            @resource
+            def base_value() -> str:
+                return "base"
+
+        @scope
+        class Consumer:
+            @extern
+            def base_value() -> str: ...
+
+            @resource
+            def derived(base_value: str) -> str:
+                return f"{base_value}_derived"
+
+        root = evaluate(Provider, Consumer)
+        assert root.base_value == "base"
+        assert root.derived == "base_derived"
+
+    def test_evaluate_root_level_union_mount_with_merge_and_patch(self) -> None:
+        """Test union mounting at root level with @merge and @patch."""
+
+        @scope
+        class MergerNamespace:
+            @merge
+            def tags() -> type[frozenset]:
+                return frozenset
+
+        @scope
+        class PatchNamespace1:
+            @patch
+            def tags() -> str:
+                return "tag1"
+
+        @scope
+        class PatchNamespace2:
+            @patch
+            def tags() -> str:
+                return "tag2"
+
+        root = evaluate(MergerNamespace, PatchNamespace1, PatchNamespace2)
+        assert root.tags == frozenset({"tag1", "tag2"})
+
 
 class TestExtendInstanceScopeProhibition:
     """Test that extend cannot reference a path through InstanceScope."""
@@ -430,7 +490,7 @@ class TestExtendInstanceScopeProhibition:
     def test_extend_instance_scope_raises_value_error(self) -> None:
         """Extending from a resource returning Scope raises ValueError.
 
-        DefinedScopeSymbol cannot coexist with MergerSymbol or PatcherSymbol.
+        Scope MixinSymbol cannot coexist with MergerSymbol or PatcherSymbol.
         """
 
         @scope
@@ -456,7 +516,7 @@ class TestExtendInstanceScopeProhibition:
         root = evaluate(Root)
         with pytest.raises(
             ValueError,
-            match="DefinedScopeSymbol cannot coexist with MergerSymbol or PatcherSymbol",
+            match="Mixed ScopeDefinition and non-ScopeDefinition",
         ):
             _ = root.Extended.foo
 
@@ -464,8 +524,8 @@ class TestExtendInstanceScopeProhibition:
         """Extending from a path through a resource raises AttributeError.
 
         The path ("my_instance", "MyInner") tries to navigate through my_instance
-        which is a MergerSymbol (from @resource), not a DefinedScopeSymbol.
-        MergerSymbol doesn't support __getitem__ for nested keys.
+        which is a MixinSymbol with MergerDefinition (from @resource), not a scope.
+        Symbols with MergerDefinition don't support __getitem__ for nested keys.
         """
 
         @scope
@@ -485,7 +545,7 @@ class TestExtendInstanceScopeProhibition:
             def my_instance(MyOuter: Scope) -> Scope:
                 return MyOuter(i=42)
 
-            # This fails because my_instance is a MergerSymbol, not a scope
+            # This fails because my_instance is a merger MixinSymbol, not a scope
             @extend(R(levels_up=0, path=("my_instance", "MyInner")))
             @scope
             class Invalid:
@@ -710,26 +770,26 @@ class TestInstanceScopeReversedPath:
         my_inner = my_instance.MyInner
 
         # The symbol should be InstanceChildScopeSymbol to distinguish from static path
-        assert isinstance(my_instance.symbol, Symbol)
+        assert isinstance(my_instance.symbol, MixinSymbol)
 
         # Verify the resource works correctly
         assert my_inner.foo == "foo_42"
 
 
 class TestSymbolDepth:
-    """Test depth calculation through Symbol chains."""
+    """Test depth calculation through MixinSymbol chains."""
 
     def test_nested_symbol_outer_should_be_instance_symbol_mapping(self) -> None:
-        """When accessing nested scope through InstanceScope, mixin's outer should be Symbol.
+        """When accessing nested scope through InstanceScope, mixin's outer should be MixinSymbol.
 
-        Current bug: Symbol.__getitem__ does:
+        Current bug: MixinSymbol.__getitem__ does:
             return self.prototype[key]  # Returns mixin with outer=prototype
 
-        Expected: Should return a mixin with outer=self (the Symbol).
+        Expected: Should return a mixin with outer=self (the MixinSymbol).
 
         This test verifies the mixin chain is correct when accessing through instance scopes.
         """
-        from mixinject import Symbol
+        from mixinject import MixinSymbol
 
         @scope
         class Root:
@@ -750,11 +810,11 @@ class TestSymbolDepth:
         # Access Inner through the instance
         inner = instance.Inner
 
-        # The inner scope's mixin should have outer=Symbol
+        # The inner scope's mixin should have outer=MixinSymbol
         # Currently it has outer=Outer's NestedScopeSymbol (from prototype)
         assert isinstance(
-            inner.symbol.outer, Symbol
-        ), f"Expected outer to be Symbol, got {type(inner.symbol.outer)}"
+            inner.symbol.outer, MixinSymbol
+        ), f"Expected outer to be MixinSymbol, got {type(inner.symbol.outer)}"
 
 
 class TestDefinitionSharing:
@@ -781,11 +841,11 @@ class TestDefinitionSharing:
         inner1 = root.Outer(arg="v1").Inner
         inner2 = root.Outer(arg="v2").Inner
 
-        # Use the mixin's definition directly
-        definition1 = inner1.symbol.definition
-        definition2 = inner2.symbol.definition
+        # Use the mixin's definitions directly
+        definitions1 = inner1.symbol.definitions
+        definitions2 = inner2.symbol.definitions
 
-        assert definition1 is definition2
+        assert definitions1 == definitions2
 
     def test_definition_shared_between_instance_and_static_access(self) -> None:
         """Definition should be shared between InstanceScope and StaticScope access paths."""
@@ -808,18 +868,18 @@ class TestDefinitionSharing:
         instance_inner = root.Outer(arg="v1").Inner
         static_inner = root.Outer.Inner
 
-        # Use the symbol's definition directly
-        instance_definition = instance_inner.symbol.definition
-        static_definition = static_inner.symbol.definition
+        # Use the symbol's definitions directly
+        instance_definitions = instance_inner.symbol.definitions
+        static_definitions = static_inner.symbol.definitions
 
-        assert instance_definition is static_definition
+        assert instance_definitions == static_definitions
 
     def test_inherited_nested_scope_is_synthetic(self) -> None:
-        """Nested scopes inherited via @extend should be SyntheticSymbol.
+        """Nested scopes inherited via @extend should have empty definitions.
 
         When object1 extends Outer, accessing Inner through object1 returns a
-        SyntheticSymbol because Inner is not locally defined in object1.
-        Only directly defined nested scopes are DefinedSymbol.
+        MixinSymbol with empty definitions because Inner is not locally defined in object1.
+        Only directly defined nested scopes have non-empty definitions.
         """
 
         @scope
@@ -846,11 +906,11 @@ class TestDefinitionSharing:
         outer_inner = root.Outer(arg="v1").Inner
         object1_inner = root.object1(arg="v2").Inner
 
-        # Direct access yields DefinedSymbol
-        assert isinstance(outer_inner.symbol, DefinedSymbol)
+        # Direct access yields MixinSymbol with definitions
+        assert outer_inner.symbol.definitions
 
-        # Inherited access via @extend yields SyntheticSymbol
-        assert isinstance(object1_inner.symbol, SyntheticSymbol)
+        # Inherited access via @extend yields MixinSymbol without definitions (synthetic)
+        assert not object1_inner.symbol.definitions
 
 
 class TestScopeAsSymlink:
@@ -883,7 +943,7 @@ class TestModuleParsing:
             import regular_pkg
 
             scope_def = _parse_package(regular_pkg)
-            assert isinstance(scope_def, _PackageScopeDefinition)
+            assert isinstance(scope_def, PackageScopeDefinition)
         finally:
             sys.path.remove(FIXTURES_DIR)
             sys.modules.pop("regular_pkg", None)
@@ -922,8 +982,8 @@ class TestModuleParsing:
             import regular_mod
 
             scope_def = _parse_package(regular_mod)
-            assert isinstance(scope_def, _ScopeDefinition)
-            assert not isinstance(scope_def, _PackageScopeDefinition)
+            assert isinstance(scope_def, ScopeDefinition)
+            assert not isinstance(scope_def, PackageScopeDefinition)
         finally:
             sys.path.remove(FIXTURES_DIR)
             sys.modules.pop("regular_mod", None)
@@ -935,7 +995,7 @@ class TestModuleParsing:
 
             assert hasattr(ns_pkg, "__path__")
             scope_def = _parse_package(ns_pkg)
-            assert isinstance(scope_def, _PackageScopeDefinition)
+            assert isinstance(scope_def, PackageScopeDefinition)
 
             root = evaluate(ns_pkg)
             assert root.mod_a.value_a == "a"
@@ -975,7 +1035,7 @@ class TestModuleParsing:
 
                 assert len(ns_pkg.__path__) == 2
                 scope_def = _parse_package(ns_pkg)
-                assert isinstance(scope_def, _PackageScopeDefinition)
+                assert isinstance(scope_def, PackageScopeDefinition)
 
                 root = evaluate(ns_pkg)
                 assert root.mod_a.value_a == "a"
@@ -1478,9 +1538,9 @@ class TestRelativeBases:
 
     def test_root_symbol_with_empty_bases_returns_empty_tuple(self) -> None:
         """Root symbol with empty bases should return empty tuple."""
-        scope_def = _ScopeDefinition(underlying=object())
-        root_symbol = DefinedScopeSymbol(
-            definition=scope_def,
+        scope_def = ScopeDefinition(bases=(), underlying=object())
+        root_symbol = MixinSymbol(
+            definitions=(scope_def,),
             outer=OuterSentinel.ROOT,
             key=KeySentinel.ROOT,
         )
@@ -1636,29 +1696,29 @@ class TestLexicalReference:
     def test_property_found_returns_full_path(self) -> None:
         """LexicalReference finds property in outer scope, returns full path."""
         # Structure: root_symbol contains "target" as a child
-        outer_def = _ScopeDefinition(underlying=object())
-        root_symbol = DefinedScopeSymbol(
-            definition=outer_def,
+        outer_def = ScopeDefinition(bases=(), underlying=object())
+        root_symbol = MixinSymbol(
+            definitions=(outer_def,),
             outer=OuterSentinel.ROOT,
             key=KeySentinel.ROOT,
         )
 
         # Create a "target" resource in root_symbol's children
-        target_def = _ScopeDefinition(underlying=object())
-        target_symbol = DefinedScopeSymbol(
-            definition=target_def,
+        target_def = ScopeDefinition(bases=(), underlying=object())
+        target_symbol = MixinSymbol(
+            definitions=(target_def,),
             outer=root_symbol,
             key="target",
         )
         root_symbol._nested["target"] = target_symbol
 
         # Create inner scope that references L(path=("target", "foo"))
-        inner_def = _ScopeDefinition(
+        inner_def = ScopeDefinition(
             underlying=object(),
             bases=(L(path=("target", "foo")),),
         )
-        inner_symbol = DefinedScopeSymbol(
-            definition=inner_def,
+        inner_symbol = MixinSymbol(
+            definitions=(inner_def,),
             outer=root_symbol,
             key="inner",
         )
@@ -1677,28 +1737,28 @@ class TestLexicalReference:
         # Structure: root_symbol -> middle_symbol (key="Middle") -> inner_symbol
         # inner_symbol references L(path=("Middle", "foo"))
         # "Middle" is NOT a property of middle_symbol, but IS middle_symbol's key
-        outer_def = _ScopeDefinition(underlying=object())
-        root_symbol = DefinedScopeSymbol(
-            definition=outer_def,
+        outer_def = ScopeDefinition(bases=(), underlying=object())
+        root_symbol = MixinSymbol(
+            definitions=(outer_def,),
             outer=OuterSentinel.ROOT,
             key=KeySentinel.ROOT,
         )
 
-        middle_def = _ScopeDefinition(underlying=object())
-        middle_symbol = DefinedScopeSymbol(
-            definition=middle_def,
+        middle_def = ScopeDefinition(bases=(), underlying=object())
+        middle_symbol = MixinSymbol(
+            definitions=(middle_def,),
             outer=root_symbol,
             key="Middle",
         )
         root_symbol._nested["Middle"] = middle_symbol
 
         # inner_symbol references ("Middle", "foo")
-        inner_def = _ScopeDefinition(
+        inner_def = ScopeDefinition(
             underlying=object(),
             bases=(L(path=("Middle", "foo")),),
         )
-        inner_symbol = DefinedScopeSymbol(
-            definition=inner_def,
+        inner_symbol = MixinSymbol(
+            definitions=(inner_def,),
             outer=middle_symbol,
             key="inner",
         )
@@ -1717,35 +1777,35 @@ class TestLexicalReference:
         # inner references L(path=("A", "foo"))
         # A is NOT a property of B, and "A" != B.key
         # A is NOT a property of A, but "A" == A.key → self-reference at level 1
-        outer_def = _ScopeDefinition(underlying=object())
-        root_symbol = DefinedScopeSymbol(
-            definition=outer_def,
+        outer_def = ScopeDefinition(bases=(), underlying=object())
+        root_symbol = MixinSymbol(
+            definitions=(outer_def,),
             outer=OuterSentinel.ROOT,
             key=KeySentinel.ROOT,
         )
 
-        a_def = _ScopeDefinition(underlying=object())
-        a_symbol = DefinedScopeSymbol(
-            definition=a_def,
+        a_def = ScopeDefinition(bases=(), underlying=object())
+        a_symbol = MixinSymbol(
+            definitions=(a_def,),
             outer=root_symbol,
             key="A",
         )
         root_symbol._nested["A"] = a_symbol
 
-        b_def = _ScopeDefinition(underlying=object())
-        b_symbol = DefinedScopeSymbol(
-            definition=b_def,
+        b_def = ScopeDefinition(bases=(), underlying=object())
+        b_symbol = MixinSymbol(
+            definitions=(b_def,),
             outer=a_symbol,
             key="B",
         )
         a_symbol._nested["B"] = b_symbol
 
-        inner_def = _ScopeDefinition(
+        inner_def = ScopeDefinition(
             underlying=object(),
             bases=(L(path=("A", "foo")),),
         )
-        inner_symbol = DefinedScopeSymbol(
-            definition=inner_def,
+        inner_symbol = MixinSymbol(
+            definitions=(inner_def,),
             outer=b_symbol,
             key="inner",
         )
@@ -1768,38 +1828,38 @@ class TestLexicalReference:
         and raises ValueError to preserve future compatibility.
         """
         # Structure: root_symbol -> A (key="A", contains property "A") -> inner
-        outer_def = _ScopeDefinition(underlying=object())
-        root_symbol = DefinedScopeSymbol(
-            definition=outer_def,
+        outer_def = ScopeDefinition(bases=(), underlying=object())
+        root_symbol = MixinSymbol(
+            definitions=(outer_def,),
             outer=OuterSentinel.ROOT,
             key=KeySentinel.ROOT,
         )
 
         # A has key="A"
-        a_def = _ScopeDefinition(underlying=object())
-        a_symbol = DefinedScopeSymbol(
-            definition=a_def,
+        a_def = ScopeDefinition(bases=(), underlying=object())
+        a_symbol = MixinSymbol(
+            definitions=(a_def,),
             outer=root_symbol,
             key="A",
         )
         root_symbol._nested["A"] = a_symbol
 
         # A also contains a property named "A" (ambiguous with self-reference)
-        child_a_def = _ScopeDefinition(underlying=object())
-        child_a_symbol = DefinedScopeSymbol(
-            definition=child_a_def,
+        child_a_def = ScopeDefinition(bases=(), underlying=object())
+        child_a_symbol = MixinSymbol(
+            definitions=(child_a_def,),
             outer=a_symbol,
             key="A",
         )
         a_symbol._nested["A"] = child_a_symbol
 
         # inner_symbol references ("A", "bar")
-        inner_def = _ScopeDefinition(
+        inner_def = ScopeDefinition(
             underlying=object(),
             bases=(L(path=("A", "bar")),),
         )
-        inner_symbol = DefinedScopeSymbol(
-            definition=inner_def,
+        inner_symbol = MixinSymbol(
+            definitions=(inner_def,),
             outer=a_symbol,
             key="inner",
         )
@@ -1832,18 +1892,18 @@ class TestLexicalReference:
 
     def test_lexical_reference_not_found_raises_lookup_error(self) -> None:
         """LexicalReference raises LookupError when first segment not found."""
-        scope_def = _ScopeDefinition(
+        scope_def = ScopeDefinition(
             underlying=object(),
             bases=(L(path=("nonexistent",)),),
         )
-        outer_def = _ScopeDefinition(underlying=object())
-        root_symbol = DefinedScopeSymbol(
-            definition=outer_def,
+        outer_def = ScopeDefinition(bases=(), underlying=object())
+        root_symbol = MixinSymbol(
+            definitions=(outer_def,),
             outer=OuterSentinel.ROOT,
             key=KeySentinel.ROOT,
         )
-        inner_symbol = DefinedScopeSymbol(
-            definition=scope_def,
+        inner_symbol = MixinSymbol(
+            definitions=(scope_def,),
             outer=root_symbol,
             key="inner",
         )
@@ -1852,18 +1912,18 @@ class TestLexicalReference:
 
     def test_lexical_reference_empty_path_raises_value_error(self) -> None:
         """LexicalReference with empty path raises ValueError."""
-        scope_def = _ScopeDefinition(
+        scope_def = ScopeDefinition(
             underlying=object(),
             bases=(L(path=()),),
         )
-        outer_def = _ScopeDefinition(underlying=object())
-        root_symbol = DefinedScopeSymbol(
-            definition=outer_def,
+        outer_def = ScopeDefinition(bases=(), underlying=object())
+        root_symbol = MixinSymbol(
+            definitions=(outer_def,),
             outer=OuterSentinel.ROOT,
             key=KeySentinel.ROOT,
         )
-        inner_symbol = DefinedScopeSymbol(
-            definition=scope_def,
+        inner_symbol = MixinSymbol(
+            definitions=(scope_def,),
             outer=root_symbol,
             key="inner",
         )
@@ -1914,18 +1974,18 @@ class TestFixtureReference:
 
     def test_fixture_reference_not_found_raises_lookup_error(self) -> None:
         """FixtureReference raises LookupError when name not found."""
-        scope_def = _ScopeDefinition(
+        scope_def = ScopeDefinition(
             underlying=object(),
             bases=(F(name="nonexistent"),),
         )
-        outer_def = _ScopeDefinition(underlying=object())
-        root_symbol = DefinedScopeSymbol(
-            definition=outer_def,
+        outer_def = ScopeDefinition(bases=(), underlying=object())
+        root_symbol = MixinSymbol(
+            definitions=(outer_def,),
             outer=OuterSentinel.ROOT,
             key=KeySentinel.ROOT,
         )
-        inner_symbol = DefinedScopeSymbol(
-            definition=scope_def,
+        inner_symbol = MixinSymbol(
+            definitions=(scope_def,),
             outer=root_symbol,
             key="inner",
         )

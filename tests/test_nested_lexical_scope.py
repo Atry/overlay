@@ -5,13 +5,14 @@ Mixin-based architecture (lexical_outer_index instead of CapturedScopes).
 """
 
 from dataclasses import dataclass
-from typing import Any, Callable, Final, Iterator, override
+from typing import Any, Final, Iterator, final, override
 
 import pytest
 
 from mixinject import (
     Definition,
-    DefinedSymbol,
+    EvaluatorDefinition,
+    EvaluatorSymbol,
     Merger,
     MergerSymbol,
     Mixin,
@@ -21,8 +22,7 @@ from mixinject import (
     RelativeReference,
     Semigroup,
     SemigroupSymbol,
-    Symbol,
-    SymbolIndexSentinel,
+    MixinSymbol,
     evaluate,
     extend,
     extern,
@@ -40,16 +40,18 @@ R = RelativeReference
 
 @dataclass(kw_only=True, frozen=True)
 class _TestDefinition(Definition):
-    """Empty definition for test symbols."""
+    """Data holder definition for test symbols (not compiled directly)."""
 
     value: Final[str]
 
-    @override
-    def compile(self, outer: Symbol, key: str) -> Symbol:
-        raise NotImplementedError("Use DirectDefinition instead")
+
+# -----------------------------------------------------------------------------
+# Dual (Semigroup) - both Merger and Patcher
+# -----------------------------------------------------------------------------
 
 
-@dataclass(kw_only=True, frozen=True)
+@final
+@dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True)
 class _Dual(Semigroup[Any]):
     """
     Test helper: Semigroup (both Merger and Patcher) with a configurable value.
@@ -58,8 +60,11 @@ class _Dual(Semigroup[Any]):
     As Patcher: Yields "patch-{value}"
     """
 
-    symbol: "_DualSymbol"
-    value: Final[str]
+    evaluator_getter: "_DualSymbol"
+
+    @property
+    def value(self) -> str:
+        return self.evaluator_getter.definition.value
 
     @override
     def merge(self, patches: Iterator[Any]) -> str:
@@ -70,26 +75,39 @@ class _Dual(Semigroup[Any]):
         yield f"patch-{self.value}"
 
 
-@dataclass(kw_only=True, frozen=True, eq=False)
-class _DualSymbol(DefinedSymbol, SemigroupSymbol[Any]):
-    """Symbol that returns a _Dual (Semigroup)."""
+@final
+@dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True)
+class _DualSymbol(SemigroupSymbol[Any]):
+    """EvaluatorSymbol that returns a _Dual (Semigroup)."""
 
     definition: _TestDefinition
 
-    def bind(
-        self,
-        outer: "Mixin | OuterSentinel",
-        lexical_outer_index: "SymbolIndexSentinel | int",
-    ) -> _Dual:
-        return _Dual(
-            symbol=self,
-            outer=outer,
-            lexical_outer_index=lexical_outer_index,
-            value=self.definition.value,
-        )
+    @override
+    def bind(self, mixin: Mixin) -> _Dual:
+        return _Dual(mixin=mixin, evaluator_getter=self)
 
 
 @dataclass(kw_only=True, frozen=True)
+class _DualDefinition(EvaluatorDefinition):
+    """Definition that creates a _DualSymbol."""
+
+    value: str
+
+    @override
+    def compile(self, symbol: MixinSymbol, /) -> _DualSymbol:
+        return _DualSymbol(
+            symbol=symbol,
+            definition=_TestDefinition(bases=(), value=self.value),
+        )
+
+
+# -----------------------------------------------------------------------------
+# Pure Merger - only Merger, not Patcher
+# -----------------------------------------------------------------------------
+
+
+@final
+@dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True)
 class _PureMerger(Merger[Any, str]):
     """
     Test helper: Pure Merger (not a Patcher) with a configurable value.
@@ -97,34 +115,50 @@ class _PureMerger(Merger[Any, str]):
     Returns "pure-{value}-{sorted patches joined by -}"
     """
 
-    symbol: "_PureMergerSymbol"
-    value: Final[str]
+    evaluator_getter: "_PureMergerSymbol"
+
+    @property
+    def value(self) -> str:
+        return self.evaluator_getter.definition.value
 
     @override
     def merge(self, patches: Iterator[Any]) -> str:
         return f"pure-{self.value}-" + "-".join(sorted(str(p) for p in patches))
 
 
-@dataclass(kw_only=True, frozen=True, eq=False)
-class _PureMergerSymbol(DefinedSymbol, MergerSymbol[Any, str]):
-    """Symbol that returns a _PureMerger (pure Merger)."""
+@final
+@dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True)
+class _PureMergerSymbol(MergerSymbol[Any, str]):
+    """EvaluatorSymbol that returns a _PureMerger (pure Merger)."""
 
     definition: _TestDefinition
 
-    def bind(
-        self,
-        outer: "Mixin | OuterSentinel",
-        lexical_outer_index: "SymbolIndexSentinel | int",
-    ) -> _PureMerger:
-        return _PureMerger(
-            symbol=self,
-            outer=outer,
-            lexical_outer_index=lexical_outer_index,
-            value=self.definition.value,
-        )
+    @override
+    def bind(self, mixin: Mixin) -> _PureMerger:
+        return _PureMerger(mixin=mixin, evaluator_getter=self)
 
 
 @dataclass(kw_only=True, frozen=True)
+class _PureMergerDefinition(EvaluatorDefinition):
+    """Definition that creates a _PureMergerSymbol."""
+
+    value: str
+
+    @override
+    def compile(self, symbol: MixinSymbol, /) -> _PureMergerSymbol:
+        return _PureMergerSymbol(
+            symbol=symbol,
+            definition=_TestDefinition(bases=(), value=self.value),
+        )
+
+
+# -----------------------------------------------------------------------------
+# Pure Patcher - only Patcher, not Merger
+# -----------------------------------------------------------------------------
+
+
+@final
+@dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True)
 class _PurePatcher(Patcher[str]):
     """
     Test helper: Pure Patcher (not a Merger) with a configurable value.
@@ -132,46 +166,41 @@ class _PurePatcher(Patcher[str]):
     Yields "patch-{value}"
     """
 
-    symbol: "_PurePatcherSymbol"
-    value: Final[str]
+    evaluator_getter: "_PurePatcherSymbol"
+
+    @property
+    def value(self) -> str:
+        return self.evaluator_getter.definition.value
 
     @override
     def __iter__(self) -> Iterator[str]:
         yield f"patch-{self.value}"
 
 
-@dataclass(kw_only=True, frozen=True, eq=False)
-class _PurePatcherSymbol(DefinedSymbol, PatcherSymbol[str]):
-    """Symbol that returns a _PurePatcher (pure Patcher)."""
+@final
+@dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True)
+class _PurePatcherSymbol(PatcherSymbol[str]):
+    """EvaluatorSymbol that returns a _PurePatcher (pure Patcher)."""
 
     definition: _TestDefinition
 
-    def bind(
-        self,
-        outer: "Mixin | OuterSentinel",
-        lexical_outer_index: "SymbolIndexSentinel | int",
-    ) -> _PurePatcher:
-        return _PurePatcher(
-            symbol=self,
-            outer=outer,
-            lexical_outer_index=lexical_outer_index,
-            value=self.definition.value,
-        )
+    @override
+    def bind(self, mixin: Mixin) -> _PurePatcher:
+        return _PurePatcher(mixin=mixin, evaluator_getter=self)
 
 
 @dataclass(kw_only=True, frozen=True)
-class DirectDefinition(Definition):
-    """
-    Test helper: Definition that directly creates a symbol with a factory.
+class _PurePatcherDefinition(EvaluatorDefinition):
+    """Definition that creates a _PurePatcherSymbol."""
 
-    The symbol_factory receives (outer, key) and returns a Symbol instance.
-    """
-
-    symbol_factory: Final[Callable[[Symbol, str], Symbol]]
+    value: str
 
     @override
-    def compile(self, outer: Symbol, key: str) -> Symbol:
-        return self.symbol_factory(outer, key)
+    def compile(self, symbol: MixinSymbol, /) -> _PurePatcherSymbol:
+        return _PurePatcherSymbol(
+            symbol=symbol,
+            definition=_TestDefinition(bases=(), value=self.value),
+        )
 
 
 # =============================================================================
@@ -254,11 +283,7 @@ class TestMergerElection:
 
         @scope
         class Namespace:
-            target = DirectDefinition(
-                symbol_factory=lambda outer, key: _DualSymbol(
-                    outer=outer, key=key, definition=_TestDefinition(value="A")
-                )
-            )
+            target = _DualDefinition(bases=(), value="A")
 
         root = evaluate(Namespace)
         assert root.target == "merger-A-"
@@ -270,19 +295,11 @@ class TestMergerElection:
         class Root:
             @scope
             class N1:
-                target = DirectDefinition(
-                    symbol_factory=lambda outer, key: _DualSymbol(
-                        outer=outer, key=key, definition=_TestDefinition(value="A")
-                    )
-                )
+                target = _DualDefinition(bases=(), value="A")
 
             @scope
             class N2:
-                target = DirectDefinition(
-                    symbol_factory=lambda outer, key: _DualSymbol(
-                        outer=outer, key=key, definition=_TestDefinition(value="B")
-                    )
-                )
+                target = _DualDefinition(bases=(), value="B")
 
             @extend(
                 R(levels_up=0, path=("N1",)),
@@ -304,19 +321,11 @@ class TestMergerElection:
         class Root:
             @scope
             class N1:
-                target = DirectDefinition(
-                    symbol_factory=lambda outer, key: _PureMergerSymbol(
-                        outer=outer, key=key, definition=_TestDefinition(value="P")
-                    )
-                )
+                target = _PureMergerDefinition(bases=(), value="P")
 
             @scope
             class N2:
-                target = DirectDefinition(
-                    symbol_factory=lambda outer, key: _DualSymbol(
-                        outer=outer, key=key, definition=_TestDefinition(value="D")
-                    )
-                )
+                target = _DualDefinition(bases=(), value="D")
 
             @extend(
                 R(levels_up=0, path=("N1",)),
@@ -337,19 +346,11 @@ class TestMergerElection:
         class Root:
             @scope
             class N1:
-                target = DirectDefinition(
-                    symbol_factory=lambda outer, key: _PureMergerSymbol(
-                        outer=outer, key=key, definition=_TestDefinition(value="A")
-                    )
-                )
+                target = _PureMergerDefinition(bases=(), value="A")
 
             @scope
             class N2:
-                target = DirectDefinition(
-                    symbol_factory=lambda outer, key: _PureMergerSymbol(
-                        outer=outer, key=key, definition=_TestDefinition(value="B")
-                    )
-                )
+                target = _PureMergerDefinition(bases=(), value="B")
 
             @extend(
                 R(levels_up=0, path=("N1",)),
@@ -368,11 +369,7 @@ class TestMergerElection:
 
         @scope
         class N1:
-            target = DirectDefinition(
-                symbol_factory=lambda outer, key: _PurePatcherSymbol(
-                    outer=outer, key=key, definition=_TestDefinition(value="A")
-                )
-            )
+            target = _PurePatcherDefinition(bases=(), value="A")
 
         root = evaluate(N1)
         with pytest.raises(NotImplementedError, match="requires instance scope"):

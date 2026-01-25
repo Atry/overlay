@@ -1,30 +1,28 @@
 import gc
 
 from mixinject import (
-    DefinedSymbol,
-    DefinedScopeSymbol,
     Mixin,
-    Symbol,
+    MixinSymbol,
     OuterSentinel,
     KeySentinel,
     evaluate,
     resource,
     scope,
-    _ScopeDefinition,
+    ScopeDefinition,
 )
 
 
-def _empty_definition() -> _ScopeDefinition:
+def _empty_definition() -> ScopeDefinition:
     """Create a minimal empty scope definition for testing."""
-    return _ScopeDefinition(underlying=object())
+    return ScopeDefinition(bases=(), underlying=object())
 
 
-def _root_symbol(definition: _ScopeDefinition) -> DefinedScopeSymbol:
+def _root_symbol(definition: ScopeDefinition) -> MixinSymbol:
     """Create a root scope symbol for testing."""
-    return DefinedScopeSymbol(
-        definition=definition,
+    return MixinSymbol(
         outer=OuterSentinel.ROOT,
         key=KeySentinel.ROOT,
+        definitions=(definition,),
     )
 
 
@@ -56,8 +54,8 @@ class TestInterning:
         scope_def = _empty_definition()
         nested_def = _empty_definition()
         root = _root_symbol(scope_def)
-        child1 = DefinedScopeSymbol(outer=root, definition=nested_def, key="test1")
-        child2 = DefinedScopeSymbol(outer=root, definition=nested_def, key="test2")
+        child1 = MixinSymbol(outer=root, key="test1", definitions=(nested_def,))
+        child2 = MixinSymbol(outer=root, key="test2", definitions=(nested_def,))
         # Without interning, these are different objects
         assert child1 is not child2
 
@@ -66,16 +64,16 @@ class TestInterning:
         nested_def = _empty_definition()
         root1 = _root_symbol(scope_def)
         root2 = _root_symbol(scope_def)
-        child1 = DefinedScopeSymbol(outer=root1, definition=nested_def, key="test")
-        child2 = DefinedScopeSymbol(outer=root2, definition=nested_def, key="test")
+        child1 = MixinSymbol(outer=root1, key="test", definitions=(nested_def,))
+        child2 = MixinSymbol(outer=root2, key="test", definitions=(nested_def,))
         assert child1 is not child2
 
     def test_each_node_has_ownintern_pool(self) -> None:
         scope_def = _empty_definition()
         nested_def = _empty_definition()
         root = _root_symbol(scope_def)
-        child1 = DefinedScopeSymbol(outer=root, definition=nested_def, key="child1")
-        child2 = DefinedScopeSymbol(outer=child1, definition=nested_def, key="child2")
+        child1 = MixinSymbol(outer=root, key="child1", definitions=(nested_def,))
+        child2 = MixinSymbol(outer=child1, key="child2", definitions=(nested_def,))
         assert child1._nested is not root._nested
         assert child2._nested is not child1._nested
         assert child2._nested is not root._nested
@@ -126,7 +124,7 @@ class TestWeakReference:
         nested_def = _empty_definition()
         root = _root_symbol(scope_def)
         # Add an entry manually to the pool
-        child = DefinedScopeSymbol(outer=root, definition=nested_def, key="test")
+        child = MixinSymbol(outer=root, key="test", definitions=(nested_def,))
         root._nested["test_key"] = child
 
         pool_size_before = len(root._nested)
@@ -142,17 +140,21 @@ class TestWeakReference:
 class TestSubclass:
     """Test isinstance/issubclass behavior."""
 
-    def test_child_is_subclass_of_symbol(self) -> None:
-        assert issubclass(DefinedSymbol, Symbol)
+    def test_symbol_is_concrete(self) -> None:
+        """MixinSymbol is now a concrete class (no longer ABC)."""
+        # MixinSymbol can be instantiated directly
+        scope_def = _empty_definition()
+        root = _root_symbol(scope_def)
+        assert isinstance(root, MixinSymbol)
 
     def test_root_instance_is_instance_of_symbol(self) -> None:
         scope_def = _empty_definition()
         root = _root_symbol(scope_def)
-        assert isinstance(root, Symbol)
+        assert isinstance(root, MixinSymbol)
 
     def test_child_instance_is_instance_of_symbol(self) -> None:
         scope_def = _empty_definition()
         nested_def = _empty_definition()
         root = _root_symbol(scope_def)
-        child = DefinedScopeSymbol(outer=root, definition=nested_def, key="test")
-        assert isinstance(child, Symbol)
+        child = MixinSymbol(outer=root, key="test", definitions=(nested_def,))
+        assert isinstance(child, MixinSymbol)
