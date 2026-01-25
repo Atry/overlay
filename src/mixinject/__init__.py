@@ -1076,6 +1076,17 @@ class MixinSymbol(Mapping[Hashable, "MixinSymbol"], Symbol):
             f"{scope_count} ScopeDefinition, {len(all_definitions) - scope_count} non-ScopeDefinition"
         )
 
+    def get_mixin(self, outer: Scope):
+        try:
+            return outer._nested[self.key]
+        except KeyError:
+            pass
+        mixin = self.mixin_type(
+            outer=outer, symbol=self, lexical_outer_index=SymbolIndexSentinel.OWN
+        )
+        outer._nested[self.key] = mixin
+        return mixin
+
     @cached_property
     def elected_merger_index(
         self,
@@ -1589,14 +1600,7 @@ class Scope(Mapping[Hashable, "Mixin"], Mixin, ABC):
         return len(self.symbol)
 
     def __getitem__(self, key: Hashable) -> "Mixin":
-        if key not in self._nested:
-            child_symbol = self.symbol[key]
-            self._nested[key] = child_symbol.mixin_type(
-                symbol=child_symbol,
-                outer=self,
-                lexical_outer_index=SymbolIndexSentinel.OWN,
-            )
-        return self._nested[key]
+        return self.symbol[key].get_mixin(outer=self)
 
     def __getattr__(self, key: str) -> "Mixin | object":
         try:
