@@ -552,6 +552,7 @@ match container.resource:
 - Type checker enforces exhaustive matching
 - Self-documenting: the type annotation tells the full story
 - Sentinel enum values describe *behavior* (NOT_STARTED, DESTROYED) not just absence
+- Conceptually similar to Java's checked exceptions or Rust's `Result<T, E>`—the sentinel is a typed error channel in the return type that callers must handle
 
 **The most common correct approach: immutable required fields**
 
