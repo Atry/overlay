@@ -1068,7 +1068,10 @@ class MixinSymbol(Mapping[Hashable, "MixinSymbol"], Symbol):
         )
 
         if scope_count == len(all_definitions):
-            return StaticScope
+            if self.prototype is PrototypeSymbolSentinel.NOT_INSTANCE:
+                return StaticScope
+            else:
+                return InstanceScope
         if scope_count == 0:
             return Resource
         raise ValueError(
@@ -1624,12 +1627,18 @@ class Scope(Mapping[Hashable, "Mixin"], Mixin, ABC):
         Creates a new InstanceScope with the same symbol but with kwargs bound.
         When child resources are accessed, kwargs take precedence over symbol lookups.
         """
-        return InstanceScope(
-            symbol=self.symbol,
-            outer=self.outer,
-            lexical_outer_index=self.lexical_outer_index,
-            kwargs=kwargs,
-        )
+        instance_symbol = self.symbol.instance
+        if instance_symbol is InstanceSymbolSentinel.ALREADY_INSTANCE:
+            raise TypeError("Cannot create instance from an instance scope")
+        else:
+            instance_type = instance_symbol.mixin_type
+            assert issubclass(instance_type, InstanceScope)
+            return instance_type(
+                symbol=self.symbol,
+                outer=self.outer,
+                lexical_outer_index=self.lexical_outer_index,
+                kwargs=kwargs,
+            )
 
 
 @final
