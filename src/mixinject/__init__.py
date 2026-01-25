@@ -549,6 +549,7 @@ from typing import (
     ChainMap,
     ContextManager,
     Final,
+    Generator,
     Generic,
     Hashable,
     Iterable,
@@ -977,12 +978,14 @@ class MixinSymbol(Mapping[Hashable, "MixinSymbol"], Symbol):
             raise KeyError(key)
 
         # Collect all nested definitions from all ScopeDefinitions
-        nested_definitions = tuple(
-            nested_definition
-            for definition in self.definitions
-            if isinstance(definition, ScopeDefinition)
-            for nested_definition in (definition.get(key) or ())
-        )
+        def generate_nested_definitions() -> Generator[Definition, None, None]:
+            for definition in self.definitions:
+                if isinstance(definition, ScopeDefinition):
+                    inner = definition.get(key)
+                    if inner is not None:
+                        yield from inner
+
+        nested_definitions = tuple(generate_nested_definitions())
 
         # Create child MixinSymbol with definitions tuple
         compiled_symbol = MixinSymbol(
