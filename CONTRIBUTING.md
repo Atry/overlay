@@ -91,6 +91,17 @@ class User:
 - Allows weak references to instances even with `slots=True`
 - Enables garbage collection of cyclic references
 
+**Exception: `frozen=False` with Cache Slots**
+
+When using `slots=True` fields as internal cache (set via `setattr` after construction), `frozen=False` is allowed. Non-cache fields MUST have `Final` type hints:
+
+```python
+@dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
+class CachedScope:
+    symbol: Final["MixinSymbol"]  # Non-cache: use Final
+    _cached_child: object = field(init=False)  # Cache: set via setattr
+```
+
 **Note on `Final` type hints:**
 
 Frozen dataclasses (`frozen=True`) already enforce runtime immutability, so `Final` type hints could be omitted:
@@ -725,6 +736,86 @@ def process_results(results: list[str]):
 ```
 
 Use `assert` for internal invariants about trusted code paths; use `ValueError` for invalid caller/user inputs. Let the program crash—crashes are your friend in finding bugs.
+
+### Exceptions with Special Semantics
+
+Some Python exceptions have **special meanings** tied to specific dunder methods or protocols. These exceptions MUST NOT propagate through unrelated methods—they must be caught and converted to appropriate exceptions.
+
+| Exception | Semantic Owner | Why It's Special |
+|-----------|---------------|------------------|
+| `KeyError` | `__getitem__`, `__delitem__` | Caught by `__contains__`, signals "key not found" |
+| `IndexError` | `__getitem__` (sequences) | Terminates `for` loops, signals "index out of range" |
+| `StopIteration` | `__next__` | Terminates `for` loops, signals iterator exhaustion |
+| `AttributeError` | `__getattr__`, `__getattribute__`, descriptors | Caught by `hasattr()`, `getattr()` with default |
+| `GeneratorExit` | Generators | Special generator lifecycle, should not escape |
+
+**Why this matters:**
+
+These exceptions are caught by Python's runtime in specific contexts:
+- `hasattr(obj, 'x')` catches `AttributeError` → wrong escape causes incorrect `hasattr()` results
+- `for x in seq` catches `IndexError`/`StopIteration` → wrong escape terminates loops early
+- `x in mapping` may catch `KeyError` → wrong escape causes incorrect containment checks
+
+**Example: KeyError**
+
+```python
+# ✗ BAD - KeyError escaping from non-__getitem__ method
+def resolve_path(self, path: tuple[str, ...]) -> Symbol:
+    current = self
+    for part in path:
+        current = current[part]  # KeyError escapes if part not found
+    return current
+
+# ✓ GOOD - Use .get() and raise descriptive error
+def resolve_path(self, path: tuple[str, ...]) -> Symbol:
+    current = self
+    for part in path:
+        child = current.get(part)
+        if child is None:
+            raise ValueError(
+                f"Cannot navigate path {path!r}: '{current.key}' has no child '{part}'"
+            )
+        current = child
+    return current
+```
+
+**Example: AttributeError**
+
+```python
+# ✗ BAD - AttributeError escaping from property (breaks hasattr)
+@property
+def config(self) -> Config:
+    return self.parent.settings  # AttributeError if parent has no settings
+    # hasattr(obj, 'config') now returns False incorrectly!
+
+# ✓ GOOD - Convert to descriptive error
+@property
+def config(self) -> Config:
+    parent = self.parent
+    if not hasattr(parent, 'settings'):
+        raise ValueError(f"Parent {parent!r} has no settings")
+    return parent.settings
+```
+
+**Example: StopIteration**
+
+```python
+# ✗ BAD - StopIteration escaping from non-iterator (Python 3.7+ converts to RuntimeError)
+def get_first(items: Iterable[T]) -> T:
+    return next(iter(items))  # StopIteration if empty
+
+# ✓ GOOD - Handle explicitly
+def get_first(items: Iterable[T]) -> T:
+    iterator = iter(items)
+    try:
+        return next(iterator)
+    except StopIteration:
+        raise ValueError("Cannot get first item: iterable is empty") from None
+```
+
+**Rule:** If you call code that may raise these special exceptions, you MUST either:
+1. Use safe alternatives (`.get()`, `hasattr()`, `next(iter, default)`)
+2. Catch and convert to an appropriate exception with context
 
 
 ## Handling Test Failures After Code Changes

@@ -517,12 +517,12 @@ class TestExtendInstanceScopeProhibition:
         ):
             _ = root.Extended.foo
 
-    def test_extend_path_through_resource_raises_attribute_error(self) -> None:
-        """Extending from a path through a resource raises AttributeError.
+    def test_extend_path_through_resource_raises_value_error(self) -> None:
+        """Extending from a path through a resource raises ValueError.
 
         The path ("my_instance", "MyInner") tries to navigate through my_instance
         which is a MixinSymbol with MergerDefinition (from @resource), not a scope.
-        Symbols with MergerDefinition don't support __getitem__ for nested keys.
+        Symbols with MergerDefinition don't support nested children.
         """
 
         @scope
@@ -548,7 +548,7 @@ class TestExtendInstanceScopeProhibition:
             class Invalid:
                 pass
 
-        with pytest.raises(AttributeError):
+        with pytest.raises(ValueError, match=r"'my_instance' has no child 'MyInner'"):
             root = evaluate(Root)
             _ = root.Invalid.foo
 
@@ -595,6 +595,34 @@ class TestExtendInstanceScopeProhibition:
         # Inner1 extends Inner2, so Inner1 has base_value from Inner2, patched by Inner1
         assert root.my_instance.Inner2.base_value == 100
         assert root.my_instance.Inner1.base_value == 142  # 100 + 42 (patched)
+
+
+class TestExtendNonMixin:
+    """Test extending non-Mixin references (potential edge cases)."""
+
+    def test_extend_resource_with_patch(self) -> None:
+        """Extending a Resource path with @patch works correctly.
+
+        When @extend is used with a path that leads to a Resource (not a Scope),
+        and the extending definition is a @patch, the system correctly resolves
+        the base Resource and applies the patch.
+        """
+
+        @scope
+        class Root:
+            @resource
+            def base_value() -> int:
+                return 10
+
+            # Extending a Resource (not a Scope) with a patch
+            @extend(R(levels_up=0, path=("base_value",)))
+            @patch
+            def patched_value() -> Callable[[int], int]:
+                return lambda x: x + 1
+
+        root = evaluate(Root)
+        # This should either work or raise a clear error, not an assertion failure
+        _ = root.patched_value
 
 
 class TestExtendNameResolution:

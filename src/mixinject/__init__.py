@@ -554,7 +554,6 @@ from typing import (
     Iterable,
     Iterator,
     Mapping,
-    MutableMapping,
     Never,
     ParamSpec,
     Self,
@@ -788,6 +787,15 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
             case _:
                 return KeySentinel.ROOT
 
+    @property
+    def attribute_name(self) -> str:
+        """Generate a unique attribute name for caching this symbol's mixin on outer scope."""
+        key_str = str(self.key)
+        sanitized = "".join(
+            char if char.isalnum() or char == "_" else "_" for char in key_str
+        )
+        return f"_mixin_cache_{sanitized}_{id(self):x}"
+
     @cached_property
     def definitions(self) -> tuple["Definition", ...]:
         """Definitions for this MixinSymbol. Can be 0, 1, or multiple."""
@@ -954,7 +962,13 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
         # Resolve the path to find target_symbol (for compile-time access)
         current_symbol: MixinSymbol = start_symbol
         for part in hashable_path:
-            current_symbol = current_symbol[part]
+            child_symbol = current_symbol.get(part)
+            if child_symbol is None:
+                raise ValueError(
+                    f"Cannot navigate path {hashable_path!r}: "
+                    f"'{current_symbol.key}' has no child '{part}'"
+                )
+            current_symbol = child_symbol
 
         return ResolvedReference(
             levels_up=levels_up,
@@ -1151,11 +1165,17 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
             base_class = InstanceScope
 
         # Create child MixinSymbol instances as class attributes (lazy via Nested)
-        class_attrs: dict[str, MixinSymbol] = {
+        child_symbols: dict[str, MixinSymbol] = {
             key: MixinSymbol(origin=Nested(outer=self, key=key))
             for key in self
             if isinstance(key, str) and key.isidentifier()
         }
+
+        # Create cache fields for each child symbol's attribute_name
+        cache_fields = tuple(
+            (symbol.attribute_name, object, field(init=False))
+            for symbol in child_symbols.values()
+        )
 
         def scope_dir(scope_self: Scope) -> Sequence[str]:
             symbol = scope_self.symbol
@@ -1165,25 +1185,30 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
 
         dynamic_class = make_dataclass(
             f"{base_class.__name__}[{self.key!r}]",
-            [],
+            cache_fields,
             bases=(base_class,),
-            frozen=True,
             slots=True,
             weakref_slot=True,
-            namespace={"__dir__": scope_dir, **class_attrs},
+            namespace={"__dir__": scope_dir, **child_symbols},
         )
         dynamic_class.__final__ = True  # type: ignore[attr-defined]
         return cast(type["Mixin"], dynamic_class)
 
     def get_mixin(self, outer: "Scope") -> "Mixin":
+        """Get cached Mixin for this symbol from outer scope.
+
+        Creates and caches the Mixin object (unevaluated).
+        For Resource mixins, call .evaluated to get the evaluated value.
+        """
+        attribute_name = self.attribute_name
         try:
-            return outer._nested[self.key]
-        except KeyError:
+            return getattr(outer, attribute_name)
+        except AttributeError:
             pass
         mixin = self.mixin_type(
             outer=outer, symbol=self, lexical_outer_index=SymbolIndexSentinel.OWN
         )
-        outer._nested[self.key] = mixin
+        setattr(outer, attribute_name, mixin)
         return mixin
 
     @overload
@@ -1194,26 +1219,21 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
 
     def __get__(  # type: ignore[misc]
         self, instance: object, owner: type
-    ) -> "Mixin | object | MixinSymbol":
+    ) -> "Scope | object | MixinSymbol":
         """Descriptor protocol for accessing nested symbols as attributes.
 
         This method is invoked when MixinSymbol is used as a class attribute
         on dynamically generated Scope subclasses.
+
+        Returns evaluated value for Resources, Scope for Scopes.
         """
         if instance is None or not isinstance(instance, Scope):
             return self
 
-        try:
-            child_mixin = self.get_mixin(outer=instance)
-        except KeyError as error:
-            key = self.key
-            raise AttributeError(
-                name=key if isinstance(key, str) else None, obj=instance
-            ) from error
-
-        if isinstance(child_mixin, Resource):
-            return child_mixin.evaluated
-        return child_mixin
+        mixin = self.get_mixin(outer=instance)
+        if isinstance(mixin, Resource):
+            return mixin.evaluated
+        return mixin
 
     @cached_property
     def elected_merger_index(
@@ -1506,19 +1526,24 @@ class Node(ABC):
     pass
 
 
-@dataclass(kw_only=True, frozen=True, eq=False)
+@dataclass(kw_only=True, eq=False)
 class Mixin(Node, ABC):
     """Base class for runtime objects that represent merged results.
 
     Mixin is the base class for both Scope (containers) and Resource (leaf values).
+
+    Note: This class uses ``frozen=False`` as an exception to CONTRIBUTING.md rules.
+    Dynamic subclasses use slots fields as cache (set via ``setattr`` after construction).
+    Non-cache fields use ``Final`` type hints to indicate immutability at the type level.
+    See CONTRIBUTING.md "Exception: frozen=False with Cache Slots" for details.
     """
 
-    symbol: "MixinSymbol"
+    symbol: Final["MixinSymbol"]
 
-    outer: "Mixin | OuterSentinel"
+    outer: Final["Mixin | OuterSentinel"]
     """The outer Mixin or OuterSentinel.ROOT if this is a root Mixin."""
 
-    lexical_outer_index: "SymbolIndexSentinel | int"
+    lexical_outer_index: Final["SymbolIndexSentinel | int"]
     """
     Index to locate the lexical outer scope for dependency resolution.
 
@@ -1616,10 +1641,13 @@ class Mixin(Node, ABC):
                         "generate_strict_super_mixins: OwnBaseIndex i=%(i)s resolved_reference=%(resolved_reference)s",
                         {"i": i, "resolved_reference": resolved_reference},
                     )
-                    direct_mixin = resolved_reference.get_mixin(
+                    resolved_value = resolved_reference.get_mixin(
                         outer=self,
                         lexical_outer_index=self.lexical_outer_index,
                     )
+                    # In inheritance context, resolved value must be a Mixin (not evaluated Resource)
+                    assert isinstance(resolved_value, Mixin)
+                    direct_mixin = resolved_value
                 case SymbolIndexSentinel.OWN:
                     direct_mixin = self
             _logger.debug(
@@ -1629,18 +1657,17 @@ class Mixin(Node, ABC):
             yield direct_mixin.get_super(nested_index.secondary_index)
 
 
-@dataclass(kw_only=True, frozen=True, eq=False)
+@dataclass(kw_only=True, eq=False)
 class Scope(Mixin, ABC):
     """
     Base class for scope mixins that contain nested resources.
 
     Scopes can contain both nested scopes and resources.
     Attribute access is handled by MixinSymbol descriptors.
-    """
 
-    _nested: MutableMapping[Hashable, "Mixin"] = field(
-        default_factory=dict, init=False, repr=False, compare=False
-    )
+    Note: This class uses ``frozen=False`` as an exception to CONTRIBUTING.md rules.
+    See Mixin docstring and CONTRIBUTING.md for details.
+    """
 
     def __call__(self, **kwargs: object) -> "InstanceScope":
         """
@@ -1664,13 +1691,16 @@ class Scope(Mixin, ABC):
 
 
 @final
-@dataclass(kw_only=True, frozen=True, slots=True, weakref_slot=True, eq=False)
+@dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
 class Resource(Mixin):
     """
     Mixin for non-scope resources (leaf nodes in dependency graph).
 
     Unlike Scope, Resource does not implement Mapping and cannot have children.
     Contains the `evaluated` property for computing resource values.
+
+    Note: This class uses ``frozen=False`` as an exception to CONTRIBUTING.md rules.
+    See Mixin docstring and CONTRIBUTING.md for details.
     """
 
     @cached_property
@@ -2296,19 +2326,22 @@ class Semigroup(Merger[T, T], Patcher[T], Generic[T]):
     pass
 
 
-@dataclass(kw_only=True, frozen=True, eq=False)
+@dataclass(kw_only=True, eq=False)
 class StaticScope(Scope):
     """
     Scope for static access (no kwargs).
 
     Used when accessing scopes without instance parameters.
     Base class for dynamically generated scope classes.
+
+    Note: This class uses ``frozen=False`` as an exception to CONTRIBUTING.md rules.
+    See Mixin docstring and CONTRIBUTING.md for details.
     """
 
-    symbol: "MixinSymbol"
+    pass
 
 
-@dataclass(kw_only=True, frozen=True, eq=False)
+@dataclass(kw_only=True, eq=False)
 class InstanceScope(Scope):
     """
     Scope for instance access (with kwargs).
@@ -2316,9 +2349,12 @@ class InstanceScope(Scope):
     Used when accessing scopes with instance parameters provided via Scope.__call__(**kwargs).
     When child resources are accessed, patcher-only resources use kwargs values as base values.
     Base class for dynamically generated instance scope classes.
+
+    Note: This class uses ``frozen=False`` as an exception to CONTRIBUTING.md rules.
+    See Mixin docstring and CONTRIBUTING.md for details.
     """
 
-    kwargs: Mapping[str, object]
+    kwargs: Final[Mapping[str, object]]
 
 
 TSymbol = TypeVar("TSymbol", bound=MixinSymbol)
@@ -2913,15 +2949,15 @@ def _compile_function_with_mixin(
             search_mixin: Mixin = mixin
             for _ in range(extra_levels):
                 search_mixin = search_mixin.lexical_outer
-            param_mixin = resolved_ref.get_mixin(
+            # get_mixin returns Mixin; evaluate Resources to get the value
+            resolved_mixin = resolved_ref.get_mixin(
                 outer=search_mixin,
                 lexical_outer_index=search_mixin.lexical_outer_index,
             )
-            if isinstance(param_mixin, Resource):
-                resolved_kwargs[param_name] = param_mixin.evaluated
+            if isinstance(resolved_mixin, Resource):
+                resolved_kwargs[param_name] = resolved_mixin.evaluated
             else:
-                # Scope is used directly (for injecting scopes into functions)
-                resolved_kwargs[param_name] = param_mixin
+                resolved_kwargs[param_name] = resolved_mixin
 
         return function(**resolved_kwargs)  # type: ignore
 
@@ -2932,15 +2968,15 @@ def _compile_function_with_mixin(
             search_mixin: Mixin = mixin
             for _ in range(extra_levels):
                 search_mixin = search_mixin.lexical_outer
-            param_mixin = resolved_ref.get_mixin(
+            # get_mixin returns Mixin; evaluate Resources to get the value
+            resolved_mixin = resolved_ref.get_mixin(
                 outer=search_mixin,
                 lexical_outer_index=search_mixin.lexical_outer_index,
             )
-            if isinstance(param_mixin, Resource):
-                resolved_kwargs[param_name] = param_mixin.evaluated
+            if isinstance(resolved_mixin, Resource):
+                resolved_kwargs[param_name] = resolved_mixin.evaluated
             else:
-                # Scope is used directly (for injecting scopes into functions)
-                resolved_kwargs[param_name] = param_mixin
+                resolved_kwargs[param_name] = resolved_mixin
 
         def inner(positional_arg: object, /) -> T:
             return function(positional_arg, **resolved_kwargs)  # type: ignore
@@ -3005,32 +3041,39 @@ class ResolvedReference:
         lexical_outer_index: "SymbolIndexSentinel | int",
     ) -> "Mixin":
         """
-        Get the target mixin by navigating from outer.
+        Get the target Mixin by navigating from outer.
 
         Uses key-based lookup at runtime to support merged scopes correctly.
+        Returns the unevaluated Mixin object.
 
         :param outer: The mixin from which navigation starts.
         :param lexical_outer_index: The lexical outer index of the caller.
-        :return: The resolved mixin.
+        :return: The resolved Mixin (call .evaluated for Resources).
         """
         # Start from outer.outer (the parent scope where we search)
         if isinstance(outer.outer, Mixin):
-            current: Mixin = outer.outer
+            current: Mixin | object = outer.outer
         else:
             current = outer  # Root case: stay at outer
 
         current_lexical_index: SymbolIndexSentinel | int = lexical_outer_index
 
         for _ in range(self.levels_up):
+            assert isinstance(current, Mixin)
             base = current.get_super(current_lexical_index)
             current_lexical_index = base.lexical_outer_index
             assert isinstance(base.outer, Mixin)
             current = base.outer
 
         # Navigate through path using key-based lookup (supports merged scopes)
-        for key in self.path:
+        path = self.path
+        for index, key in enumerate(path):
             assert isinstance(current, Scope)
-            current = current.symbol[key].get_mixin(outer=current)
+            result = current.symbol[key].get_mixin(outer=current)
+            if index < len(path) - 1:
+                # Intermediate step: must be a Scope to continue navigation
+                assert isinstance(result, Scope)
+            current = result
 
         return current
 
