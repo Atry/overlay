@@ -3,8 +3,7 @@ import gc
 from mixinject import (
     Mixin,
     MixinSymbol,
-    OuterSentinel,
-    KeySentinel,
+    Nested,
     evaluate,
     resource,
     scope,
@@ -19,11 +18,7 @@ def _empty_definition() -> ScopeDefinition:
 
 def _root_symbol(definition: ScopeDefinition) -> MixinSymbol:
     """Create a root scope symbol for testing."""
-    return MixinSymbol(
-        outer=OuterSentinel.ROOT,
-        key=KeySentinel.ROOT,
-        definitions=(definition,),
-    )
+    return MixinSymbol(origin=(definition,))
 
 
 class TestRoot:
@@ -52,28 +47,25 @@ class TestInterning:
     def test_direct_instantiation_creates_new_objects(self) -> None:
         """Direct instantiation without going through scope_factory creates new objects."""
         scope_def = _empty_definition()
-        nested_def = _empty_definition()
         root = _root_symbol(scope_def)
-        child1 = MixinSymbol(outer=root, key="test1", definitions=(nested_def,))
-        child2 = MixinSymbol(outer=root, key="test2", definitions=(nested_def,))
+        child1 = MixinSymbol(origin=Nested(outer=root, key="test1"))
+        child2 = MixinSymbol(origin=Nested(outer=root, key="test2"))
         # Without interning, these are different objects
         assert child1 is not child2
 
     def test_different_parent_different_object(self) -> None:
         scope_def = _empty_definition()
-        nested_def = _empty_definition()
         root1 = _root_symbol(scope_def)
         root2 = _root_symbol(scope_def)
-        child1 = MixinSymbol(outer=root1, key="test", definitions=(nested_def,))
-        child2 = MixinSymbol(outer=root2, key="test", definitions=(nested_def,))
+        child1 = MixinSymbol(origin=Nested(outer=root1, key="test"))
+        child2 = MixinSymbol(origin=Nested(outer=root2, key="test"))
         assert child1 is not child2
 
     def test_each_node_has_ownintern_pool(self) -> None:
         scope_def = _empty_definition()
-        nested_def = _empty_definition()
         root = _root_symbol(scope_def)
-        child1 = MixinSymbol(outer=root, key="child1", definitions=(nested_def,))
-        child2 = MixinSymbol(outer=child1, key="child2", definitions=(nested_def,))
+        child1 = MixinSymbol(origin=Nested(outer=root, key="child1"))
+        child2 = MixinSymbol(origin=Nested(outer=child1, key="child2"))
         assert child1._nested is not root._nested
         assert child2._nested is not child1._nested
         assert child2._nested is not root._nested
@@ -121,10 +113,9 @@ class TestWeakReference:
     def test_intern_pool_supports_weak_references(self) -> None:
         """The intern pool is a WeakValueDictionary."""
         scope_def = _empty_definition()
-        nested_def = _empty_definition()
         root = _root_symbol(scope_def)
         # Add an entry manually to the pool
-        child = MixinSymbol(outer=root, key="test", definitions=(nested_def,))
+        child = MixinSymbol(origin=Nested(outer=root, key="test"))
         root._nested["test_key"] = child
 
         pool_size_before = len(root._nested)
@@ -154,7 +145,6 @@ class TestSubclass:
 
     def test_child_instance_is_instance_of_symbol(self) -> None:
         scope_def = _empty_definition()
-        nested_def = _empty_definition()
         root = _root_symbol(scope_def)
-        child = MixinSymbol(outer=root, key="test", definitions=(nested_def,))
+        child = MixinSymbol(origin=Nested(outer=root, key="test"))
         assert isinstance(child, MixinSymbol)

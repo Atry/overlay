@@ -529,7 +529,7 @@ Callables can be used not only to define resources but also to define and transf
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, make_dataclass, replace
 from enum import Enum, auto
 from functools import cached_property, reduce
 import importlib
@@ -549,7 +549,6 @@ from typing import (
     ChainMap,
     ContextManager,
     Final,
-    Generator,
     Generic,
     Hashable,
     Iterable,
@@ -565,6 +564,7 @@ from typing import (
     assert_never,
     cast,
     final,
+    overload,
     override,
 )
 
@@ -620,8 +620,17 @@ class Symbol(ABC):
     pass
 
 
-@dataclass(kw_only=True, frozen=True, eq=False)
-class MixinSymbol(Mapping[Hashable, "MixinSymbol"], Symbol):
+@final
+@dataclass(kw_only=True, slots=True, weakref_slot=True)
+class Nested:
+    """Represents a nested symbol that hasn't resolved its definitions yet."""
+
+    outer: "MixinSymbol"
+    key: Hashable
+
+
+@dataclass(kw_only=True, eq=False)
+class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
     """
     Base class for nodes in the dependency graph.
 
@@ -747,16 +756,51 @@ class MixinSymbol(Mapping[Hashable, "MixinSymbol"], Symbol):
     ============================== ============================ ============================
     """
 
-    outer: Final["MixinSymbol | OuterSentinel"]
-    key: Final[Hashable | KeySentinel]
-    prototype: Final["MixinSymbol | PrototypeSymbolSentinel"] = (
+    origin: Nested | Sequence["Definition"]
+    """
+    Origin of this symbol:
+    - For root symbols: Sequence[Definition] (the definitions directly)
+    - For nested symbols: Nested(outer, key) (lazy resolution)
+    """
+
+    prototype: "MixinSymbol | PrototypeSymbolSentinel" = (
         PrototypeSymbolSentinel.NOT_INSTANCE
     )
-    _nested: Final[weakref.WeakValueDictionary[Hashable, "MixinSymbol"]] = field(
+    _nested: weakref.WeakValueDictionary[Hashable, "MixinSymbol"] = field(
         default_factory=weakref.WeakValueDictionary
     )
-    definitions: tuple["Definition", ...]
-    """Definitions for this MixinSymbol. Can be 0, 1, or multiple."""
+
+    @property
+    def outer(self) -> "MixinSymbol | OuterSentinel":
+        """Get the outer symbol, inferred from origin."""
+        match self.origin:
+            case Nested(outer=outer):
+                return outer
+            case _:
+                return OuterSentinel.ROOT
+
+    @property
+    def key(self) -> Hashable:
+        """Get the key, inferred from origin."""
+        match self.origin:
+            case Nested(key=key):
+                return key
+            case _:
+                return KeySentinel.ROOT
+
+    @cached_property
+    def definitions(self) -> tuple["Definition", ...]:
+        """Definitions for this MixinSymbol. Can be 0, 1, or multiple."""
+        match self.origin:
+            case Nested(outer=outer, key=key):
+                return tuple(
+                    inner_def
+                    for definition in outer.definitions
+                    if isinstance(definition, ScopeDefinition)
+                    for inner_def in (definition.get(key) or ())
+                )
+            case definitions:
+                return tuple(definitions)
 
     @final
     @cached_property
@@ -977,22 +1021,8 @@ class MixinSymbol(Mapping[Hashable, "MixinSymbol"], Symbol):
         if not issubclass(self.mixin_type, Scope):
             raise KeyError(key)
 
-        # Collect all nested definitions from all ScopeDefinitions
-        def generate_nested_definitions() -> Generator[Definition, None, None]:
-            for definition in self.definitions:
-                if isinstance(definition, ScopeDefinition):
-                    inner = definition.get(key)
-                    if inner is not None:
-                        yield from inner
-
-        nested_definitions = tuple(generate_nested_definitions())
-
-        # Create child MixinSymbol with definitions tuple
-        compiled_symbol = MixinSymbol(
-            key=key,
-            outer=self,
-            definitions=nested_definitions,
-        )
+        # Use Nested to create child symbol with lazy definition resolution
+        compiled_symbol = MixinSymbol(origin=Nested(outer=self, key=key))
 
         # If definitions is empty and no bases from super, key doesn't exist
         if not compiled_symbol.definitions and not compiled_symbol.strict_super_indices:
@@ -1049,9 +1079,13 @@ class MixinSymbol(Mapping[Hashable, "MixinSymbol"], Symbol):
         """
         Return the Mixin subclass to use for this symbol.
 
-        - If all definitions (own and super) are ScopeDefinition, return StaticScope
+        - If all definitions (own and super) are ScopeDefinition, return a dynamic Scope subclass
         - If no definitions are ScopeDefinition, return Resource
         - If mixed, raise ValueError
+
+        For Scope symbols, generates a dynamic class with:
+        - Child MixinSymbol instances as class attributes (descriptors)
+        - Custom __dir__ method listing all keys
         """
         all_definitions = tuple(
             definition
@@ -1067,19 +1101,47 @@ class MixinSymbol(Mapping[Hashable, "MixinSymbol"], Symbol):
             if isinstance(definition, ScopeDefinition)
         )
 
-        if scope_count == len(all_definitions):
-            if self.prototype is PrototypeSymbolSentinel.NOT_INSTANCE:
-                return StaticScope
-            else:
-                return InstanceScope
         if scope_count == 0:
             return Resource
-        raise ValueError(
-            f"Mixed ScopeDefinition and non-ScopeDefinition in {self.key}: "
-            f"{scope_count} ScopeDefinition, {len(all_definitions) - scope_count} non-ScopeDefinition"
-        )
 
-    def get_mixin(self, outer: Scope):
+        if scope_count != len(all_definitions):
+            raise ValueError(
+                f"Mixed ScopeDefinition and non-ScopeDefinition in {self.key}: "
+                f"{scope_count} ScopeDefinition, {len(all_definitions) - scope_count} non-ScopeDefinition"
+            )
+
+        # Create dynamic Scope subclass with MixinSymbol descriptors
+        if self.prototype is PrototypeSymbolSentinel.NOT_INSTANCE:
+            base_class: type[Scope] = StaticScope
+        else:
+            base_class = InstanceScope
+
+        # Create child MixinSymbol instances as class attributes (lazy via Nested)
+        class_attrs: dict[str, MixinSymbol] = {
+            key: MixinSymbol(origin=Nested(outer=self, key=key))
+            for key in self
+            if isinstance(key, str) and key.isidentifier()
+        }
+
+        def scope_dir(scope_self: Scope) -> Sequence[str]:
+            symbol = scope_self.symbol
+            symbol_keys = set(key for key in symbol if isinstance(key, str))
+            base_keys = set(object.__dir__(scope_self))
+            return tuple(symbol_keys | base_keys)
+
+        dynamic_class = make_dataclass(
+            f"{base_class.__name__}[{self.key!r}]",
+            [],
+            bases=(base_class,),
+            frozen=True,
+            slots=True,
+            weakref_slot=True,
+            namespace={"__dir__": scope_dir, **class_attrs},
+        )
+        dynamic_class.__final__ = True  # type: ignore[attr-defined]
+        return cast(type["Mixin"], dynamic_class)
+
+    def get_mixin(self, outer: "Scope") -> "Mixin":
         try:
             return outer._nested[self.key]
         except KeyError:
@@ -1089,6 +1151,35 @@ class MixinSymbol(Mapping[Hashable, "MixinSymbol"], Symbol):
         )
         outer._nested[self.key] = mixin
         return mixin
+
+    @overload
+    def __get__(self, instance: None, owner: type) -> "MixinSymbol": ...
+
+    @overload
+    def __get__(self, instance: object, owner: type) -> "MixinSymbol": ...
+
+    def __get__(  # type: ignore[misc]
+        self, instance: object, owner: type
+    ) -> "Mixin | object | MixinSymbol":
+        """Descriptor protocol for accessing nested symbols as attributes.
+
+        This method is invoked when MixinSymbol is used as a class attribute
+        on dynamically generated Scope subclasses.
+        """
+        if instance is None or not isinstance(instance, Scope):
+            return self
+
+        try:
+            child_mixin = self.get_mixin(outer=instance)
+        except KeyError as error:
+            key = self.key
+            raise AttributeError(
+                name=key if isinstance(key, str) else None, obj=instance
+            ) from error
+
+        if isinstance(child_mixin, Resource):
+            return child_mixin.evaluated
+        return child_mixin
 
     @cached_property
     def elected_merger_index(
@@ -1604,21 +1695,6 @@ class Scope(Mapping[Hashable, "Mixin"], Mixin, ABC):
 
     def __getitem__(self, key: Hashable) -> "Mixin":
         return self.symbol[key].get_mixin(outer=self)
-
-    def __getattr__(self, key: str) -> "Mixin | object":
-        try:
-            child_mixin = self[key]
-            if isinstance(child_mixin, Resource):
-                return child_mixin.evaluated
-            return child_mixin  # Child is Scope, return directly
-        except KeyError as error:
-            raise AttributeError(name=key, obj=self) from error
-
-    def __dir__(self) -> Sequence[str]:
-        return (
-            *(key for key in self.symbol if isinstance(key, str)),
-            *object.__dir__(self),
-        )
 
     def __call__(self, **kwargs: object) -> "InstanceScope":
         """
@@ -2274,26 +2350,26 @@ class Semigroup(Merger[T, T], Patcher[T], Generic[T]):
     pass
 
 
-@final
-@dataclass(kw_only=True, frozen=True, slots=True, weakref_slot=True)
+@dataclass(kw_only=True, frozen=True, eq=False)
 class StaticScope(Scope):
     """
     Scope for static access (no kwargs).
 
     Used when accessing scopes without instance parameters.
+    Base class for dynamically generated scope classes.
     """
 
     symbol: "MixinSymbol"
 
 
-@final
-@dataclass(kw_only=True, frozen=True, slots=True, weakref_slot=True)
+@dataclass(kw_only=True, frozen=True, eq=False)
 class InstanceScope(Scope):
     """
     Scope for instance access (with kwargs).
 
     Used when accessing scopes with instance parameters provided via Scope.__call__(**kwargs).
     When child resources are accessed, patcher-only resources use kwargs values as base values.
+    Base class for dynamically generated instance scope classes.
     """
 
     kwargs: Mapping[str, object]
@@ -2769,11 +2845,7 @@ def evaluate(
 
     definitions = tuple(to_scope_definition(namespace) for namespace in namespaces)
 
-    root_symbol = MixinSymbol(
-        outer=OuterSentinel.ROOT,
-        key=KeySentinel.ROOT,
-        definitions=definitions,
-    )
+    root_symbol = MixinSymbol(origin=definitions)
     root_mixin = root_symbol.mixin_type(
         symbol=root_symbol,
         outer=OuterSentinel.ROOT,
