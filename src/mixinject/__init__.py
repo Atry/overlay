@@ -804,13 +804,13 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
 
     @final
     @cached_property
-    def relative_bases(self) -> tuple["RelativeReference", ...]:
+    def resolved_bases(self) -> tuple["ResolvedReference", ...]:
         """
         Flatten all bases from all definitions into a single tuple.
-        Convert from ResourceReference to RelativeReference.
+        Convert from ResourceReference to ResolvedReference with pre-resolved symbols.
         """
         return tuple(
-            self.to_relative_reference(reference)
+            self.to_resolved_reference(reference)
             for definition in self.definitions
             for reference in definition.bases
         )
@@ -830,31 +830,36 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
             if isinstance(definition, EvaluatorDefinition)
         )
 
-    def to_relative_reference(
+    def to_resolved_reference(
         self,
         reference: "ResourceReference",
-    ) -> "RelativeReference":
+    ) -> "ResolvedReference":
         """
-        Convert a ResourceReference to a RelativeReference for resolution from outer scope.
+        Convert a ResourceReference to a ResolvedReference for resolution from outer scope.
 
-        The returned RelativeReference should be resolved from self.outer (not from self).
+        The returned ResolvedReference should be resolved from self.outer (not from self).
+        Path symbols are pre-resolved at compile-time to avoid runtime Hashable lookups.
 
         Analogy with file paths:
         - self = current file `/foo/bar/baz`
         - self.outer = PWD `/foo/bar/`
-        - AbsoluteReference `/qux` → RelativeReference `../../qux` (from PWD)
+        - AbsoluteReference `/qux` → ResolvedReference `../../qux` (from PWD)
 
-        For RelativeReference: return as-is.
+        For RelativeReference: resolve path to MixinSymbol tuple.
         For AbsoluteReference: levels_up = depth(self.outer) = depth(self) - 1.
         For LexicalReference: MIXIN-style lexical search with self-reference support.
         For FixtureReference: pytest-style search, skip if name == self.key.
 
         :param reference: The reference to convert.
-        :return: A RelativeReference for resolution from self.outer.
+        :return: A ResolvedReference for resolution from self.outer.
         """
+        levels_up: int
+        hashable_path: tuple[Hashable, ...]
+
         match reference:
-            case RelativeReference():
-                return reference
+            case RelativeReference(levels_up=rel_levels_up, path=rel_path):
+                levels_up = rel_levels_up
+                hashable_path = rel_path
             case AbsoluteReference(path=path):
                 depth = 0
                 current: MixinSymbol = self
@@ -865,7 +870,8 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
                         case MixinSymbol() as outer_symbol:
                             depth += 1
                             current = outer_symbol
-                return RelativeReference(levels_up=depth - 1, path=path)
+                levels_up = depth - 1
+                hashable_path = path
             case LexicalReference(path=path):
                 # MIXIN-style resolution (see lib.nix lookUpVariable):
                 # At each level, check in order:
@@ -895,12 +901,12 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
                                     f"own key (self-reference). Use explicit path to disambiguate."
                                 )
                             if is_property:
-                                return RelativeReference(levels_up=levels_up, path=path)
+                                hashable_path = path
+                                break
                             if is_self_reference:
                                 # Self-reference: skip first segment, navigate via rest
-                                return RelativeReference(
-                                    levels_up=levels_up, path=path[1:]
-                                )
+                                hashable_path = path[1:]
+                                break
                             # Recurse to outer
                             levels_up += 1
                             current = outer_symbol
@@ -921,12 +927,40 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
                                 if skip_first:
                                     skip_first = False
                                 else:
-                                    return RelativeReference(
-                                        levels_up=levels_up, path=(name,)
-                                    )
+                                    hashable_path = (name,)
+                                    break
                             current = outer_symbol
             case _ as unreachable:
                 assert_never(unreachable)
+
+        # Resolve hashable path to MixinSymbol path at compile-time
+        # Navigate to the starting point for path resolution
+        start_symbol: MixinSymbol = self
+        match start_symbol.outer:
+            case OuterSentinel.ROOT:
+                pass
+            case MixinSymbol() as outer_symbol:
+                start_symbol = outer_symbol
+
+        for _ in range(levels_up):
+            match start_symbol.outer:
+                case OuterSentinel.ROOT:
+                    raise ValueError(
+                        f"Cannot navigate up {levels_up} levels: reached root"
+                    )
+                case MixinSymbol() as outer_symbol:
+                    start_symbol = outer_symbol
+
+        # Resolve the path to find target_symbol (for compile-time access)
+        current_symbol: MixinSymbol = start_symbol
+        for part in hashable_path:
+            current_symbol = current_symbol[part]
+
+        return ResolvedReference(
+            levels_up=levels_up,
+            path=hashable_path,
+            target_symbol=current_symbol,
+        )
 
     def resolve_relative_reference(
         self,
@@ -1302,20 +1336,16 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
         if not self.definitions:
             return {}
         match self.outer:
-            case MixinSymbol() as outer_scope:
+            case MixinSymbol():
                 return {
-                    symbol: NestedSymbolIndex(
+                    resolved_reference.target_symbol: NestedSymbolIndex(
                         primary_index=OwnBaseIndex(index=own_base_index),
                         secondary_index=SymbolIndexSentinel.OWN,
                     )
-                    for own_base_index, relative_reference in enumerate(
-                        self.relative_bases
+                    for own_base_index, resolved_reference in enumerate(
+                        self.resolved_bases
                     )
-                    if (
-                        symbol := outer_scope.resolve_relative_reference(
-                            relative_reference, MixinSymbol
-                        )
-                    ).definitions  # Only include symbols with definitions
+                    if resolved_reference.target_symbol.definitions
                 }
             case _:
                 return {}
@@ -1329,7 +1359,7 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
         if not self.definitions:
             return {}
         match self.outer:
-            case MixinSymbol() as outer_scope:
+            case MixinSymbol():
                 return {
                     symbol: (
                         NestedSymbolIndex(
@@ -1337,15 +1367,12 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
                             secondary_index=secondary_index,
                         )
                     )
-                    for own_base_index, relative_reference in enumerate(
-                        self.relative_bases
+                    for own_base_index, resolved_reference in enumerate(
+                        self.resolved_bases
                     )
                     # Linearized strict super symbols of the extend reference
                     for secondary_index, symbol in enumerate(
-                        outer_scope.resolve_relative_reference(
-                            relative_reference,
-                            MixinSymbol,
-                        ).generate_strict_super()
+                        resolved_reference.target_symbol.generate_strict_super()
                     )
                     if symbol.definitions  # Only include symbols with definitions
                 }
@@ -1544,78 +1571,6 @@ class Mixin(Node, ABC):
             case int() as index:
                 return self.strict_super_mixins[index]
 
-    def resolve_relative_reference(
-        self,
-        reference: "RelativeReference",
-        lexical_outer_index: "SymbolIndexSentinel | int",
-    ) -> "Mixin":
-        """
-        Resolve a RelativeReference to a Mixin.
-
-        Starting point is ``self.outer`` (the scope where path navigation begins).
-
-        Navigation semantics for each ``levels_up`` step:
-        - If ``lexical_outer_index`` is ``OWN``: ``current = current.outer``
-        - If ``lexical_outer_index`` is ``int(i)``: ``current = current.strict_super_mixins[i].outer``
-
-        Then navigate down through ``path`` using ``mixin[key]``.
-
-        :param reference: The RelativeReference describing the path to the target mixin.
-        :param lexical_outer_index: The lexical outer index of the caller, used for navigation.
-        :return: The resolved mixin.
-        """
-        # Start from self.outer (the parent scope where we search)
-        if isinstance(self.outer, Mixin):
-            current: Mixin = self.outer
-        else:
-            current = self  # Root case: stay at self
-
-        current_lexical_index: SymbolIndexSentinel | int = lexical_outer_index
-
-        _logger.debug(
-            "resolve_relative_reference: self_key=%(self_key)s reference=%(reference)s "
-            "lexical_outer_index=%(lex_idx)s starting_current=%(current_key)s",
-            {
-                "self_key": self.symbol.key,
-                "reference": reference,
-                "lex_idx": lexical_outer_index,
-                "current_key": current.symbol.key,
-            },
-        )
-
-        for level in range(reference.levels_up):
-            _logger.debug(
-                "resolve_relative_reference: level=%(level)s current_key=%(current_key)s "
-                "current_lexical_index=%(lex_idx)s",
-                {
-                    "level": level,
-                    "current_key": current.symbol.key,
-                    "lex_idx": current_lexical_index,
-                },
-            )
-            # current = current.get_super(lexical_index).outer
-            base = current.get_super(current_lexical_index)
-            current_lexical_index = base.lexical_outer_index
-            assert isinstance(base.outer, Mixin)
-            current = base.outer
-            _logger.debug(
-                "resolve_relative_reference: after_level current_key=%(current_key)s",
-                {"current_key": current.symbol.key},
-            )
-
-        for part in reference.path:
-            _logger.debug(
-                "resolve_relative_reference: path_part=%(part)s current_key=%(current_key)s",
-                {"part": part, "current_key": current.symbol.key},
-            )
-            current = current[part]
-
-        _logger.debug(
-            "resolve_relative_reference: result_key=%(result_key)s",
-            {"result_key": current.symbol.key},
-        )
-        return current
-
     def generate_strict_super_mixins(self):
         _logger.debug(
             "generate_strict_super_mixins: self_key=%(self_key)s self_type=%(self_type)s "
@@ -1656,13 +1611,13 @@ class Mixin(Node, ABC):
                     assert (
                         self.symbol.definitions
                     )  # Must have definitions to have own bases
-                    reference = self.symbol.relative_bases[i]
+                    resolved_reference = self.symbol.resolved_bases[i]
                     _logger.debug(
-                        "generate_strict_super_mixins: OwnBaseIndex i=%(i)s reference=%(reference)s",
-                        {"i": i, "reference": reference},
+                        "generate_strict_super_mixins: OwnBaseIndex i=%(i)s resolved_reference=%(resolved_reference)s",
+                        {"i": i, "resolved_reference": resolved_reference},
                     )
-                    direct_mixin = self.resolve_relative_reference(
-                        reference,
+                    direct_mixin = resolved_reference.get_mixin(
+                        outer=self,
                         lexical_outer_index=self.lexical_outer_index,
                     )
                 case SymbolIndexSentinel.OWN:
@@ -1675,26 +1630,17 @@ class Mixin(Node, ABC):
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
-class Scope(Mapping[Hashable, "Mixin"], Mixin, ABC):
+class Scope(Mixin, ABC):
     """
     Base class for scope mixins that contain nested resources.
 
-    Implements Mapping interface for nested resource access.
     Scopes can contain both nested scopes and resources.
+    Attribute access is handled by MixinSymbol descriptors.
     """
 
     _nested: MutableMapping[Hashable, "Mixin"] = field(
         default_factory=dict, init=False, repr=False, compare=False
     )
-
-    def __iter__(self) -> Iterator[Hashable]:
-        return iter(self.symbol)
-
-    def __len__(self) -> int:
-        return len(self.symbol)
-
-    def __getitem__(self, key: Hashable) -> "Mixin":
-        return self.symbol[key].get_mixin(outer=self)
 
     def __call__(self, **kwargs: object) -> "InstanceScope":
         """
@@ -2855,26 +2801,32 @@ def evaluate(
     return root_mixin
 
 
-def _get_param_relative_reference(
+def _get_param_resolved_reference(
     param_name: str, outer_symbol: MixinSymbol
-) -> "RelativeReference | RelativeReferenceSentinel":
+) -> "ResolvedReference | RelativeReferenceSentinel":
     """
-    Get a RelativeReference to a parameter using lexical scoping (MixinSymbol chain).
+    Get a ResolvedReference to a parameter using lexical scoping (MixinSymbol chain).
 
     Traverses up the MixinSymbol chain to find the parameter, counting levels.
-    Returns a RelativeReference that can be resolved from any Mixin bound to outer_symbol,
-    or RelativeReferenceSentinel.NOT_FOUND if the parameter is not found.
+    Returns a ResolvedReference with pre-resolved symbol path that can be resolved
+    from any Mixin bound to outer_symbol, or RelativeReferenceSentinel.NOT_FOUND
+    if the parameter is not found.
 
     :param param_name: The name of the parameter to find.
     :param outer_symbol: The MixinSymbol to start searching from (lexical scope).
-    :return: RelativeReference describing how to reach the parameter,
+    :return: ResolvedReference with pre-resolved symbol describing how to reach the parameter,
              or RelativeReferenceSentinel.NOT_FOUND if not found.
     """
     levels_up = 0
     current: MixinSymbol = outer_symbol
     while True:
         if param_name in current:
-            return RelativeReference(levels_up=levels_up, path=(param_name,))
+            target_symbol = current[param_name]
+            return ResolvedReference(
+                levels_up=levels_up,
+                path=(param_name,),
+                target_symbol=target_symbol,
+            )
         match current.outer:
             case OuterSentinel.ROOT:
                 return RelativeReferenceSentinel.NOT_FOUND
@@ -2910,10 +2862,10 @@ def _compile_function_with_mixin(
         case keyword_params:
             has_positional = False
 
-    # Pre-compute RelativeReferences for each dependency (lexical scoping)
+    # Pre-compute ResolvedReferences for each dependency (lexical scoping)
     def compute_dependency_reference(
         parameter: Parameter,
-    ) -> tuple[str, RelativeReference, int]:
+    ) -> tuple[str, ResolvedReference, int]:
         if parameter.name == name:
             # Same-name dependency: start search from outer_symbol.outer (lexical)
             match outer_symbol.outer:
@@ -2923,31 +2875,31 @@ def _compile_function_with_mixin(
                     )
                 case MixinSymbol() as search_symbol:
                     pass
-            relative_reference_or_sentinel = _get_param_relative_reference(
+            resolved_reference_or_sentinel = _get_param_resolved_reference(
                 parameter.name, search_symbol
             )
-            match relative_reference_or_sentinel:
+            match resolved_reference_or_sentinel:
                 case RelativeReferenceSentinel.NOT_FOUND:
                     raise LookupError(
                         f"Resource '{name}' depends on '{parameter.name}' "
                         f"which does not exist in scope"
                     )
-                case RelativeReference() as relative_reference:
+                case ResolvedReference() as resolved_reference:
                     # Mark that we need to go up one extra level in Mixin chain
-                    return (parameter.name, relative_reference, 1)
+                    return (parameter.name, resolved_reference, 1)
         else:
             # Normal dependency
-            relative_reference_or_sentinel = _get_param_relative_reference(
+            resolved_reference_or_sentinel = _get_param_resolved_reference(
                 parameter.name, outer_symbol
             )
-            match relative_reference_or_sentinel:
+            match resolved_reference_or_sentinel:
                 case RelativeReferenceSentinel.NOT_FOUND:
                     raise LookupError(
                         f"Resource '{name}' depends on '{parameter.name}' "
                         f"which does not exist in scope"
                     )
-                case RelativeReference() as relative_reference:
-                    return (parameter.name, relative_reference, 0)
+                case ResolvedReference() as resolved_reference:
+                    return (parameter.name, resolved_reference, 0)
 
     dependency_references = tuple(
         compute_dependency_reference(parameter) for parameter in keyword_params
@@ -2956,13 +2908,13 @@ def _compile_function_with_mixin(
     # Return a compiled function that resolves dependencies at runtime
     def compiled_wrapper(mixin: Mixin) -> T:
         resolved_kwargs: dict[str, object] = {}
-        for param_name, ref, extra_levels in dependency_references:
+        for param_name, resolved_ref, extra_levels in dependency_references:
             # Navigate up extra levels via lexical_outer chain (for same-name dependencies)
             search_mixin: Mixin = mixin
             for _ in range(extra_levels):
                 search_mixin = search_mixin.lexical_outer
-            param_mixin = search_mixin.resolve_relative_reference(
-                ref,
+            param_mixin = resolved_ref.get_mixin(
+                outer=search_mixin,
                 lexical_outer_index=search_mixin.lexical_outer_index,
             )
             if isinstance(param_mixin, Resource):
@@ -2975,13 +2927,13 @@ def _compile_function_with_mixin(
 
     def compiled_wrapper_with_positional(mixin: Mixin) -> Callable[..., T]:
         resolved_kwargs: dict[str, object] = {}
-        for param_name, ref, extra_levels in dependency_references:
+        for param_name, resolved_ref, extra_levels in dependency_references:
             # Navigate up extra levels via lexical_outer chain (for same-name dependencies)
             search_mixin: Mixin = mixin
             for _ in range(extra_levels):
                 search_mixin = search_mixin.lexical_outer
-            param_mixin = search_mixin.resolve_relative_reference(
-                ref,
+            param_mixin = resolved_ref.get_mixin(
+                outer=search_mixin,
                 lexical_outer_index=search_mixin.lexical_outer_index,
             )
             if isinstance(param_mixin, Resource):
@@ -3026,6 +2978,61 @@ class RelativeReference:
     """
 
     path: Final[tuple[Hashable, ...]]
+
+
+@final
+@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
+class ResolvedReference:
+    """
+    A reference with pre-resolved target symbol for compile-time access.
+
+    The path uses Hashable keys for runtime navigation to support merged scopes.
+    The target_symbol provides compile-time access to the resolved symbol.
+    """
+
+    levels_up: Final[int]
+    """Number of levels to go up in the lexical scope."""
+
+    path: Final[tuple[Hashable, ...]]
+    """Hashable path for runtime navigation (supports merged scopes)."""
+
+    target_symbol: Final["MixinSymbol"]
+    """The final resolved MixinSymbol (for compile-time access)."""
+
+    def get_mixin(
+        self,
+        outer: "Mixin",
+        lexical_outer_index: "SymbolIndexSentinel | int",
+    ) -> "Mixin":
+        """
+        Get the target mixin by navigating from outer.
+
+        Uses key-based lookup at runtime to support merged scopes correctly.
+
+        :param outer: The mixin from which navigation starts.
+        :param lexical_outer_index: The lexical outer index of the caller.
+        :return: The resolved mixin.
+        """
+        # Start from outer.outer (the parent scope where we search)
+        if isinstance(outer.outer, Mixin):
+            current: Mixin = outer.outer
+        else:
+            current = outer  # Root case: stay at outer
+
+        current_lexical_index: SymbolIndexSentinel | int = lexical_outer_index
+
+        for _ in range(self.levels_up):
+            base = current.get_super(current_lexical_index)
+            current_lexical_index = base.lexical_outer_index
+            assert isinstance(base.outer, Mixin)
+            current = base.outer
+
+        # Navigate through path using key-based lookup (supports merged scopes)
+        for key in self.path:
+            assert isinstance(current, Scope)
+            current = current.symbol[key].get_mixin(outer=current)
+
+        return current
 
 
 @final
