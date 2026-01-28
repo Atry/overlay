@@ -565,7 +565,7 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    from mixinject import v2
+    from mixinject import runtime
 
 
 import weakref
@@ -748,35 +748,35 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
     ``ScopeDefinition``            (no EvaluatorSymbol)         (creates nested MixinSymbol)
     ============================== ============================ ============================
 
-    .. todo:: MixinV2 and ScopeV2 Redesign
+    .. todo:: Mixin and Scope Redesign
 
-       Implement a new ``MixinV2`` and ``ScopeV2`` design to properly support
+       Implement a new ``Mixin`` and ``Scope`` design to properly support
        ``is_local`` and ``is_eager`` semantics.
 
-       **MixinV2 (Lazy Evaluation Layer)**
+       **Mixin (Lazy Evaluation Layer)**
 
-       - ``MixinV2`` can be lazily evaluated to produce either a ``Resource`` or a ``ScopeV2``
-       - ``MixinV2`` may be a dynamically generated class
-       - ``MixinV2`` is NOT frozen (mutable)
-       - All lazy evaluation occurs at the ``MixinV2.evaluated`` level
+       - ``Mixin`` can be lazily evaluated to produce either a ``Resource`` or a ``Scope``
+       - ``Mixin`` may be a dynamically generated class
+       - ``Mixin`` is NOT frozen (mutable)
+       - All lazy evaluation occurs at the ``Mixin.evaluated`` level
 
-       **ScopeV2 (Frozen Data Container)**
+       **Scope (Frozen Data Container)**
 
-       - ``ScopeV2`` is a frozen, dynamically generated dataclass
-       - ``ScopeV2`` does NOT inherit from ``MixinV2``
-       - ``ScopeV2`` has NO lazy evaluation capability at the attribute level
-       - All attributes are eagerly resolved when the ``ScopeV2`` instance is created
+       - ``Scope`` is a frozen, dynamically generated dataclass
+       - ``Scope`` does NOT inherit from ``Mixin``
+       - ``Scope`` has NO lazy evaluation capability at the attribute level
+       - All attributes are eagerly resolved when the ``Scope`` instance is created
 
-       **Circular Dependencies Between MixinV2 Instances**
+       **Circular Dependencies Between Mixin Instances**
 
-       ``MixinV2`` instances under the same ``ScopeV2`` can have circular dependencies.
+       ``Mixin`` instances under the same ``Scope`` can have circular dependencies.
        This is achieved through a two-phase construction:
 
-       1. First, construct all ``MixinV2`` instances without arguments (empty initialization)
-       2. Then, mutually set references by assigning each ``MixinV2`` instance to the
+       1. First, construct all ``Mixin`` instances without arguments (empty initialization)
+       2. Then, mutually set references by assigning each ``Mixin`` instance to the
           appropriate attributes of the others
 
-       This pattern requires ``MixinV2`` to be mutable (not frozen), enabling the deferred
+       This pattern requires ``Mixin`` to be mutable (not frozen), enabling the deferred
        wiring of circular references after initial construction.
 
        **Key Difference from Current Design**
@@ -788,8 +788,8 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
 
        In the new design:
 
-       - Lazy evaluation happens ONLY at the ``MixinV2.evaluated`` boundary
-       - ``ScopeV2`` attributes are NOT lazily evaluated
+       - Lazy evaluation happens ONLY at the ``Mixin.evaluated`` boundary
+       - ``Scope`` attributes are NOT lazily evaluated
        - This eliminates the redundancy and provides a cleaner separation of concerns
     """
 
@@ -888,7 +888,7 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
         Get all same-scope dependencies from all evaluator symbols.
 
         Aggregates get_same_scope_dependencies() from all evaluator symbols,
-        deduplicating by attribute_name. Used by V2's construct_scope_v2
+        deduplicating by attribute_name. Used by V2's construct_scope
         for wiring _sibling_dependencies.
         """
         seen: set[str] = set()  # Use attribute_name to dedupe
@@ -1509,7 +1509,7 @@ class OuterSentinel(Enum):
     ROOT = auto()
 
 
-# V1 Runtime classes (Node, Mixin, Scope, Resource) removed - replaced by MixinV2/ScopeV2
+# V1 Runtime classes (Node, Mixin, Scope, Resource) removed - replaced by Mixin/Scope
 
 
 class SymbolIndexSentinel(Enum):
@@ -1688,18 +1688,18 @@ class NestedSymbolIndex:
 @dataclass(kw_only=True, frozen=True, eq=False)
 class EvaluatorSymbol(Symbol):
     """
-    Base class for objects that produce EvaluatorV2.
+    Base class for objects that produce Evaluator.
     Held by MixinSymbol via composition (evaluator_symbols cached_property).
     """
 
     symbol: "MixinSymbol"
     """The MixinSymbol that owns this EvaluatorSymbol."""
 
-    # V1 bind() method removed - use bind_v2() instead
+    # V1 bind() method removed - use bind() instead
 
     @abstractmethod
-    def bind_v2(self, mixin: "v2.MixinV2") -> "v2.EvaluatorV2":
-        """Create an EvaluatorV2 instance for the given MixinV2."""
+    def bind(self, mixin: "runtime.Mixin") -> "runtime.Evaluator":
+        """Create an Evaluator instance for the given Mixin."""
         ...
 
     @abstractmethod
@@ -1716,24 +1716,24 @@ class EvaluatorSymbol(Symbol):
 @dataclass(kw_only=True, frozen=True, eq=False)
 class MergerSymbol(EvaluatorSymbol, Generic[TPatch_contra, TResult_co]):
     """
-    EvaluatorSymbol that produces MergerV2.
+    EvaluatorSymbol that produces Merger.
 
-    Use ``isinstance(getter, MergerSymbol)`` to check if a getter returns a MergerV2.
+    Use ``isinstance(getter, MergerSymbol)`` to check if a getter returns a Merger.
 
     Type Parameters
     ===============
 
-    - ``TPatch_contra``: The type of patches this MergerV2 accepts (contravariant)
-    - ``TResult_co``: The type of result this MergerV2 produces (covariant)
+    - ``TPatch_contra``: The type of patches this Merger accepts (contravariant)
+    - ``TResult_co``: The type of result this Merger produces (covariant)
     """
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
 class PatcherSymbol(EvaluatorSymbol, Generic[TPatch_co]):
     """
-    EvaluatorSymbol that produces PatcherV2.
+    EvaluatorSymbol that produces Patcher.
 
-    Use ``isinstance(getter, PatcherSymbol)`` to check if a getter returns a PatcherV2.
+    Use ``isinstance(getter, PatcherSymbol)`` to check if a getter returns a Patcher.
 
     Type Parameters
     ===============
@@ -1756,27 +1756,27 @@ class FunctionalMergerSymbol(
     definition: "FunctionalMergerDefinition[TPatch_contra, TResult_co]"
     """The definition that created this EvaluatorSymbol."""
 
-    # V1 compiled_function and bind() removed - use compiled_function_v2 and bind_v2()
+    # V1 compiled_function and bind() removed - use compiled_function and bind()
 
     @cached_property
-    def compiled_function_v2(
+    def compiled_function(
         self,
-    ) -> "Callable[[v2.MixinV2], Callable[[Iterator[TPatch_contra]], TResult_co]]":
-        """Compiled function for V2 that takes MixinV2 and returns the aggregation function."""
+    ) -> "Callable[[runtime.Mixin], Callable[[Iterator[TPatch_contra]], TResult_co]]":
+        """Compiled function for V2 that takes Mixin and returns the aggregation function."""
         key = self.symbol.key
         assert isinstance(key, str), f"Merger key must be a string, got {type(key)}"
         match self.symbol.outer:
             case OuterSentinel.ROOT:
                 raise ValueError("Root symbols do not have compiled functions")
             case MixinSymbol() as outer_symbol:
-                return _compile_function_with_mixin_v2(
+                return _compile_function_with_mixin(
                     outer_symbol, self.definition.function, key
                 )
 
-    def bind_v2(
-        self, mixin: "v2.MixinV2"
-    ) -> "v2.FunctionalMergerV2[TPatch_contra, TResult_co]":
-        return v2.FunctionalMergerV2(
+    def bind(
+        self, mixin: "runtime.Mixin"
+    ) -> "runtime.FunctionalMerger[TPatch_contra, TResult_co]":
+        return runtime.FunctionalMerger(
             evaluator_getter=self, mixin=mixin
         )
 
@@ -1801,27 +1801,27 @@ class EndofunctionMergerSymbol(
     definition: "EndofunctionMergerDefinition[TResult]"
     """The definition that created this EvaluatorSymbol."""
 
-    # V1 compiled_function and bind() removed - use compiled_function_v2 and bind_v2()
+    # V1 compiled_function and bind() removed - use compiled_function and bind()
 
     @cached_property
-    def compiled_function_v2(self) -> "Callable[[v2.MixinV2], TResult]":
-        """Compiled function for V2 that takes MixinV2 and returns the base value."""
+    def compiled_function(self) -> "Callable[[runtime.Mixin], TResult]":
+        """Compiled function for V2 that takes Mixin and returns the base value."""
         key = self.symbol.key
         assert isinstance(key, str), f"Resource key must be a string, got {type(key)}"
         match self.symbol.outer:
             case OuterSentinel.ROOT:
                 raise ValueError("Root symbols do not have compiled functions")
             case MixinSymbol() as outer_scope:
-                return _compile_function_with_mixin_v2(
+                return _compile_function_with_mixin(
                     outer_scope,
                     self.definition.function,
                     key,
                 )
 
-    def bind_v2(
-        self, mixin: "v2.MixinV2"
-    ) -> "v2.EndofunctionMergerV2[TResult]":
-        return v2.EndofunctionMergerV2(
+    def bind(
+        self, mixin: "runtime.Mixin"
+    ) -> "runtime.EndofunctionMerger[TResult]":
+        return runtime.EndofunctionMerger(
             evaluator_getter=self, mixin=mixin
         )
 
@@ -1840,27 +1840,27 @@ class SinglePatcherSymbol(PatcherSymbol[TPatch_co], Generic[TPatch_co]):
     definition: "SinglePatcherDefinition[TPatch_co]"
     """The definition that created this EvaluatorSymbol."""
 
-    # V1 compiled_function and bind() removed - use compiled_function_v2 and bind_v2()
+    # V1 compiled_function and bind() removed - use compiled_function and bind()
 
     @cached_property
-    def compiled_function_v2(self) -> "Callable[[v2.MixinV2], TPatch_co]":
-        """Compiled function for V2 that takes MixinV2 and returns the patch value."""
+    def compiled_function(self) -> "Callable[[runtime.Mixin], TPatch_co]":
+        """Compiled function for V2 that takes Mixin and returns the patch value."""
         key = self.symbol.key
         assert isinstance(key, str), f"Patch key must be a string, got {type(key)}"
         match self.symbol.outer:
             case OuterSentinel.ROOT:
                 raise ValueError("Root symbols do not have compiled functions")
             case MixinSymbol() as outer_scope:
-                return _compile_function_with_mixin_v2(
+                return _compile_function_with_mixin(
                     outer_scope,
                     self.definition.function,
                     key,
                 )
 
-    def bind_v2(
-        self, mixin: "v2.MixinV2"
-    ) -> "v2.SinglePatcherV2[TPatch_co]":
-        return v2.SinglePatcherV2(
+    def bind(
+        self, mixin: "runtime.Mixin"
+    ) -> "runtime.SinglePatcher[TPatch_co]":
+        return runtime.SinglePatcher(
             evaluator_getter=self, mixin=mixin
         )
 
@@ -1879,27 +1879,27 @@ class MultiplePatcherSymbol(PatcherSymbol[TPatch_co], Generic[TPatch_co]):
     definition: "MultiplePatcherDefinition[TPatch_co]"
     """The definition that created this EvaluatorSymbol."""
 
-    # V1 compiled_function and bind() removed - use compiled_function_v2 and bind_v2()
+    # V1 compiled_function and bind() removed - use compiled_function and bind()
 
     @cached_property
-    def compiled_function_v2(self) -> "Callable[[v2.MixinV2], Iterable[TPatch_co]]":
-        """Compiled function for V2 that takes MixinV2 and returns the patch values."""
+    def compiled_function(self) -> "Callable[[runtime.Mixin], Iterable[TPatch_co]]":
+        """Compiled function for V2 that takes Mixin and returns the patch values."""
         key = self.symbol.key
         assert isinstance(key, str), f"Patch key must be a string, got {type(key)}"
         match self.symbol.outer:
             case OuterSentinel.ROOT:
                 raise ValueError("Root symbols do not have compiled functions")
             case MixinSymbol() as outer_symbol:
-                return _compile_function_with_mixin_v2(
+                return _compile_function_with_mixin(
                     outer_symbol,
                     self.definition.function,
                     key,
                 )
 
-    def bind_v2(
-        self, mixin: "v2.MixinV2"
-    ) -> "v2.MultiplePatcherV2[TPatch_co]":
-        return v2.MultiplePatcherV2(
+    def bind(
+        self, mixin: "runtime.Mixin"
+    ) -> "runtime.MultiplePatcher[TPatch_co]":
+        return runtime.MultiplePatcher(
             evaluator_getter=self, mixin=mixin
         )
 
@@ -2257,7 +2257,7 @@ def _parse_package(module: ModuleType) -> ScopeDefinition:
     For packages (modules with __path__), uses pkgutil.iter_modules to discover submodules
     and importlib.import_module to lazily import them when accessed.
     """
-    # Modules are private by default; use modules_public=True in evaluate_v2 to make public
+    # Modules are private by default; use modules_public=True in evaluate to make public
     if hasattr(module, "__path__"):
         return PackageScopeDefinition(bases=(), is_public=False, underlying=module)
     return ScopeDefinition(bases=(), is_public=False, underlying=module)
@@ -2477,7 +2477,7 @@ def public(definition: TPublicDefinition) -> TPublicDefinition:
     return replace(definition, is_public=True)
 
 
-# V1 function evaluate() removed - use evaluate_v2() from v2.py instead
+# V1 function evaluate() removed - use evaluate() from v2.py instead
 
 
 def _get_param_resolved_reference(
@@ -2514,7 +2514,7 @@ def _get_param_resolved_reference(
                 current = outer_scope
 
 
-# V1 function _compile_function_with_mixin() removed - use _compile_function_with_mixin_v2() instead
+# V1 function _compile_function_with_mixin() removed - use _compile_function_with_mixin() instead
 
 
 def _get_same_scope_dependencies_from_function(
@@ -2575,21 +2575,21 @@ def _get_same_scope_dependencies_from_function(
     return tuple(result)
 
 
-def _compile_function_with_mixin_v2(
+def _compile_function_with_mixin(
     outer_symbol: "MixinSymbol",
     function: Callable[P, T],
     name: str,
-) -> "Callable[[v2.MixinV2], T]":
+) -> "Callable[[runtime.Mixin], T]":
     """
     Compile a function with pre-computed dependency references for V2.
 
-    Similar to _compile_function_with_mixin but works with MixinV2.
-    Uses mixin.resolve_dependency(ref) which returns MixinV2, then .evaluated.
+    Similar to _compile_function_with_mixin but works with Mixin.
+    Uses mixin.resolve_dependency(ref) which returns Mixin, then .evaluated.
 
     :param outer_symbol: The MixinSymbol containing the resource (lexical scope).
     :param function: The function for which to resolve dependencies.
     :param name: The name of the resource being resolved (for self-dependency avoidance).
-    :return: A function that takes a MixinV2 and returns the result.
+    :return: A function that takes a Mixin and returns the result.
     """
     sig = signature(function)
     params = tuple(sig.parameters.values())
@@ -2645,29 +2645,29 @@ def _compile_function_with_mixin_v2(
     )
 
     # Return a compiled function that resolves dependencies at runtime (V2)
-    def compiled_wrapper_v2(mixin: "v2.MixinV2") -> T:
+    def compiled_wrapper(mixin: "runtime.Mixin") -> T:
         resolved_kwargs: dict[str, object] = {}
         for param_name, resolved_reference, extra_levels in dependency_references:
             # Navigate up extra levels via lexical_outer chain (for same-name dependencies)
-            search_mixin: v2.MixinV2 = mixin
+            search_mixin: runtime.Mixin = mixin
             for _ in range(extra_levels):
                 search_mixin = search_mixin.lexical_outer
-            # resolve_dependency returns MixinV2, call .evaluated to get value
+            # resolve_dependency returns Mixin, call .evaluated to get value
             dependency_mixin = search_mixin.resolve_dependency(resolved_reference)
             resolved_kwargs[param_name] = dependency_mixin.evaluated
 
         return function(**resolved_kwargs)  # type: ignore
 
     def compiled_wrapper_v2_with_positional(
-        mixin: "v2.MixinV2",
+        mixin: "runtime.Mixin",
     ) -> Callable[..., T]:
         resolved_kwargs: dict[str, object] = {}
         for param_name, resolved_reference, extra_levels in dependency_references:
             # Navigate up extra levels via lexical_outer chain (for same-name dependencies)
-            search_mixin: v2.MixinV2 = mixin
+            search_mixin: runtime.Mixin = mixin
             for _ in range(extra_levels):
                 search_mixin = search_mixin.lexical_outer
-            # resolve_dependency returns MixinV2, call .evaluated to get value
+            # resolve_dependency returns Mixin, call .evaluated to get value
             dependency_mixin = search_mixin.resolve_dependency(resolved_reference)
             resolved_kwargs[param_name] = dependency_mixin.evaluated
 
@@ -2679,7 +2679,7 @@ def _compile_function_with_mixin_v2(
     if has_positional:
         return compiled_wrapper_v2_with_positional  # type: ignore
     else:
-        return compiled_wrapper_v2
+        return compiled_wrapper
 
 
 @final
@@ -2728,29 +2728,29 @@ class ResolvedReference:
     target_symbol: Final["MixinSymbol"]
     """The final resolved MixinSymbol (for compile-time access)."""
 
-    # V1 method get_mixin() removed - use get_mixin_v2() instead
+    # V1 method get_mixin() removed - use get_mixin() instead
 
-    def get_mixin_v2(
+    def get_mixin(
         self,
-        outer: "v2.MixinV2",
+        outer: "runtime.Mixin",
         lexical_outer_index: "SymbolIndexSentinel | int",
-    ) -> "v2.MixinV2":
+    ) -> "runtime.Mixin":
         """
-        Get the target MixinV2 by navigating from outer using V2 semantics.
+        Get the target Mixin by navigating from outer using V2 semantics.
 
-        Similar to get_mixin but works with V2's frozen ScopeV2.
+        Similar to get_mixin but works with V2's frozen Scope.
         Uses key-based lookup at runtime to support merged scopes correctly.
 
         NOTE: This only handles non-local resources via navigation. Local resources
         at the same scope level are accessed via _sibling_dependencies, not navigation.
 
-        :param outer: The MixinV2 from which navigation starts.
+        :param outer: The Mixin from which navigation starts.
         :param lexical_outer_index: The lexical outer index of the caller.
-        :return: The resolved MixinV2 (call .evaluated for actual value).
+        :return: The resolved Mixin (call .evaluated for actual value).
         """
         # Start from outer.outer (the parent scope where we search)
-        if isinstance(outer.outer, v2.MixinV2):
-            current: v2.MixinV2 = outer.outer
+        if isinstance(outer.outer, runtime.Mixin):
+            current: runtime.Mixin = outer.outer
         else:
             current = outer  # Root case: stay at outer
 
@@ -2760,15 +2760,15 @@ class ResolvedReference:
         for _ in range(self.levels_up):
             base = current.get_super(current_lexical_index)
             current_lexical_index = base.lexical_outer_index  # KEY: Chain the index!
-            assert isinstance(base.outer, v2.MixinV2)
+            assert isinstance(base.outer, runtime.Mixin)
             current = base.outer
 
         # Navigate through path using key-based lookup
-        # At this point, current is a MixinV2 that evaluates to a ScopeV2
+        # At this point, current is a Mixin that evaluates to a Scope
         for key in self.path:
             scope = current.evaluated
-            assert isinstance(scope, v2.ScopeV2), (
-                f"Expected ScopeV2 during navigation, got {type(scope).__name__}"
+            assert isinstance(scope, runtime.Scope), (
+                f"Expected Scope during navigation, got {type(scope).__name__}"
             )
 
             # Look up child by key in frozen _children

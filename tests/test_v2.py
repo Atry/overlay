@@ -1,4 +1,4 @@
-"""Tests for MixinV2 and ScopeV2 implementation."""
+"""Tests for Mixin and Scope implementation."""
 
 import sys
 from pathlib import Path
@@ -21,10 +21,10 @@ from mixinject import (
     PackageScopeDefinition,
     ScopeDefinition,
 )
-from mixinject.v2 import (
-    MixinV2,
-    ScopeV2,
-    evaluate_v2,
+from mixinject.runtime import (
+    Mixin,
+    Scope,
+    evaluate,
 )
 
 R = RelativeReference
@@ -33,7 +33,7 @@ FIXTURES_DIR = str(Path(__file__).parent / "fixtures")
 
 
 class TestBasicConstruction:
-    """Test basic ScopeV2 construction and attribute access."""
+    """Test basic Scope construction and attribute access."""
 
     def test_simple_resource_no_dependencies(self) -> None:
         @scope
@@ -43,8 +43,8 @@ class TestBasicConstruction:
             def greeting() -> str:
                 return "Hello"
 
-        root = evaluate_v2(Namespace)
-        assert isinstance(root, ScopeV2)
+        root = evaluate(Namespace)
+        assert isinstance(root, Scope)
         assert root.greeting == "Hello"
 
     def test_resource_with_dependency(self) -> None:
@@ -59,7 +59,7 @@ class TestBasicConstruction:
             def greeting(name: str) -> str:
                 return f"Hello, {name}!"
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
         assert root.greeting == "Hello, World!"
 
     def test_multiple_dependencies(self) -> None:
@@ -78,7 +78,7 @@ class TestBasicConstruction:
             def combined(first: str, second: str) -> str:
                 return f"{first} and {second}"
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
         assert root.combined == "First and Second"
 
     def test_getitem_access(self) -> None:
@@ -89,7 +89,7 @@ class TestBasicConstruction:
             def value() -> int:
                 return 42
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
         assert root["value"] == 42
 
     def test_attribute_error_for_missing(self) -> None:
@@ -100,7 +100,7 @@ class TestBasicConstruction:
             def existing() -> str:
                 return "exists"
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
         with pytest.raises(AttributeError):
             _ = root.nonexistent
 
@@ -112,7 +112,7 @@ class TestBasicConstruction:
             def existing() -> str:
                 return "exists"
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
         with pytest.raises(KeyError):
             _ = root["nonexistent"]
 
@@ -132,7 +132,7 @@ class TestLazyEvaluation:
                 call_count += 1
                 return "evaluated"
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
 
         # Resource should not be evaluated yet
         assert call_count == 0
@@ -155,10 +155,10 @@ class TestLazyEvaluation:
             def lazy() -> str:
                 return "value"
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
 
         # Lazy resources should work correctly when accessed
-        # (ScopeV2 is now fully lazy - children are created on demand)
+        # (Scope is now fully lazy - children are created on demand)
         result = root.lazy
         assert result == "value"
 
@@ -180,7 +180,7 @@ class TestEagerEvaluation:
                 return "evaluated"
 
         # Eager resources are evaluated immediately during scope construction
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
         assert call_count == 1  # Evaluated during construction
 
         # First access returns cached value (already evaluated)
@@ -202,10 +202,10 @@ class TestEagerEvaluation:
             def eager() -> str:
                 return "value"
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
 
         # Eager resources should return the evaluated value
-        # (In lazy ScopeV2, eager evaluation happens on first access)
+        # (In lazy Scope, eager evaluation happens on first access)
         result = root.eager
         assert result == "value"
 
@@ -225,7 +225,7 @@ class TestPublicResources:
             def public_resource() -> str:
                 return "public"
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
 
         # Private resource (no @public) should not be accessible via __getattr__
         with pytest.raises(AttributeError):
@@ -241,7 +241,7 @@ class TestPublicResources:
             def private_resource() -> str:
                 return "private"
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
 
         with pytest.raises(AttributeError):
             _ = root.private_resource
@@ -253,7 +253,7 @@ class TestPublicResources:
             def private_resource() -> str:
                 return "private"
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
 
         with pytest.raises(KeyError):
             _ = root["private_resource"]
@@ -270,7 +270,7 @@ class TestPublicResources:
             def full_url(api_endpoint: str) -> str:
                 return f"https://example.com{api_endpoint}"
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
 
         # Private resource is accessible indirectly via dependency
         assert root.full_url == "https://example.com/api/v1"
@@ -284,7 +284,7 @@ class TestCircularDependencies:
     """Test circular dependency handling."""
 
     def test_construction_succeeds_with_circular_deps(self) -> None:
-        """ScopeV2 construction should succeed even with circular dependencies."""
+        """Scope construction should succeed even with circular dependencies."""
 
         @scope
         class Namespace:
@@ -299,8 +299,8 @@ class TestCircularDependencies:
                 return f"b({a})"
 
         # Construction should succeed - no evaluation happens yet
-        root = evaluate_v2(Namespace)
-        assert isinstance(root, ScopeV2)
+        root = evaluate(Namespace)
+        assert isinstance(root, Scope)
 
     def test_circular_evaluation_raises_recursion_error(self) -> None:
         """Evaluating truly circular resources should cause RecursionError."""
@@ -317,7 +317,7 @@ class TestCircularDependencies:
             def b(a: str) -> str:
                 return f"b({a})"
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
 
         # Attempting to evaluate should cause RecursionError
         with pytest.raises(RecursionError):
@@ -340,11 +340,11 @@ class TestNestedScopes:
         class Outer:
             inner = Inner
 
-        root = evaluate_v2(Outer)
+        root = evaluate(Outer)
 
         # Access nested scope
         inner_scope = root.inner
-        assert isinstance(inner_scope, ScopeV2)
+        assert isinstance(inner_scope, Scope)
         assert inner_scope.inner_value == 42
 
     def test_nested_scope_with_outer_dependency(self) -> None:
@@ -367,7 +367,7 @@ class TestNestedScopes:
                 def computed(base: int, multiplier: int) -> int:
                     return base * multiplier
 
-        root = evaluate_v2(Outer)
+        root = evaluate(Outer)
 
         assert root.inner.computed == 50
 
@@ -390,7 +390,7 @@ class TestUnionMount:
             def b() -> str:
                 return "b"
 
-        root = evaluate_v2(First, Second)
+        root = evaluate(First, Second)
         assert root.a == "a"
         assert root.b == "b"
 
@@ -423,7 +423,7 @@ class TestPatch:
             class Combined:
                 pass
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
         assert root.Combined.value == 20
 
     def test_multiple_patches(self) -> None:
@@ -458,7 +458,7 @@ class TestPatch:
             class Combined:
                 pass
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
         assert root.Combined.value == 18
 
 
@@ -490,7 +490,7 @@ class TestPatches:
             class Combined:
                 pass
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
         assert root.Combined.value == 18
 
 
@@ -513,7 +513,7 @@ class TestCapturedScopes:
                 def counter(counter: int) -> int:
                     return counter + 1
 
-        root = evaluate_v2(Outer)
+        root = evaluate(Outer)
         assert root.counter == 0
         assert root.Inner.counter == 1
 
@@ -553,11 +553,11 @@ class TestMerger:
             class Combined:
                 pass
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
         assert root.Combined.tags == frozenset({"tag1", "tag2"})
 
 
-class TestUnionMountV2:
+class TestUnionMount:
     """Test union mount semantics using @scope to combine namespaces (ported from V1)."""
 
     def test_union_mount_multiple_namespaces(self) -> None:
@@ -586,7 +586,7 @@ class TestUnionMountV2:
             class Combined:
                 pass
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
         assert root.Combined.foo == "foo_value"
         assert root.Combined.bar == "bar_value"
 
@@ -612,7 +612,7 @@ class TestUnionMountV2:
                 def combined(base_value: str) -> str:
                     return f"{base_value}_combined"
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
         assert root.Namespace2.combined == "base_combined"
 
     def test_deduplicated_tags_from_docstring(self) -> None:
@@ -657,7 +657,7 @@ class TestUnionMountV2:
             class Combined:
                 pass
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
         assert root.Combined.deduplicated_tags == frozenset(
             {"tag1", "tag2_dependency_value"}
         )
@@ -693,7 +693,7 @@ class TestUnionMountV2:
             class Combined:
                 pass
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
         assert root.Combined.foo == "foo"
         assert root.Combined.bar == "foo_bar"
 
@@ -714,7 +714,7 @@ class TestUnionMountV2:
             def bar() -> str:
                 return "bar_value"
 
-        root = evaluate_v2(Namespace1, Namespace2)
+        root = evaluate(Namespace1, Namespace2)
         assert root.foo == "foo_value"
         assert root.bar == "bar_value"
 
@@ -738,7 +738,7 @@ class TestUnionMountV2:
             def derived(base_value: str) -> str:
                 return f"{base_value}_derived"
 
-        root = evaluate_v2(Provider, Consumer)
+        root = evaluate(Provider, Consumer)
         assert root.base_value == "base"
         assert root.derived == "base_derived"
 
@@ -764,7 +764,7 @@ class TestUnionMountV2:
             def tags() -> str:
                 return "tag2"
 
-        root = evaluate_v2(MergerNamespace, PatchNamespace1, PatchNamespace2)
+        root = evaluate(MergerNamespace, PatchNamespace1, PatchNamespace2)
         assert root.tags == frozenset({"tag1", "tag2"})
 
 
@@ -792,7 +792,7 @@ class TestExtendNameResolution:
                 def doubled(base_value: int) -> int:
                     return base_value * 2
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
         assert root.Extended.base_value == 42
         assert root.Extended.doubled == 84
 
@@ -851,7 +851,7 @@ class TestScalaStylePathDependentTypes:
                 def foo() -> Callable[[int], int]:
                     return lambda x: 100 + x
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
 
         # foo = 10 (Base) + 1 (object1.MyInner) + 2 (object2.MyInner) + 100 (MyObjectA) = 113
         assert root.MyObjectA.foo == 113
@@ -876,7 +876,7 @@ class TestModuleParsing:
         """Test that V2 imports ONE level of children per .evaluated call.
 
         V2's laziness semantics:
-        - evaluate_v2(nested_pkg) → imports nested_pkg, iterates its children (imports child)
+        - evaluate(nested_pkg) → imports nested_pkg, iterates its children (imports child)
         - root.child → triggers child_mixin.evaluated, which iterates child_symbol
           and imports its children (grandchild)
 
@@ -892,9 +892,9 @@ class TestModuleParsing:
         try:
             import nested_pkg
 
-            root = evaluate_v2(nested_pkg, modules_public=True)
+            root = evaluate(nested_pkg, modules_public=True)
 
-            # After evaluate_v2(nested_pkg):
+            # After evaluate(nested_pkg):
             # - nested_pkg is imported
             # - nested_pkg.child is imported (direct child, via symbol["child"])
             # - nested_pkg.child.grandchild is NOT imported (grandchild not iterated yet)
@@ -922,7 +922,7 @@ class TestModuleParsing:
         try:
             import regular_pkg
 
-            root = evaluate_v2(regular_pkg, modules_public=True)
+            root = evaluate(regular_pkg, modules_public=True)
             assert root.pkg_value == "from_pkg"
             assert root.child.child_value == "from_child"
         finally:
@@ -951,7 +951,7 @@ class TestModuleParsing:
             scope_def = _parse_package(ns_pkg)
             assert isinstance(scope_def, PackageScopeDefinition)
 
-            root = evaluate_v2(ns_pkg, modules_public=True)
+            root = evaluate(ns_pkg, modules_public=True)
             assert root.mod_a.value_a == "a"
             assert root.mod_b.base == "base"
         finally:
@@ -965,7 +965,7 @@ class TestModuleParsing:
         try:
             import ns_pkg
 
-            root = evaluate_v2(ns_pkg, modules_public=True)
+            root = evaluate(ns_pkg, modules_public=True)
             assert root.mod_b.base == "base"
             assert root.mod_b.derived == "base_derived"
         finally:
@@ -995,7 +995,7 @@ class TestModuleParsing:
                 scope_def = _parse_package(ns_pkg)
                 assert isinstance(scope_def, PackageScopeDefinition)
 
-                root = evaluate_v2(ns_pkg, modules_public=True)
+                root = evaluate(ns_pkg, modules_public=True)
                 assert root.mod_a.value_a == "a"
                 assert root.mod_b.base == "base"
                 assert root.mod_c.value_c == "c"
@@ -1021,7 +1021,7 @@ class TestMissingDependency:
             def greeting(nonexistent_dependency: str) -> str:
                 return f"Hello, {nonexistent_dependency}!"
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
         with pytest.raises(LookupError, match="greeting.*nonexistent_dependency"):
             _ = root.greeting
 
@@ -1047,7 +1047,7 @@ class TestFixtureReference:
                 def counter(counter: int) -> int:
                     return counter + 1
 
-        root = evaluate_v2(Outer)
+        root = evaluate(Outer)
         assert root.counter == 0
         assert root.Inner.counter == 1
 
@@ -1069,7 +1069,7 @@ class TestFixtureReference:
                 def something(other: str) -> str:
                     return f"got_{other}"
 
-        root = evaluate_v2(Outer)
+        root = evaluate(Outer)
         assert root.Inner.something == "got_other_value"
 
     def test_fixture_reference_same_name_at_root_level(self) -> None:
@@ -1098,7 +1098,7 @@ class TestFixtureReference:
                     def value(value: int) -> int:
                         return value + 1
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
         assert root.value == 10
         assert root.Level1.value == 11
         assert root.Level1.Level2.value == 12
@@ -1113,7 +1113,7 @@ class TestExtendWithModule:
         try:
             import union_mount
 
-            root = evaluate_v2(union_mount)
+            root = evaluate(union_mount)
 
             # Test that combined scope has resources from all branches
             assert root.combined.deduplicated_tags == frozenset(
@@ -1136,7 +1136,7 @@ class TestExtendWithModule:
 
 
 class TestInstanceScope:
-    """Test instance scope created via ScopeV2.__call__ (ported from V1 TestInstanceScope)."""
+    """Test instance scope created via Scope.__call__ (ported from V1 TestInstanceScope)."""
 
     def test_instance_scope_single_value(self) -> None:
         """Ported from V1: test_instance_scope_single_value"""
@@ -1147,9 +1147,9 @@ class TestInstanceScope:
             @extern
             def foo() -> str: ...
 
-        base_scope = evaluate_v2(Config)
+        base_scope = evaluate(Config)
         instance = base_scope(foo="bar")
-        assert isinstance(instance, ScopeV2)
+        assert isinstance(instance, Scope)
         assert instance.foo == "bar"
 
     def test_instance_scope_multiple_values(self) -> None:
@@ -1169,9 +1169,9 @@ class TestInstanceScope:
             @extern
             def flag() -> bool: ...
 
-        base_scope = evaluate_v2(Config)
+        base_scope = evaluate(Config)
         instance = base_scope(foo="bar", count=42, flag=True)
-        assert isinstance(instance, ScopeV2)
+        assert isinstance(instance, Scope)
         assert instance.foo == "bar"
         assert instance.count == 42
         assert instance.flag is True
@@ -1199,7 +1199,7 @@ class TestScopeCallable:
             def connection_string(db_config: dict) -> str:
                 return f"host={db_config['host']}:{db_config['port']}"
 
-        base_scope = evaluate_v2(Config)
+        base_scope = evaluate(Config)
         instance = base_scope(db_config={"host": "localhost", "port": 5432})
         assert instance.connection_string == "host=localhost:5432"
 
@@ -1222,7 +1222,7 @@ class TestInstanceScopeImplementation:
             def greeting() -> Endofunction[str]:
                 return lambda s: s + "!"
 
-        base_scope = evaluate_v2(Config)
+        base_scope = evaluate(Config)
         instance = base_scope(greeting="Hello")
 
         # The greeting should be "Hello!" (transformed by the endofunction)
@@ -1259,7 +1259,7 @@ class TestSyntheticScopeCallable:
             class Extended:
                 pass
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
 
         # Extended inherits Inner from Base
         extended_inner = root.Extended.Inner
@@ -1291,7 +1291,7 @@ class TestInstanceScopeNestedAccess:
                     def foo(i: int) -> str:
                         return f"foo_{i}"
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
 
         # Create instance with i=42
         my_instance = root.MyOuter(i=42)
@@ -1323,7 +1323,7 @@ class TestDefinitionSharing:
                     def value(arg: str) -> str:
                         return f"value_{arg}"
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
 
         inner1 = root.Outer(arg="v1").Inner
         inner2 = root.Outer(arg="v2").Inner
@@ -1356,7 +1356,7 @@ class TestExtendInstanceScopeProhibition:
                     return f"foo_{i}"
 
             @resource
-            def my_instance(MyOuter: ScopeV2) -> ScopeV2:
+            def my_instance(MyOuter: Scope) -> Scope:
                 return MyOuter(i=42)
 
             @extend(R(levels_up=0, path=("my_instance",)))
@@ -1365,7 +1365,7 @@ class TestExtendInstanceScopeProhibition:
             class Extended:
                 pass
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
         with pytest.raises(
             ValueError,
             match="Scope MixinSymbol cannot coexist with MergerSymbol or PatcherSymbol",
@@ -1394,7 +1394,7 @@ class TestExtendInstanceScopeProhibition:
                         return "inner_foo"
 
             @resource
-            def my_instance(MyOuter: ScopeV2) -> ScopeV2:
+            def my_instance(MyOuter: Scope) -> Scope:
                 return MyOuter(i=42)
 
             # This fails because my_instance is a merger MixinSymbol, not a scope
@@ -1404,7 +1404,7 @@ class TestExtendInstanceScopeProhibition:
                 pass
 
         with pytest.raises(ValueError, match=r"'my_instance' has no child 'MyInner'"):
-            root = evaluate_v2(Root)
+            root = evaluate(Root)
             _ = root.Invalid.foo
 
     def test_extend_within_instance_scope_sibling_allowed(self) -> None:
@@ -1437,7 +1437,7 @@ class TestExtendInstanceScopeProhibition:
                     def base_value(i: int) -> Callable[[int], int]:
                         return lambda x: x + i
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
         my_instance = root.MyOuter(i=42)
 
         # Accessing via InstanceScope should work because the extend reference
@@ -1471,7 +1471,7 @@ class TestExtendNonMixin:
             def patched_value() -> Callable[[int], int]:
                 return lambda x: x + 1
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
         # This should work: base_value (10) + patch (+1) = 11
         assert root.patched_value == 11
 
@@ -1486,21 +1486,21 @@ class TestScopeAsSymlink:
             @extern
             def inner_value() -> str: ...
 
-        inner_scope = evaluate_v2(Inner)(inner_value="inner")
+        inner_scope = evaluate(Inner)(inner_value="inner")
 
         @scope
         class Namespace:
             @public
             @resource
-            def linked() -> ScopeV2:
+            def linked() -> Scope:
                 return inner_scope
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
         assert root.linked.inner_value == "inner"
 
 
 class TestScopeDir:
-    """Test ScopeV2.__dir__ method (ported from V1)."""
+    """Test Scope.__dir__ method (ported from V1)."""
 
     def test_dir_returns_list(self) -> None:
         """Test that __dir__ returns a list."""
@@ -1511,7 +1511,7 @@ class TestScopeDir:
             def foo() -> str:
                 return "foo"
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
         result = dir(root)
         assert isinstance(result, list)
 
@@ -1535,7 +1535,7 @@ class TestScopeDir:
             def resource3() -> str:
                 return "r3"
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
         result = dir(root)
         assert "resource1" in result
         assert "resource2" in result
@@ -1550,7 +1550,7 @@ class TestScopeDir:
             def foo() -> str:
                 return "foo"
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
         result = dir(root)
         assert "__class__" in result
         assert "__call__" in result
@@ -1573,7 +1573,7 @@ class TestScopeDir:
             def middle() -> str:
                 return "m"
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
         result = dir(root)
         assert result == sorted(result)
 
@@ -1605,7 +1605,7 @@ class TestScopeDir:
             class Combined:
                 pass
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
         result = dir(root.Combined)
         assert "foo" in result
         assert "bar" in result
@@ -1637,7 +1637,7 @@ class TestScopeDir:
             class Combined:
                 pass
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
         result = dir(root.Combined)
         assert result.count("shared") == 1
 
@@ -1656,7 +1656,7 @@ class TestScopeDir:
             def accessible2() -> str:
                 return "a2"
 
-        root = evaluate_v2(Namespace)
+        root = evaluate(Namespace)
         assert "accessible1" in dir(root)
         assert "accessible2" in dir(root)
         assert getattr(root, "accessible1") == "a1"
@@ -1679,7 +1679,7 @@ class TestParameter:
             def connection_string(database_url: str) -> str:
                 return f"Connected to: {database_url}"
 
-        root = evaluate_v2(Config)(database_url="postgresql://localhost/mydb")
+        root = evaluate(Config)(database_url="postgresql://localhost/mydb")
         assert root.connection_string == "Connected to: postgresql://localhost/mydb"
 
     def test_parameter_with_dependencies(self) -> None:
@@ -1701,7 +1701,7 @@ class TestParameter:
             def connection_string(database_url: str) -> str:
                 return f"Connected to: {database_url}"
 
-        root = evaluate_v2(Config)(database_url="postgresql://prod-server/mydb")
+        root = evaluate(Config)(database_url="postgresql://prod-server/mydb")
         assert root.connection_string == "Connected to: postgresql://prod-server/mydb"
 
     def test_parameter_without_base_value_raises_error(self) -> None:
@@ -1717,7 +1717,7 @@ class TestParameter:
             def connection_string(database_url: str) -> str:
                 return f"Connected to: {database_url}"
 
-        root = evaluate_v2(Config)
+        root = evaluate(Config)
         # V2 raises ValueError, not NotImplementedError like V1
         with pytest.raises(ValueError, match="requires instance scope"):
             _ = root.connection_string
@@ -1738,8 +1738,8 @@ class TestParameter:
             def value() -> tuple[Callable[[int], int], ...]:
                 return ()
 
-        root_param = evaluate_v2(WithParameter)(value=42)
-        root_patches = evaluate_v2(WithEmptyPatches)(value=42)
+        root_param = evaluate(WithParameter)(value=42)
+        root_patches = evaluate(WithEmptyPatches)(value=42)
 
         assert root_param.value == 42
         assert root_patches.value == 42
@@ -1760,7 +1760,7 @@ class TestParameter:
             def url(host: str, port: int) -> str:
                 return f"http://{host}:{port}"
 
-        root = evaluate_v2(Config)(host="example.com", port=8080)
+        root = evaluate(Config)(host="example.com", port=8080)
         assert root.url == "http://example.com:8080"
 
     def test_patch_with_identity_endo_equivalent_to_parameter(self) -> None:
@@ -1790,8 +1790,8 @@ class TestParameter:
                 return value * 2
 
         # Both should work identically when value is injected
-        root_param = evaluate_v2(WithParameter)(value=21)
-        root_patch = evaluate_v2(WithIdentityPatch)(value=21)
+        root_param = evaluate(WithParameter)(value=21)
+        root_patch = evaluate(WithIdentityPatch)(value=21)
 
         assert root_param.value == 21
         assert root_patch.value == 21
@@ -1808,7 +1808,7 @@ class TestParameter:
             def config() -> Callable[[dict], dict]:
                 return lambda x: x
 
-        root = evaluate_v2(WithIdentityPatch)
+        root = evaluate(WithIdentityPatch)
         # V2 raises ValueError, not NotImplementedError like V1
         with pytest.raises(ValueError, match="requires instance scope"):
             _ = root.config
@@ -1819,7 +1819,7 @@ class TestInstanceScopeV2Specific:
 
     def test_static_scope_has_sentinel_kwargs(self) -> None:
         """Static scopes have KwargsSentinel.STATIC as kwargs."""
-        from mixinject.v2 import KwargsSentinel
+        from mixinject.runtime import KwargsSentinel
 
         @scope
         class Config:
@@ -1827,19 +1827,19 @@ class TestInstanceScopeV2Specific:
             def value() -> str:
                 return "static"
 
-        root = evaluate_v2(Config)
+        root = evaluate(Config)
         assert root.kwargs is KwargsSentinel.STATIC
 
     def test_instance_scope_has_dict_kwargs(self) -> None:
         """Instance scopes have dict kwargs."""
-        from mixinject.v2 import KwargsSentinel
+        from mixinject.runtime import KwargsSentinel
 
         @scope
         class Config:
             @extern
             def foo() -> str: ...
 
-        root = evaluate_v2(Config)
+        root = evaluate(Config)
         instance = root(foo="bar")
         assert not isinstance(instance.kwargs, KwargsSentinel)
         assert instance.kwargs == {"foo": "bar"}
@@ -1852,9 +1852,11 @@ class TestInstanceScopeV2Specific:
             @extern
             def foo() -> str: ...
 
-        root = evaluate_v2(Config)
+        root = evaluate(Config)
         instance = root(foo="bar")
-        with pytest.raises(TypeError, match="Cannot create instance from an instance scope"):
+        with pytest.raises(
+            TypeError, match="Cannot create instance from an instance scope"
+        ):
             instance(foo="baz")
 
     def test_extern_without_instance_raises_error(self) -> None:
@@ -1866,7 +1868,7 @@ class TestInstanceScopeV2Specific:
             @extern
             def foo() -> str: ...
 
-        root = evaluate_v2(Config)
+        root = evaluate(Config)
         with pytest.raises(ValueError, match="requires instance scope"):
             _ = root.foo
 
@@ -1882,7 +1884,7 @@ class TestInstanceScopeV2Specific:
             @extern
             def bar() -> str: ...
 
-        root = evaluate_v2(Config)
+        root = evaluate(Config)
         instance = root(foo="foo_value")  # bar not provided
         with pytest.raises(ValueError, match="requires kwargs"):
             _ = instance.bar
@@ -1906,6 +1908,6 @@ class TestInstanceScopeV2Specific:
                     def doubled(value: int) -> int:
                         return value * 2
 
-        root = evaluate_v2(Root)
+        root = evaluate(Root)
         instance = root(value=21)
         assert instance.Level1.Level2.doubled == 42

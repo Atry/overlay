@@ -1,9 +1,9 @@
 """
-MixinV2 and ScopeV2 implementation for proper is_public and is_eager support.
+Mixin and Scope implementation for proper is_public and is_eager support.
 
 This module provides a cleaner architecture with:
-- Single lazy evaluation level (at MixinV2.evaluated only)
-- Frozen ScopeV2 containers
+- Single lazy evaluation level (at Mixin.evaluated only)
+- Frozen Scope containers
 - Proper circular dependency support via two-phase construction
 - Correct is_public and is_eager semantics (private by default)
 
@@ -36,7 +36,7 @@ class KwargsSentinel(Enum):
     """Sentinel for distinguishing static scopes from instance scopes."""
 
     STATIC = auto()
-    """No kwargs - this is a static scope (created via evaluate_v2 or nested scope access)."""
+    """No kwargs - this is a static scope (created via evaluate or nested scope access)."""
 
 if TYPE_CHECKING:
     from mixinject import (
@@ -60,15 +60,15 @@ TResult = TypeVar("TResult")
 
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, eq=False)
-class MixinV2(HasDict):
+class Mixin(HasDict):
     """
     Lazy evaluation wrapper for resources and scopes.
 
-    MixinV2 is mutable (NOT frozen) to support two-phase construction
-    for circular dependencies within the same ScopeV2.
+    Mixin is mutable (NOT frozen) to support two-phase construction
+    for circular dependencies within the same Scope.
 
-    All lazy evaluation happens ONLY at MixinV2.evaluated level.
-    Dynamically decides whether to evaluate to a resource value or ScopeV2.
+    All lazy evaluation happens ONLY at Mixin.evaluated level.
+    Dynamically decides whether to evaluate to a resource value or Scope.
 
     .. note::
 
@@ -79,14 +79,14 @@ class MixinV2(HasDict):
 
        Currently sibling dependencies are stored in ``HasDict.__dict__`` via setattr.
        For better performance, future implementation should use ``make_dataclass``
-       to dynamically generate MixinV2 subclasses with slots for each dependency.
+       to dynamically generate Mixin subclasses with slots for each dependency.
 
        Example future design::
 
-           DynamicMixinV2 = make_dataclass(
-               "DynamicMixinV2",
-               [("foo", MixinV2), ("bar", MixinV2)],  # sibling dependency slots
-               bases=(MixinV2,),
+           DynamicMixin = make_dataclass(
+               "DynamicMixin",
+               [("foo", Mixin), ("bar", Mixin)],  # sibling dependency slots
+               bases=(Mixin,),
                slots=True,
            )
 
@@ -123,14 +123,14 @@ class MixinV2(HasDict):
 
     symbol: Final["MixinSymbol"]
 
-    outer: Final["MixinV2 | OuterSentinel"]
+    outer: Final["Mixin | OuterSentinel"]
     """
-    The outer MixinV2 (parent scope), or OuterSentinel.ROOT for root.
+    The outer Mixin (parent scope), or OuterSentinel.ROOT for root.
 
     To find parent scope dependencies:
 
-    - Evaluate outer.evaluated to get the parent ScopeV2
-    - Then access the dependency from that ScopeV2
+    - Evaluate outer.evaluated to get the parent Scope
+    - Then access the dependency from that Scope
     """
 
     lexical_outer_index: Final["SymbolIndexSentinel | int"]
@@ -144,22 +144,22 @@ class MixinV2(HasDict):
     - Mapping[str, object]: This is an instance scope with the given kwargs
 
     Used by _evaluate_resource for PATCHER_ONLY resources to get base values.
-    Propagated to nested scopes when MixinV2.evaluated creates a ScopeV2.
+    Propagated to nested scopes when Mixin.evaluated creates a Scope.
     """
 
     @cached_property
-    def strict_super_mixins(self) -> tuple["MixinV2", ...]:
+    def strict_super_mixins(self) -> tuple["Mixin", ...]:
         """
-        Get super MixinV2 instances for multiple inheritance support.
+        Get super Mixin instances for multiple inheritance support.
 
         Similar to V1's Mixin.strict_super_mixins.
-        Returns MixinV2 instances corresponding to symbol.strict_super_indices.
+        Returns Mixin instances corresponding to symbol.strict_super_indices.
         """
         return tuple(self._generate_strict_super_mixins())
 
-    def _generate_strict_super_mixins(self) -> Iterator["MixinV2"]:
+    def _generate_strict_super_mixins(self) -> Iterator["Mixin"]:
         """
-        Generate super MixinV2 instances following V1's algorithm.
+        Generate super Mixin instances following V1's algorithm.
 
         For each nested_index in symbol.strict_super_indices:
         - OuterBaseIndex(i): Create child of outer's i-th super with lexical_outer_index=i
@@ -177,13 +177,13 @@ class MixinV2(HasDict):
             match nested_index.primary_index:
                 case OuterBaseIndex(index=index):
                     # Get the i-th super mixin from our outer
-                    assert isinstance(self.outer, MixinV2)
+                    assert isinstance(self.outer, Mixin)
                     base_mixin = self.outer.get_super(index)
                     # Find our symbol's counterpart in the base mixin's symbol
                     child_symbol = base_mixin.symbol[self.symbol.key]
                     # Create with lexical_outer_index=index (points to base_mixin)
                     # No _sibling_dependencies needed - super mixins resolve via navigation
-                    direct_mixin = MixinV2(
+                    direct_mixin = Mixin(
                         symbol=child_symbol,
                         outer=self.outer,  # Same outer as us
                         lexical_outer_index=index,  # KEY: Different from OWN!
@@ -194,7 +194,7 @@ class MixinV2(HasDict):
                     # Resolve using our own base reference
                     resolved_reference = self.symbol.resolved_bases[index]
                     # Pass OUR lexical_outer_index to the resolution
-                    direct_mixin = resolved_reference.get_mixin_v2(
+                    direct_mixin = resolved_reference.get_mixin(
                         outer=self,
                         lexical_outer_index=self.lexical_outer_index,
                     )
@@ -205,12 +205,12 @@ class MixinV2(HasDict):
             # Navigate to the secondary index within the direct mixin
             yield direct_mixin.get_super(nested_index.secondary_index)
 
-    def get_super(self, super_index: "SymbolIndexSentinel | int") -> "MixinV2":
+    def get_super(self, super_index: "SymbolIndexSentinel | int") -> "Mixin":
         """
         Get a super mixin by index.
 
         :param super_index: OWN returns self, int returns strict_super_mixins[index]
-        :return: The super MixinV2.
+        :return: The super Mixin.
         """
         from mixinject import SymbolIndexSentinel
 
@@ -221,9 +221,9 @@ class MixinV2(HasDict):
                 return self.strict_super_mixins[index]
 
     @property
-    def lexical_outer(self) -> "MixinV2":
+    def lexical_outer(self) -> "Mixin":
         """
-        Get the lexical outer MixinV2 for dependency resolution.
+        Get the lexical outer Mixin for dependency resolution.
 
         - If lexical_outer_index is OWN: returns outer (or self for root)
         - If lexical_outer_index is int: returns outer.strict_super_mixins[index]
@@ -232,24 +232,24 @@ class MixinV2(HasDict):
 
         match self.lexical_outer_index:
             case SymbolIndexSentinel.OWN:
-                if isinstance(self.outer, MixinV2):
+                if isinstance(self.outer, Mixin):
                     return self.outer
                 return self  # Root mixin
             case int() as index:
-                assert isinstance(self.outer, MixinV2)
+                assert isinstance(self.outer, Mixin)
                 return self.outer.strict_super_mixins[index]
 
-    def resolve_dependency(self, ref: "ResolvedReference") -> "MixinV2":
+    def resolve_dependency(self, ref: "ResolvedReference") -> "Mixin":
         """
-        Resolve a dependency reference to a MixinV2.
+        Resolve a dependency reference to a Mixin.
 
-        Returns MixinV2, NOT the evaluated value.
+        Returns Mixin, NOT the evaluated value.
         The caller calls .evaluated when it actually needs the value.
         This preserves laziness - if the caller doesn't use a dependency,
         that dependency is never evaluated.
 
         :param ref: The resolved reference to resolve.
-        :return: The target MixinV2 (call .evaluated for actual value).
+        :return: The target Mixin (call .evaluated for actual value).
         """
         from mixinject import SymbolIndexSentinel
 
@@ -258,36 +258,36 @@ class MixinV2(HasDict):
         # 2. lexical_outer_index == OWN (we are a direct child, not a super mixin)
         if ref.levels_up == 0 and self.lexical_outer_index is SymbolIndexSentinel.OWN:
             # Direct child with same-scope dependency: use getattr
-            # Sibling dependencies are stored as attributes on the MixinV2 instance
+            # Sibling dependencies are stored as attributes on the Mixin instance
             attr_name = ref.target_symbol.attribute_name
             sibling_mixin = getattr(self, attr_name, None)
             if sibling_mixin is not None:
-                # Returns MixinV2 directly (caller will call .evaluated when needed)
+                # Returns Mixin directly (caller will call .evaluated when needed)
                 return sibling_mixin
             # Fallback to navigation if not found as attribute (lazy scopes)
 
         # Super mixins (lexical_outer_index != OWN) OR parent scope deps:
         # Always resolve via navigation
         # Pass OUR lexical_outer_index to follow the correct inheritance chain
-        return ref.get_mixin_v2(
+        return ref.get_mixin(
             outer=self,
             lexical_outer_index=self.lexical_outer_index,
         )
 
     @cached_property
-    def evaluated(self) -> "object | ScopeV2":
+    def evaluated(self) -> "object | Scope":
         """
         Evaluate this mixin.
 
         Dynamically decides based on symbol:
-        - If symbol is a scope symbol: returns ScopeV2
+        - If symbol is a scope symbol: returns Scope
         - If symbol is a resource symbol: returns evaluated value
         """
         if self.symbol.is_scope:
-            # Scope: construct nested ScopeV2
+            # Scope: construct nested Scope
             # Pass self as the outer_mixin for children of this scope
             # Propagate kwargs to nested scope
-            return construct_scope_v2(
+            return construct_scope(
                 symbol=self.symbol,
                 outer_mixin=self,
                 kwargs=self.kwargs,
@@ -313,10 +313,10 @@ class MixinV2(HasDict):
             SymbolIndexSentinel,
         )
 
-        def build_evaluators_for_mixin(mixin: "MixinV2") -> tuple[EvaluatorV2, ...]:
-            """Build evaluators for a given MixinV2."""
+        def build_evaluators_for_mixin(mixin: "Mixin") -> tuple[Evaluator, ...]:
+            """Build evaluators for a given Mixin."""
             return tuple(
-                evaluator_symbol.bind_v2(mixin=mixin)
+                evaluator_symbol.bind(mixin=mixin)
                 for evaluator_symbol in mixin.symbol.evaluator_symbols
             )
 
@@ -336,13 +336,13 @@ class MixinV2(HasDict):
                         # Exclude the elected evaluator from own
                         for evaluator_index, evaluator in enumerate(own_evaluators):
                             if evaluator_index != elected_getter_index and isinstance(
-                                evaluator, PatcherV2
+                                evaluator, Patcher
                             ):
                                 yield from evaluator
                     else:
                         # Elected is from super, collect all from own
                         for evaluator in own_evaluators:
-                            if isinstance(evaluator, PatcherV2):
+                            if isinstance(evaluator, Patcher):
                                 yield from evaluator
 
                     # Collect patches from super mixins
@@ -350,7 +350,7 @@ class MixinV2(HasDict):
                         super_evaluators = build_evaluators_for_mixin(super_mixin)
                         if index != elected_symbol_index:
                             for evaluator in super_evaluators:
-                                if isinstance(evaluator, PatcherV2):
+                                if isinstance(evaluator, Patcher):
                                     yield from evaluator
                         else:
                             # Exclude the elected evaluator's patcher from super
@@ -358,7 +358,7 @@ class MixinV2(HasDict):
                                 super_evaluators
                             ):
                                 if evaluator_index != elected_getter_index and isinstance(
-                                    evaluator, PatcherV2
+                                    evaluator, Patcher
                                 ):
                                     yield from evaluator
 
@@ -366,12 +366,12 @@ class MixinV2(HasDict):
                     # Collect all patches from own and super
                     own_evaluators = build_evaluators_for_mixin(self)
                     for evaluator in own_evaluators:
-                        if isinstance(evaluator, PatcherV2):
+                        if isinstance(evaluator, Patcher):
                             yield from evaluator
                     for super_mixin in self.strict_super_mixins:
                         super_evaluators = build_evaluators_for_mixin(super_mixin)
                         for evaluator in super_evaluators:
-                            if isinstance(evaluator, PatcherV2):
+                            if isinstance(evaluator, Patcher):
                                 yield from evaluator
 
         # Handle PATCHER_ONLY case (requires instance scope with kwargs)
@@ -403,36 +403,36 @@ class MixinV2(HasDict):
         elected_mixin = self.get_super(elected.symbol_index)
         elected_evaluators = build_evaluators_for_mixin(elected_mixin)
         merger_evaluator = elected_evaluators[elected.evaluator_getter_index]
-        assert isinstance(merger_evaluator, MergerV2)
+        assert isinstance(merger_evaluator, Merger)
 
         return merger_evaluator.merge(generate_patches())
 
 
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True, eq=False)
-class ScopeV2:
+class Scope:
     """
-    Frozen container for MixinV2 references.
+    Frozen container for Mixin references.
 
-    ScopeV2 does NOT inherit from MixinV2.
+    Scope does NOT inherit from Mixin.
 
-    _children ALWAYS stores MixinV2 references (never evaluated values).
+    _children ALWAYS stores Mixin references (never evaluated values).
     This provides consistency: all children are accessed the same way via .evaluated.
 
     For is_eager=True resources:
-    - MixinV2 is stored in _children (same as lazy)
-    - mixin.evaluated is called during construct_scope_v2() to trigger evaluation
+    - Mixin is stored in _children (same as lazy)
+    - mixin.evaluated is called during construct_scope() to trigger evaluation
     - The @cached_property caches the result, so subsequent access is instant
 
     Private resources (is_public=False) are NOT stored in _children.
-    They exist only in _sibling_dependencies of MixinV2 instances that depend on them.
+    They exist only in _sibling_dependencies of Mixin instances that depend on them.
     """
 
     symbol: Final["MixinSymbol"]
 
-    _outer_mixin: Final["MixinV2 | OuterSentinel"]
+    _outer_mixin: Final["Mixin | OuterSentinel"]
     """
-    The outer MixinV2 that this scope was constructed from.
+    The outer Mixin that this scope was constructed from.
     Needed by __call__ to create instance scopes with the same outer context.
     """
 
@@ -444,12 +444,12 @@ class ScopeV2:
     - Mapping[str, object]: This is an instance scope (cannot call __call__ again)
     """
 
-    _children: Final[Mapping["MixinSymbol", "MixinV2"]]
+    _children: Final[Mapping["MixinSymbol", "Mixin"]]
     """
-    Public child MixinV2 references keyed by MixinSymbol.
-    - ALWAYS stores MixinV2 (never evaluated values)
-    - is_eager=True: MixinV2.evaluated already called during construction (cached)
-    - is_eager=False: MixinV2.evaluated called on first access (lazy)
+    Public child Mixin references keyed by MixinSymbol.
+    - ALWAYS stores Mixin (never evaluated values)
+    - is_eager=True: Mixin.evaluated already called during construction (cached)
+    - is_eager=False: Mixin.evaluated called on first access (lazy)
     - is_public=False: NOT stored here (only in _sibling_dependencies of dependents)
     """
 
@@ -479,7 +479,7 @@ class ScopeV2:
     def __dir__(self) -> list[str]:
         """Return list of accessible attribute names including resource names."""
         # Get standard dataclass attributes
-        base_attrs = set(super(ScopeV2, self).__dir__())
+        base_attrs = set(super(Scope, self).__dir__())
 
         # Add resource attribute names from PUBLIC children only
         # Use .key which is the actual resource name (e.g., 'foo')
@@ -491,7 +491,7 @@ class ScopeV2:
 
         return sorted(base_attrs)
 
-    def __call__(self, **kwargs: object) -> "ScopeV2":
+    def __call__(self, **kwargs: object) -> "Scope":
         """
         Create an instance scope with the given kwargs.
 
@@ -499,7 +499,7 @@ class ScopeV2:
         to receive their base values from kwargs.
 
         :param kwargs: Keyword arguments providing values for @extern resources.
-        :return: A new ScopeV2 instance with the provided kwargs.
+        :return: A new Scope instance with the provided kwargs.
         :raises TypeError: If called on an instance scope (cannot create instance from instance).
         """
         from mixinject import OuterSentinel, SymbolIndexSentinel
@@ -507,14 +507,14 @@ class ScopeV2:
         if not isinstance(self.kwargs, KwargsSentinel):
             raise TypeError("Cannot create instance from an instance scope")
 
-        # Create a new synthetic outer MixinV2 with instance kwargs.
+        # Create a new synthetic outer Mixin with instance kwargs.
         # This is needed so that children can navigate up and find kwargs
         # for PATCHER_ONLY resources. Without this, children would navigate
-        # to the original static outer MixinV2 which has KwargsSentinel.STATIC.
+        # to the original static outer Mixin which has KwargsSentinel.STATIC.
         original_outer = self._outer_mixin
         if isinstance(original_outer, OuterSentinel):
             # Root scope: create synthetic root mixin with instance kwargs
-            synthetic_outer: MixinV2 | OuterSentinel = MixinV2(
+            synthetic_outer: Mixin | OuterSentinel = Mixin(
                 symbol=self.symbol,
                 outer=OuterSentinel.ROOT,
                 lexical_outer_index=SymbolIndexSentinel.OWN,
@@ -522,43 +522,43 @@ class ScopeV2:
             )
         else:
             # Nested scope: create synthetic outer with same outer chain but instance kwargs
-            synthetic_outer = MixinV2(
+            synthetic_outer = Mixin(
                 symbol=original_outer.symbol,
                 outer=original_outer.outer,
                 lexical_outer_index=original_outer.lexical_outer_index,
                 kwargs=kwargs,
             )
 
-        return construct_scope_v2(
+        return construct_scope(
             symbol=self.symbol,
             outer_mixin=synthetic_outer,
             kwargs=kwargs,
         )
 
 
-def construct_scope_v2(
+def construct_scope(
     symbol: "MixinSymbol",
-    outer_mixin: "MixinV2 | OuterSentinel",
+    outer_mixin: "Mixin | OuterSentinel",
     kwargs: "Mapping[str, object] | KwargsSentinel",
-) -> ScopeV2:
+) -> Scope:
     """
-    Two-phase construction for ScopeV2 with circular dependency support.
+    Two-phase construction for Scope with circular dependency support.
 
-    Phase 1: Create all MixinV2 instances (enables circular dependency references)
+    Phase 1: Create all Mixin instances (enables circular dependency references)
     Phase 2: Wire _sibling_dependencies for dependency resolution
     Phase 3: Build _children dict (excluding local, eager values stored)
 
     :param symbol: The MixinSymbol for this scope.
-    :param outer_mixin: The parent scope's MixinV2, or OuterSentinel.ROOT for root.
+    :param outer_mixin: The parent scope's Mixin, or OuterSentinel.ROOT for root.
     :param kwargs: Keyword arguments for instance scope (KwargsSentinel.STATIC for static).
-    :return: A ScopeV2 instance.
+    :return: A Scope instance.
     """
     from mixinject import SymbolIndexSentinel
 
-    # Phase 1: Create all MixinV2 instances
+    # Phase 1: Create all Mixin instances
     # outer_mixin is shared by all children (they're all in the same scope)
-    all_mixins: dict["MixinSymbol", MixinV2] = {
-        (child_symbol := symbol[key]): MixinV2(
+    all_mixins: dict["MixinSymbol", Mixin] = {
+        (child_symbol := symbol[key]): Mixin(
             symbol=child_symbol,
             outer=outer_mixin,
             lexical_outer_index=SymbolIndexSentinel.OWN,
@@ -567,8 +567,8 @@ def construct_scope_v2(
         for key in symbol
     }
 
-    # Phase 2: Wire dependency references as attributes on each MixinV2
-    # Each MixinV2 gets its sibling dependencies stored as attributes via setattr
+    # Phase 2: Wire dependency references as attributes on each Mixin
+    # Each Mixin gets its sibling dependencies stored as attributes via setattr
     # Keyed by attribute_name (str) for future JIT optimization with make_dataclass
     for child_symbol, mixin in all_mixins.items():
         # Get dependency symbols from the symbol's same_scope_dependencies property
@@ -586,15 +586,15 @@ def construct_scope_v2(
     # Phase 3: Build _children dict (ALL children, including private)
     # Private resources are accessible internally (for @extend navigation)
     # but external access is blocked by is_public check in __getattr__/__getitem__
-    children: dict["MixinSymbol", MixinV2] = dict(all_mixins)
+    children: dict["MixinSymbol", Mixin] = dict(all_mixins)
 
     # Trigger eager evaluation (result cached by @cached_property)
     for child_symbol, mixin in children.items():
         if child_symbol.is_eager:
             _ = mixin.evaluated
 
-    # Phase 4: Create frozen ScopeV2
-    return ScopeV2(
+    # Phase 4: Create frozen Scope
+    return Scope(
         symbol=symbol,
         _outer_mixin=outer_mixin,
         kwargs=kwargs,
@@ -603,35 +603,35 @@ def construct_scope_v2(
 
 
 # =============================================================================
-# EvaluatorV2 Hierarchy
+# Evaluator Hierarchy
 # =============================================================================
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
-class EvaluatorV2(ABC):
+class Evaluator(ABC):
     """
     Base class for V2 resource evaluators.
 
     NOTE: Does NOT inherit from Node/Evaluator - completely separate hierarchy.
 
     Each evaluator stores the mixin it belongs to. To resolve dependencies,
-    call self.mixin.resolve_dependency(ref) which returns MixinV2.
-    Then call .evaluated on the returned MixinV2 to get the actual value.
+    call self.mixin.resolve_dependency(ref) which returns Mixin.
+    Then call .evaluated on the returned Mixin to get the actual value.
     """
 
-    mixin: MixinV2
+    mixin: Mixin
     """
-    The MixinV2 that holds this EvaluatorV2.
+    The Mixin that holds this Evaluator.
 
     To resolve dependencies, call self.mixin.resolve_dependency(ref).
-    This returns MixinV2, NOT the evaluated value.
+    This returns Mixin, NOT the evaluated value.
     The caller calls .evaluated when it actually needs the dependency value.
     """
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
-class MergerV2(EvaluatorV2, Generic[TPatch_contra, TResult_co], ABC):
-    """EvaluatorV2 that merges patches to produce a result."""
+class Merger(Evaluator, Generic[TPatch_contra, TResult_co], ABC):
+    """Evaluator that merges patches to produce a result."""
 
     @abstractmethod
     def merge(self, patches: Iterator[TPatch_contra]) -> TResult_co:
@@ -640,18 +640,18 @@ class MergerV2(EvaluatorV2, Generic[TPatch_contra, TResult_co], ABC):
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
-class PatcherV2(EvaluatorV2, Iterable[TPatch_co], Generic[TPatch_co], ABC):
-    """EvaluatorV2 that provides patches."""
+class Patcher(Evaluator, Iterable[TPatch_co], Generic[TPatch_co], ABC):
+    """Evaluator that provides patches."""
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
-class SemigroupV2(MergerV2[T, T], PatcherV2[T], Generic[T], ABC):
-    """Both MergerV2 and PatcherV2."""
+class Semigroup(Merger[T, T], Patcher[T], Generic[T], ABC):
+    """Both Merger and Patcher."""
 
 
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True, eq=False)
-class FunctionalMergerV2(MergerV2[TPatch_contra, TResult_co]):
+class FunctionalMerger(Merger[TPatch_contra, TResult_co]):
     """V2 Evaluator for FunctionalMergerDefinition."""
 
     evaluator_getter: "FunctionalMergerSymbol[TPatch_contra, TResult_co]"
@@ -662,25 +662,25 @@ class FunctionalMergerV2(MergerV2[TPatch_contra, TResult_co]):
         The function (e.g., @merge def tags() -> type[frozenset]: return frozenset)
         returns an aggregation function. We call that function with the patches.
         """
-        # compiled_function_v2 returns a function that takes MixinV2 and returns
+        # compiled_function returns a function that takes Mixin and returns
         # the aggregation function (e.g., frozenset, list, etc.)
-        aggregation_function = self.evaluator_getter.compiled_function_v2(self.mixin)
+        aggregation_function = self.evaluator_getter.compiled_function(self.mixin)
         # Call it with the patches
         return aggregation_function(patches)  # type: ignore
 
 
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True, eq=False)
-class EndofunctionMergerV2(MergerV2[Callable[[TResult], TResult], TResult]):
+class EndofunctionMerger(Merger[Callable[[TResult], TResult], TResult]):
     """V2 Evaluator for EndofunctionMergerDefinition."""
 
     evaluator_getter: "EndofunctionMergerSymbol[TResult]"
 
     def merge(self, patches: Iterator[Callable[[TResult], TResult]]) -> TResult:
         """Merge endofunction patches by applying them to base value."""
-        # compiled_function_v2 returns a function that takes MixinV2 and returns
+        # compiled_function returns a function that takes Mixin and returns
         # the base value for endofunction application
-        base_value: TResult = self.evaluator_getter.compiled_function_v2(self.mixin)
+        base_value: TResult = self.evaluator_getter.compiled_function(self.mixin)
 
         return reduce(
             lambda accumulator, endofunction: endofunction(accumulator),
@@ -691,41 +691,41 @@ class EndofunctionMergerV2(MergerV2[Callable[[TResult], TResult], TResult]):
 
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True, eq=False)
-class SinglePatcherV2(PatcherV2[TPatch_co]):
+class SinglePatcher(Patcher[TPatch_co]):
     """V2 Evaluator for SinglePatcherDefinition."""
 
     evaluator_getter: "SinglePatcherSymbol[TPatch_co]"
 
     def __iter__(self) -> Iterator[TPatch_co]:
         """Yield the single patch value."""
-        # compiled_function_v2 returns a function that takes MixinV2 and returns
+        # compiled_function returns a function that takes Mixin and returns
         # the patch value
-        yield self.evaluator_getter.compiled_function_v2(self.mixin)
+        yield self.evaluator_getter.compiled_function(self.mixin)
 
 
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True, eq=False)
-class MultiplePatcherV2(PatcherV2[TPatch_co]):
+class MultiplePatcher(Patcher[TPatch_co]):
     """V2 Evaluator for MultiplePatcherDefinition."""
 
     evaluator_getter: "MultiplePatcherSymbol[TPatch_co]"
 
     def __iter__(self) -> Iterator[TPatch_co]:
         """Yield multiple patch values."""
-        # compiled_function_v2 returns a function that takes MixinV2 and returns
+        # compiled_function returns a function that takes Mixin and returns
         # an iterable of patch values
-        yield from self.evaluator_getter.compiled_function_v2(self.mixin)
+        yield from self.evaluator_getter.compiled_function(self.mixin)
 
 
-def evaluate_v2(
+def evaluate(
     *namespaces: "ModuleType | ScopeDefinition",
     modules_public: bool = False,
-) -> ScopeV2:
+) -> Scope:
     """
-    Resolves a ScopeV2 from the given namespaces.
+    Resolves a Scope from the given namespaces.
 
     This is the V2 entrypoint that provides:
-    - Single lazy evaluation level (at MixinV2.evaluated only)
+    - Single lazy evaluation level (at Mixin.evaluated only)
     - Proper is_public semantics (private resources hidden from attributes)
     - Proper is_eager semantics (eager resources evaluated immediately)
     - Circular dependency support via two-phase construction
@@ -736,13 +736,13 @@ def evaluate_v2(
     :param namespaces: Modules or namespace definitions (decorated with @scope) to resolve.
     :param modules_public: If True, modules are marked as public, making their submodules
         accessible via attribute access. Defaults to False (private by default).
-    :return: The root ScopeV2.
+    :return: The root Scope.
 
     Example::
 
-        root = evaluate_v2(MyNamespace)
-        root = evaluate_v2(Base, Override)  # Union mount
-        root = evaluate_v2(my_package, modules_public=True)  # Make modules accessible
+        root = evaluate(MyNamespace)
+        root = evaluate(Base, Override)  # Union mount
+        root = evaluate(my_package, modules_public=True)  # Make modules accessible
 
     """
     from dataclasses import replace
@@ -757,7 +757,7 @@ def evaluate_v2(
         _parse_package,
     )
 
-    assert namespaces, "evaluate_v2() requires at least one namespace"
+    assert namespaces, "evaluate() requires at least one namespace"
 
     def to_scope_definition(
         namespace: ModuleType | ScopeDefinition,
@@ -775,19 +775,19 @@ def evaluate_v2(
 
     root_symbol = MixinSymbol(origin=definitions)
 
-    # Create a synthetic root MixinV2 to enable lexical scope navigation
+    # Create a synthetic root Mixin to enable lexical scope navigation
     # This is needed so that children of the root scope can navigate up
-    # to find parent scope dependencies (via get_mixin_v2)
-    root_mixin = MixinV2(
+    # to find parent scope dependencies (via get_mixin)
+    root_mixin = Mixin(
         symbol=root_symbol,
         outer=OuterSentinel.ROOT,
         lexical_outer_index=SymbolIndexSentinel.OWN,
         kwargs=KwargsSentinel.STATIC,  # Root is always static
     )
 
-    # Evaluate the root mixin to get the ScopeV2
+    # Evaluate the root mixin to get the Scope
     result = root_mixin.evaluated
-    assert isinstance(result, ScopeV2)
+    assert isinstance(result, Scope)
     return result
 
 
