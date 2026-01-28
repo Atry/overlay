@@ -13,7 +13,7 @@ NOTE: This module does NOT include dynamic class generation.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, auto
 from functools import cached_property, reduce
 from typing import (
@@ -70,8 +70,55 @@ class MixinV2(HasDict):
     All lazy evaluation happens ONLY at MixinV2.evaluated level.
     Dynamically decides whether to evaluate to a resource value or ScopeV2.
 
-    NOTE: Does NOT inherit from Node/Mixin - completely separate hierarchy.
-    Inherits from HasDict to support @cached_property with slots=True.
+    .. note::
+
+       Does NOT inherit from Node/Mixin - completely separate hierarchy.
+       Inherits from HasDict to support @cached_property with slots=True.
+
+    .. todo:: Dynamic slots for sibling dependencies
+
+       Currently sibling dependencies are stored in ``HasDict.__dict__`` via setattr.
+       For better performance, future implementation should use ``make_dataclass``
+       to dynamically generate MixinV2 subclasses with slots for each dependency.
+
+       Example future design::
+
+           DynamicMixinV2 = make_dataclass(
+               "DynamicMixinV2",
+               [("foo", MixinV2), ("bar", MixinV2)],  # sibling dependency slots
+               bases=(MixinV2,),
+               slots=True,
+           )
+
+    .. todo:: Nephew-uncle dependency support
+
+       Currently sibling dependencies only contains sibling-to-sibling dependencies
+       within the same scope. Nephew-uncle dependencies (where a nested scope's resource
+       depends on its parent's sibling, i.e., an "uncle") are NOT supported.
+
+       This limitation exists because we want lazy compilation for nested scopes (nephews).
+       If we were to include nephew-uncle dependencies, we would need to eagerly analyze
+       all nested scopes at construction time, defeating laziness.
+
+       Example of unsupported pattern::
+
+           @scope
+           class Outer:
+               @local
+               @resource
+               def uncle() -> str:  # Uncle is @local
+                   return "uncle_value"
+
+               @scope
+               class Inner:
+                   @resource
+                   def nephew(uncle: str) -> str:  # Nephew depends on uncle
+                       return f"got_{uncle}"  # ERROR: uncle is @local, not accessible
+
+       Future solution: Add a ``@friend`` decorator that marks a scope for Ahead-Of-Time
+       analysis. When applied, the scope's nested resources would be analyzed at
+       construction time, allowing nephew-uncle dependencies to be wired.
+       This would enable nephews to access uncle's @local resources.
     """
 
     symbol: Final["MixinSymbol"]
@@ -81,6 +128,7 @@ class MixinV2(HasDict):
     The outer MixinV2 (parent scope), or OuterSentinel.ROOT for root.
 
     To find parent scope dependencies:
+
     - Evaluate outer.evaluated to get the parent ScopeV2
     - Then access the dependency from that ScopeV2
     """
@@ -97,49 +145,6 @@ class MixinV2(HasDict):
 
     Used by _evaluate_resource for PATCHER_ONLY resources to get base values.
     Propagated to nested scopes when MixinV2.evaluated creates a ScopeV2.
-    """
-
-    # Mutable field for two-phase construction (circular dependency support)
-    _sibling_dependencies: "Mapping[str, MixinV2]" = field(init=False)
-    """
-    References to sibling MixinV2 instances that THIS mixin depends on.
-    Keyed by MixinSymbol.attribute_name (str). Only contains dependencies from same scope.
-    Set after construction in two-phase initialization.
-
-    Using attribute_name (str) instead of key (Hashable) prepares for future JIT optimization.
-
-    Only valid for direct children (lexical_outer_index == OWN).
-    Super mixins (lexical_outer_index != OWN) do NOT use this field.
-
-    TODO: Nephew-uncle dependency support
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Currently _sibling_dependencies only contains sibling-to-sibling dependencies
-    within the same scope. Nephew-uncle dependencies (where a nested scope's resource
-    depends on its parent's sibling, i.e., an "uncle") are NOT supported.
-
-    This limitation exists because we want lazy compilation for nested scopes (nephews).
-    If we were to include nephew-uncle dependencies in _sibling_dependencies, we would
-    need to eagerly analyze all nested scopes at construction time, defeating laziness.
-
-    Example of unsupported pattern::
-
-        @scope
-        class Outer:
-            @local
-            @resource
-            def uncle() -> str:  # Uncle is @local
-                return "uncle_value"
-
-            @scope
-            class Inner:
-                @resource
-                def nephew(uncle: str) -> str:  # Nephew depends on uncle
-                    return f"got_{uncle}"  # ERROR: uncle is @local, not accessible
-
-    Future solution: Add a @friend decorator that marks a scope for Ahead-Of-Time
-    analysis. When applied, the scope's nested resources would be analyzed at
-    construction time, allowing nephew-uncle dependencies to be wired into
-    _sibling_dependencies. This would enable nephews to access uncle's @local resources.
     """
 
     @cached_property
@@ -248,17 +253,18 @@ class MixinV2(HasDict):
         """
         from mixinject import SymbolIndexSentinel
 
-        # Only use _sibling_dependencies when BOTH conditions are met:
+        # Only use sibling dependency attributes when BOTH conditions are met:
         # 1. levels_up == 0 (same scope dependency)
         # 2. lexical_outer_index == OWN (we are a direct child, not a super mixin)
         if ref.levels_up == 0 and self.lexical_outer_index is SymbolIndexSentinel.OWN:
-            # Direct child with same-scope dependency: use _sibling_dependencies
-            # Keyed by attribute_name (str) for future JIT optimization
+            # Direct child with same-scope dependency: use getattr
+            # Sibling dependencies are stored as attributes on the MixinV2 instance
             attr_name = ref.target_symbol.attribute_name
-            if attr_name in self._sibling_dependencies:
+            sibling_mixin = getattr(self, attr_name, None)
+            if sibling_mixin is not None:
                 # Returns MixinV2 directly (caller will call .evaluated when needed)
-                return self._sibling_dependencies[attr_name]
-            # Fallback to navigation if not in _sibling_dependencies (lazy scopes)
+                return sibling_mixin
+            # Fallback to navigation if not found as attribute (lazy scopes)
 
         # Super mixins (lexical_outer_index != OWN) OR parent scope deps:
         # Always resolve via navigation
@@ -560,23 +566,21 @@ def construct_scope_v2(
         for key in symbol
     }
 
-    # Phase 2: Wire dependency references (_sibling_dependencies)
-    # Each MixinV2 only gets references to its actual dependencies (by attribute_name)
-    # Keyed by attribute_name (str) for future JIT optimization
+    # Phase 2: Wire dependency references as attributes on each MixinV2
+    # Each MixinV2 gets its sibling dependencies stored as attributes via setattr
+    # Keyed by attribute_name (str) for future JIT optimization with make_dataclass
     for child_symbol, mixin in all_mixins.items():
         # Get dependency symbols from the symbol's same_scope_dependencies property
         dependency_symbols = child_symbol.same_scope_dependencies
         # Look up by attribute_name in all_mixins since dependency_symbol might be from
         # a different branch in union mounts
-        sibling_dependencies = {
-            dependency_symbol.attribute_name: next(
+        for dependency_symbol in dependency_symbols:
+            other_mixin = next(
                 other_mixin
                 for other_symbol, other_mixin in all_mixins.items()
                 if other_symbol.attribute_name == dependency_symbol.attribute_name
             )
-            for dependency_symbol in dependency_symbols
-        }
-        mixin._sibling_dependencies = sibling_dependencies
+            setattr(mixin, dependency_symbol.attribute_name, other_mixin)
 
     # Phase 3: Build _children dict (excluding local)
     # Local resources exist only in _sibling_dependencies of other MixinV2 instances
