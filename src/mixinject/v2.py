@@ -16,8 +16,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from functools import cached_property, reduce
-from inspect import Parameter
-import logging
 from typing import (
     TYPE_CHECKING,
     Callable,
@@ -27,7 +25,6 @@ from typing import (
     Iterable,
     Iterator,
     Mapping,
-    Sequence,
     TypeVar,
     final,
 )
@@ -53,80 +50,12 @@ if TYPE_CHECKING:
         SymbolIndexSentinel,
     )
 
-_logger: Final[logging.Logger] = logging.getLogger(__name__)
 
 T = TypeVar("T")
 TPatch_co = TypeVar("TPatch_co", covariant=True)
 TPatch_contra = TypeVar("TPatch_contra", contravariant=True)
 TResult_co = TypeVar("TResult_co", covariant=True)
 TResult = TypeVar("TResult")
-
-
-def get_dependency_symbols(symbol: "MixinSymbol") -> Sequence["MixinSymbol"]:
-    """
-    Get MixinSymbols that this symbol depends on from the same scope (levels_up=0).
-
-    Mirrors V1's _compile_function_with_mixin logic for same-name skip:
-    - Normal params: search from symbol.outer (containing scope)
-    - Same-name params (param.name == symbol.key): search from symbol.outer.outer
-
-    Only returns dependencies with effective levels_up=0 (same scope as symbol).
-
-    :param symbol: The MixinSymbol to analyze for dependencies.
-    :return: Sequence of MixinSymbols that are dependencies from the same scope.
-    """
-    from inspect import signature
-    from mixinject import (
-        EvaluatorDefinition,
-        MixinSymbol,
-        OuterSentinel,
-        RelativeReferenceSentinel,
-        _get_param_resolved_reference,
-    )
-
-    result: list[MixinSymbol] = []
-    outer = symbol.outer
-
-    # Only process if we have a parent scope (MixinSymbol) to look up dependencies
-    if not isinstance(outer, MixinSymbol):
-        return tuple(result)
-
-    for definition in symbol.definitions:
-        if isinstance(definition, EvaluatorDefinition):
-            # Get the function from the definition
-            if hasattr(definition, "function"):
-                function = definition.function
-                sig = signature(function)
-                for param in sig.parameters.values():
-                    # Skip positional-only parameters (used for patches)
-                    if param.kind == param.POSITIONAL_ONLY:
-                        continue
-
-                    # Same-name skip logic (fixture reference semantics)
-                    # Mirrors V1's _compile_function_with_mixin
-                    if param.name == symbol.key:
-                        # Same-name: search from outer.outer, add 1 to levels_up
-                        if isinstance(outer.outer, OuterSentinel):
-                            # Same-name at root level - not a sibling dependency
-                            continue
-                        search_symbol = outer.outer
-                        extra_levels = 1
-                    else:
-                        # Normal: search from outer
-                        search_symbol = outer
-                        extra_levels = 0
-
-                    resolved_ref = _get_param_resolved_reference(
-                        param.name, search_symbol
-                    )
-                    if resolved_ref is not RelativeReferenceSentinel.NOT_FOUND:
-                        # Effective levels_up accounts for same-name skip
-                        effective_levels_up = resolved_ref.levels_up + extra_levels
-                        # Only include dependencies with levels_up=0 (same scope)
-                        if effective_levels_up == 0:
-                            result.append(resolved_ref.target_symbol)
-
-    return tuple(result)
 
 
 @final
@@ -175,7 +104,7 @@ class MixinV2(HasDict):
     """
     References to sibling MixinV2 instances that THIS mixin depends on.
     Keyed by MixinSymbol.attribute_name (str). Only contains dependencies from same scope.
-    Set after construction via object.__setattr__.
+    Set after construction in two-phase initialization.
 
     Using attribute_name (str) instead of key (Hashable) prepares for future JIT optimization.
 
@@ -255,8 +184,6 @@ class MixinV2(HasDict):
                         lexical_outer_index=index,  # KEY: Different from OWN!
                         kwargs=self.kwargs,  # Propagate kwargs from parent
                     )
-                    # Set empty _sibling_dependencies (super mixins don't use it)
-                    object.__setattr__(direct_mixin, "_sibling_dependencies", {})
 
                 case OwnBaseIndex(index=index):
                     # Resolve using our own base reference
@@ -380,12 +307,12 @@ class MixinV2(HasDict):
             SymbolIndexSentinel,
         )
 
-        def build_evaluators_for_mixin(mixin: "MixinV2") -> list[EvaluatorV2]:
+        def build_evaluators_for_mixin(mixin: "MixinV2") -> tuple[EvaluatorV2, ...]:
             """Build evaluators for a given MixinV2."""
-            result: list[EvaluatorV2] = []
-            for evaluator_symbol in mixin.symbol.evaluator_symbols:
-                result.append(evaluator_symbol.bind_v2(mixin=mixin))
-            return result
+            return tuple(
+                evaluator_symbol.bind_v2(mixin=mixin)
+                for evaluator_symbol in mixin.symbol.evaluator_symbols
+            )
 
         # Get elected merger info
         elected = self.symbol.elected_merger_index
@@ -586,7 +513,6 @@ class ScopeV2:
                 lexical_outer_index=SymbolIndexSentinel.OWN,
                 kwargs=kwargs,
             )
-            object.__setattr__(synthetic_outer, "_sibling_dependencies", {})
         else:
             # Nested scope: create synthetic outer with same outer chain but instance kwargs
             synthetic_outer = MixinV2(
@@ -595,7 +521,6 @@ class ScopeV2:
                 lexical_outer_index=original_outer.lexical_outer_index,
                 kwargs=kwargs,
             )
-            object.__setattr__(synthetic_outer, "_sibling_dependencies", {})
 
         return construct_scope_v2(
             symbol=self.symbol,
@@ -607,7 +532,7 @@ class ScopeV2:
 def construct_scope_v2(
     symbol: "MixinSymbol",
     outer_mixin: "MixinV2 | OuterSentinel",
-    kwargs: "Mapping[str, object] | KwargsSentinel" = KwargsSentinel.STATIC,
+    kwargs: "Mapping[str, object] | KwargsSentinel",
 ) -> ScopeV2:
     """
     Two-phase construction for ScopeV2 with circular dependency support.
@@ -625,47 +550,45 @@ def construct_scope_v2(
 
     # Phase 1: Create all MixinV2 instances
     # outer_mixin is shared by all children (they're all in the same scope)
-    all_mixins: dict["MixinSymbol", MixinV2] = {}
-    for key in symbol:
-        child_symbol = symbol[key]
-        mixin = MixinV2(
+    all_mixins: dict["MixinSymbol", MixinV2] = {
+        (child_symbol := symbol[key]): MixinV2(
             symbol=child_symbol,
             outer=outer_mixin,
             lexical_outer_index=SymbolIndexSentinel.OWN,
-            kwargs=kwargs,  # Pass kwargs to each child
+            kwargs=kwargs,
         )
-        all_mixins[child_symbol] = mixin
+        for key in symbol
+    }
 
     # Phase 2: Wire dependency references (_sibling_dependencies)
     # Each MixinV2 only gets references to its actual dependencies (by attribute_name)
     # Keyed by attribute_name (str) for future JIT optimization
     for child_symbol, mixin in all_mixins.items():
-        # Get dependency symbols from the symbol's resolved references
-        dependency_symbols = get_dependency_symbols(child_symbol)
-        sibling_deps: dict[str, MixinV2] = {}
-        for dep_sym in dependency_symbols:
-            # Look up by attribute_name in all_mixins since dep_sym might be from
-            # a different branch in union mounts
-            for other_symbol, other_mixin in all_mixins.items():
-                if other_symbol.attribute_name == dep_sym.attribute_name:
-                    sibling_deps[dep_sym.attribute_name] = other_mixin
-                    break
-        object.__setattr__(mixin, "_sibling_dependencies", sibling_deps)
+        # Get dependency symbols from the symbol's same_scope_dependencies property
+        dependency_symbols = child_symbol.same_scope_dependencies
+        # Look up by attribute_name in all_mixins since dependency_symbol might be from
+        # a different branch in union mounts
+        sibling_dependencies = {
+            dependency_symbol.attribute_name: next(
+                other_mixin
+                for other_symbol, other_mixin in all_mixins.items()
+                if other_symbol.attribute_name == dependency_symbol.attribute_name
+            )
+            for dependency_symbol in dependency_symbols
+        }
+        mixin._sibling_dependencies = sibling_dependencies
 
-    # Phase 3: Build _children dict (excluding local), trigger eager evaluation
-    children: dict["MixinSymbol", MixinV2] = {}
+    # Phase 3: Build _children dict (excluding local)
+    # Local resources exist only in _sibling_dependencies of other MixinV2 instances
+    children: dict["MixinSymbol", MixinV2] = {
+        child_symbol: mixin
+        for child_symbol, mixin in all_mixins.items()
+        if not child_symbol.is_local
+    }
 
-    for child_symbol, mixin in all_mixins.items():
-        if child_symbol.is_local:
-            # Local resources are NOT added to _children
-            # They exist only in _sibling_dependencies of other MixinV2 instances
-            continue
-
-        # Always store MixinV2 in _children (consistent access pattern)
-        children[child_symbol] = mixin
-
+    # Trigger eager evaluation (result cached by @cached_property)
+    for child_symbol, mixin in children.items():
         if child_symbol.is_eager:
-            # Eager: trigger evaluation NOW (result cached by @cached_property)
             _ = mixin.evaluated
 
     # Phase 4: Create frozen ScopeV2
@@ -724,84 +647,6 @@ class SemigroupV2(MergerV2[T, T], PatcherV2[T], Generic[T], ABC):
     """Both MergerV2 and PatcherV2."""
 
 
-def _resolve_dependencies_v2(
-    function: Callable[..., T],
-    mixin: MixinV2,
-    current_key: "Hashable | None" = None,
-) -> dict[str, object]:
-    """
-    Resolve function dependencies using the mixin's resolve_dependency method.
-
-    Uses lexical scoping to find dependencies - traverses up the MixinSymbol
-    chain to find each parameter, properly tracking levels_up.
-
-    Implements same-name skip logic (fixture reference semantics):
-    when current_key is provided and matches a parameter name, the search
-    starts from outer_symbol.outer and adds 1 to levels_up.
-
-    :param function: The function whose parameters need dependency resolution.
-    :param mixin: The MixinV2 whose resolve_dependency method is used.
-    :param current_key: The key of the resource being resolved (for same-name skip).
-    :return: Dict mapping parameter names to resolved values.
-    """
-    from inspect import signature
-    from mixinject import (
-        MixinSymbol,
-        OuterSentinel,
-        RelativeReferenceSentinel,
-        ResolvedReference,
-        _get_param_resolved_reference,
-    )
-
-    resolved_kwargs: dict[str, object] = {}
-    sig = signature(function)
-    outer_symbol = mixin.symbol.outer
-
-    for param in sig.parameters.values():
-        # Skip positional-only first parameter (used for patches in mergers)
-        if param.kind == param.POSITIONAL_ONLY:
-            continue
-
-        # Use lexical scoping to find the dependency (traverses up scope chain)
-        if isinstance(outer_symbol, MixinSymbol):
-            # Same-name skip logic (fixture reference semantics)
-            # Mirrors V1's _compile_function_with_mixin
-            if current_key is not None and param.name == current_key:
-                # Same-name: search from outer_symbol.outer, add 1 to levels_up
-                if isinstance(outer_symbol.outer, OuterSentinel):
-                    # Same-name at root level - dependency not found
-                    raise LookupError(
-                        f"Resource '{current_key}' depends on '{param.name}' "
-                        f"which does not exist in scope"
-                    )
-                search_symbol = outer_symbol.outer
-                extra_levels = 1
-            else:
-                # Normal: search from outer_symbol
-                search_symbol = outer_symbol
-                extra_levels = 0
-
-            ref = _get_param_resolved_reference(param.name, search_symbol)
-            if ref is RelativeReferenceSentinel.NOT_FOUND:
-                # Dependency not found - raise error like V1
-                raise LookupError(
-                    f"Resource '{current_key}' depends on '{param.name}' "
-                    f"which does not exist in scope"
-                )
-            # Adjust levels_up for same-name skip
-            if extra_levels > 0:
-                ref = ResolvedReference(
-                    levels_up=ref.levels_up + extra_levels,
-                    path=ref.path,
-                    target_symbol=ref.target_symbol,
-                )
-            # Resolve dependency: get MixinV2, then call .evaluated to get value
-            dependency_mixin = mixin.resolve_dependency(ref)
-            resolved_kwargs[param.name] = dependency_mixin.evaluated
-
-    return resolved_kwargs
-
-
 @final
 @dataclass(kw_only=True, slots=True, weakref_slot=True, frozen=True, eq=False)
 class FunctionalMergerV2(MergerV2[TPatch_contra, TResult_co]):
@@ -815,15 +660,9 @@ class FunctionalMergerV2(MergerV2[TPatch_contra, TResult_co]):
         The function (e.g., @merge def tags() -> type[frozenset]: return frozenset)
         returns an aggregation function. We call that function with the patches.
         """
-        function = self.evaluator_getter.definition.function
-        resolved_kwargs = _resolve_dependencies_v2(
-            function,
-            self.mixin,
-            current_key=self.evaluator_getter.symbol.key,
-        )
-
-        # Get the aggregation function (e.g., frozenset, list, etc.)
-        aggregation_function = function(**resolved_kwargs)
+        # compiled_function_v2 returns a function that takes MixinV2 and returns
+        # the aggregation function (e.g., frozenset, list, etc.)
+        aggregation_function = self.evaluator_getter.compiled_function_v2(self.mixin)
         # Call it with the patches
         return aggregation_function(patches)  # type: ignore
 
@@ -837,13 +676,9 @@ class EndofunctionMergerV2(MergerV2[Callable[[TResult], TResult], TResult]):
 
     def merge(self, patches: Iterator[Callable[[TResult], TResult]]) -> TResult:
         """Merge endofunction patches by applying them to base value."""
-        function = self.evaluator_getter.definition.function
-        resolved_kwargs = _resolve_dependencies_v2(
-            function,
-            self.mixin,
-            current_key=self.evaluator_getter.symbol.key,
-        )
-        base_value: TResult = function(**resolved_kwargs)  # type: ignore
+        # compiled_function_v2 returns a function that takes MixinV2 and returns
+        # the base value for endofunction application
+        base_value: TResult = self.evaluator_getter.compiled_function_v2(self.mixin)
 
         return reduce(
             lambda accumulator, endofunction: endofunction(accumulator),
@@ -861,13 +696,9 @@ class SinglePatcherV2(PatcherV2[TPatch_co]):
 
     def __iter__(self) -> Iterator[TPatch_co]:
         """Yield the single patch value."""
-        function = self.evaluator_getter.definition.function
-        resolved_kwargs = _resolve_dependencies_v2(
-            function,
-            self.mixin,
-            current_key=self.evaluator_getter.symbol.key,
-        )
-        yield function(**resolved_kwargs)  # type: ignore
+        # compiled_function_v2 returns a function that takes MixinV2 and returns
+        # the patch value
+        yield self.evaluator_getter.compiled_function_v2(self.mixin)
 
 
 @final
@@ -879,13 +710,9 @@ class MultiplePatcherV2(PatcherV2[TPatch_co]):
 
     def __iter__(self) -> Iterator[TPatch_co]:
         """Yield multiple patch values."""
-        function = self.evaluator_getter.definition.function
-        resolved_kwargs = _resolve_dependencies_v2(
-            function,
-            self.mixin,
-            current_key=self.evaluator_getter.symbol.key,
-        )
-        yield from function(**resolved_kwargs)  # type: ignore
+        # compiled_function_v2 returns a function that takes MixinV2 and returns
+        # an iterable of patch values
+        yield from self.evaluator_getter.compiled_function_v2(self.mixin)
 
 
 def evaluate_v2(
@@ -947,7 +774,6 @@ def evaluate_v2(
         lexical_outer_index=SymbolIndexSentinel.OWN,
         kwargs=KwargsSentinel.STATIC,  # Root is always static
     )
-    object.__setattr__(root_mixin, "_sibling_dependencies", {})
 
     # Evaluate the root mixin to get the ScopeV2
     result = root_mixin.evaluated
