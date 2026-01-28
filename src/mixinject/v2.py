@@ -1,11 +1,11 @@
 """
-MixinV2 and ScopeV2 implementation for proper is_local and is_eager support.
+MixinV2 and ScopeV2 implementation for proper is_public and is_eager support.
 
 This module provides a cleaner architecture with:
 - Single lazy evaluation level (at MixinV2.evaluated only)
 - Frozen ScopeV2 containers
 - Proper circular dependency support via two-phase construction
-- Correct is_local and is_eager semantics
+- Correct is_public and is_eager semantics (private by default)
 
 NOTE: This module does NOT include dynamic class generation.
 """
@@ -424,7 +424,7 @@ class ScopeV2:
     - mixin.evaluated is called during construct_scope_v2() to trigger evaluation
     - The @cached_property caches the result, so subsequent access is instant
 
-    Local resources (is_local=True) are NOT stored in _children.
+    Private resources (is_public=False) are NOT stored in _children.
     They exist only in _sibling_dependencies of MixinV2 instances that depend on them.
     """
 
@@ -450,7 +450,7 @@ class ScopeV2:
     - ALWAYS stores MixinV2 (never evaluated values)
     - is_eager=True: MixinV2.evaluated already called during construction (cached)
     - is_eager=False: MixinV2.evaluated called on first access (lazy)
-    - is_local=True: NOT stored here (only in _sibling_dependencies of dependents)
+    - is_public=False: NOT stored here (only in _sibling_dependencies of dependents)
     """
 
     def __getattr__(self, name: str) -> object:
@@ -461,8 +461,8 @@ class ScopeV2:
         child_symbol = self.symbol.get(name)
         if child_symbol is None:
             raise AttributeError(name)
-        # Local resources are NOT in _children
-        if child_symbol not in self._children:
+        # Private resources are blocked from external access
+        if not child_symbol.is_public:
             raise AttributeError(name)
         return self._children[child_symbol].evaluated
 
@@ -471,8 +471,8 @@ class ScopeV2:
         child_symbol = self.symbol.get(key)
         if child_symbol is None:
             raise KeyError(key)
-        # Local resources are NOT in _children
-        if child_symbol not in self._children:
+        # Private resources are blocked from external access
+        if not child_symbol.is_public:
             raise KeyError(key)
         return self._children[child_symbol].evaluated
 
@@ -481,12 +481,13 @@ class ScopeV2:
         # Get standard dataclass attributes
         base_attrs = set(super(ScopeV2, self).__dir__())
 
-        # Add resource attribute names from children
+        # Add resource attribute names from PUBLIC children only
         # Use .key which is the actual resource name (e.g., 'foo')
         for child_symbol in self._children:
-            key = child_symbol.key
-            if isinstance(key, str):
-                base_attrs.add(key)
+            if child_symbol.is_public:
+                key = child_symbol.key
+                if isinstance(key, str):
+                    base_attrs.add(key)
 
         return sorted(base_attrs)
 
@@ -582,13 +583,10 @@ def construct_scope_v2(
             )
             setattr(mixin, dependency_symbol.attribute_name, other_mixin)
 
-    # Phase 3: Build _children dict (excluding local)
-    # Local resources exist only in _sibling_dependencies of other MixinV2 instances
-    children: dict["MixinSymbol", MixinV2] = {
-        child_symbol: mixin
-        for child_symbol, mixin in all_mixins.items()
-        if not child_symbol.is_local
-    }
+    # Phase 3: Build _children dict (ALL children, including private)
+    # Private resources are accessible internally (for @extend navigation)
+    # but external access is blocked by is_public check in __getattr__/__getitem__
+    children: dict["MixinSymbol", MixinV2] = dict(all_mixins)
 
     # Trigger eager evaluation (result cached by @cached_property)
     for child_symbol, mixin in children.items():
@@ -721,13 +719,14 @@ class MultiplePatcherV2(PatcherV2[TPatch_co]):
 
 def evaluate_v2(
     *namespaces: "ModuleType | ScopeDefinition",
+    modules_public: bool = False,
 ) -> ScopeV2:
     """
     Resolves a ScopeV2 from the given namespaces.
 
     This is the V2 entrypoint that provides:
     - Single lazy evaluation level (at MixinV2.evaluated only)
-    - Proper is_local semantics (local resources hidden from attributes)
+    - Proper is_public semantics (private resources hidden from attributes)
     - Proper is_eager semantics (eager resources evaluated immediately)
     - Circular dependency support via two-phase construction
 
@@ -735,14 +734,18 @@ def evaluate_v2(
     Resources from all namespaces are merged according to the merger election algorithm.
 
     :param namespaces: Modules or namespace definitions (decorated with @scope) to resolve.
+    :param modules_public: If True, modules are marked as public, making their submodules
+        accessible via attribute access. Defaults to False (private by default).
     :return: The root ScopeV2.
 
     Example::
 
         root = evaluate_v2(MyNamespace)
         root = evaluate_v2(Base, Override)  # Union mount
+        root = evaluate_v2(my_package, modules_public=True)  # Make modules accessible
 
     """
+    from dataclasses import replace
     from types import ModuleType
     from typing import assert_never
 
@@ -762,7 +765,10 @@ def evaluate_v2(
         if isinstance(namespace, ScopeDefinition):
             return namespace
         if isinstance(namespace, ModuleType):
-            return _parse_package(namespace)
+            definition = _parse_package(namespace)
+            if modules_public:
+                return replace(definition, is_public=True)
+            return definition
         assert_never(namespace)
 
     definitions = tuple(to_scope_definition(namespace) for namespace in namespaces)

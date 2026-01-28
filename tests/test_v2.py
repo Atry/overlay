@@ -10,7 +10,7 @@ from mixinject import (
     resource,
     scope,
     eager,
-    local,
+    public,
     extend,
     extern,
     merge,
@@ -38,6 +38,7 @@ class TestBasicConstruction:
     def test_simple_resource_no_dependencies(self) -> None:
         @scope
         class Namespace:
+            @public
             @resource
             def greeting() -> str:
                 return "Hello"
@@ -53,6 +54,7 @@ class TestBasicConstruction:
             def name() -> str:
                 return "World"
 
+            @public
             @resource
             def greeting(name: str) -> str:
                 return f"Hello, {name}!"
@@ -71,6 +73,7 @@ class TestBasicConstruction:
             def second() -> str:
                 return "Second"
 
+            @public
             @resource
             def combined(first: str, second: str) -> str:
                 return f"{first} and {second}"
@@ -81,6 +84,7 @@ class TestBasicConstruction:
     def test_getitem_access(self) -> None:
         @scope
         class Namespace:
+            @public
             @resource
             def value() -> int:
                 return 42
@@ -91,6 +95,7 @@ class TestBasicConstruction:
     def test_attribute_error_for_missing(self) -> None:
         @scope
         class Namespace:
+            @public
             @resource
             def existing() -> str:
                 return "exists"
@@ -102,6 +107,7 @@ class TestBasicConstruction:
     def test_key_error_for_missing(self) -> None:
         @scope
         class Namespace:
+            @public
             @resource
             def existing() -> str:
                 return "exists"
@@ -119,6 +125,7 @@ class TestLazyEvaluation:
 
         @scope
         class Namespace:
+            @public
             @resource
             def lazy_resource() -> str:
                 nonlocal call_count
@@ -143,6 +150,7 @@ class TestLazyEvaluation:
     def test_children_contains_mixin_v2_for_lazy(self) -> None:
         @scope
         class Namespace:
+            @public
             @resource
             def lazy() -> str:
                 return "value"
@@ -163,6 +171,7 @@ class TestEagerEvaluation:
 
         @scope
         class Namespace:
+            @public
             @eager
             @resource
             def eager_resource() -> str:
@@ -187,6 +196,7 @@ class TestEagerEvaluation:
     def test_children_contains_value_for_eager(self) -> None:
         @scope
         class Namespace:
+            @public
             @eager
             @resource
             def eager() -> str:
@@ -200,71 +210,69 @@ class TestEagerEvaluation:
         assert result == "value"
 
 
-class TestLocalResources:
-    """Test is_local=True semantics."""
+class TestPublicResources:
+    """Test is_public=True semantics (private by default)."""
 
-    def test_local_resource_not_in_children(self) -> None:
+    def test_private_resource_not_in_children(self) -> None:
         @scope
         class Namespace:
-            @local
             @resource
-            def local_resource() -> str:
-                return "local"
+            def private_resource() -> str:
+                return "private"
 
+            @public
             @resource
             def public_resource() -> str:
                 return "public"
 
         root = evaluate_v2(Namespace)
 
-        # Local resource should not be accessible via __getattr__
+        # Private resource (no @public) should not be accessible via __getattr__
         with pytest.raises(AttributeError):
-            _ = root.local_resource
+            _ = root.private_resource
 
         # Public resource should be accessible
         assert root.public_resource == "public"
 
-    def test_local_resource_raises_attribute_error(self) -> None:
+    def test_private_resource_raises_attribute_error(self) -> None:
         @scope
         class Namespace:
-            @local
             @resource
-            def local_resource() -> str:
-                return "local"
+            def private_resource() -> str:
+                return "private"
 
         root = evaluate_v2(Namespace)
 
         with pytest.raises(AttributeError):
-            _ = root.local_resource
+            _ = root.private_resource
 
-    def test_local_resource_raises_key_error(self) -> None:
+    def test_private_resource_raises_key_error(self) -> None:
         @scope
         class Namespace:
-            @local
             @resource
-            def local_resource() -> str:
-                return "local"
+            def private_resource() -> str:
+                return "private"
 
         root = evaluate_v2(Namespace)
 
         with pytest.raises(KeyError):
-            _ = root["local_resource"]
+            _ = root["private_resource"]
 
-    def test_local_resource_accessible_as_dependency(self) -> None:
+    def test_private_resource_accessible_as_dependency(self) -> None:
         @scope
         class Namespace:
-            @local
             @resource
             def api_endpoint() -> str:
                 return "/api/v1"
 
+            @public
             @resource
             def full_url(api_endpoint: str) -> str:
                 return f"https://example.com{api_endpoint}"
 
         root = evaluate_v2(Namespace)
 
-        # Local resource is accessible indirectly via dependency
+        # Private resource is accessible indirectly via dependency
         assert root.full_url == "https://example.com/api/v1"
 
         # But not directly
@@ -280,10 +288,12 @@ class TestCircularDependencies:
 
         @scope
         class Namespace:
+            @public
             @resource
             def a(b: str) -> str:
                 return f"a({b})"
 
+            @public
             @resource
             def b(a: str) -> str:
                 return f"b({a})"
@@ -297,10 +307,12 @@ class TestCircularDependencies:
 
         @scope
         class Namespace:
+            @public
             @resource
             def a(b: str) -> str:
                 return f"a({b})"
 
+            @public
             @resource
             def b(a: str) -> str:
                 return f"b({a})"
@@ -316,8 +328,10 @@ class TestNestedScopes:
     """Test nested scope construction."""
 
     def test_nested_scope_creation(self) -> None:
+        @public
         @scope
         class Inner:
+            @public
             @resource
             def inner_value() -> int:
                 return 42
@@ -336,16 +350,19 @@ class TestNestedScopes:
     def test_nested_scope_with_outer_dependency(self) -> None:
         @scope
         class Outer:
+            @public
             @resource
             def multiplier() -> int:
                 return 10
 
+            @public
             @scope
             class inner:
                 @resource
                 def base() -> int:
                     return 5
 
+                @public
                 @resource
                 def computed(base: int, multiplier: int) -> int:
                     return base * multiplier
@@ -361,12 +378,14 @@ class TestUnionMount:
     def test_union_mount_complementary(self) -> None:
         @scope
         class First:
+            @public
             @resource
             def a() -> str:
                 return "a"
 
         @scope
         class Second:
+            @public
             @resource
             def b() -> str:
                 return "b"
@@ -384,6 +403,7 @@ class TestPatch:
         class Root:
             @scope
             class Base:
+                @public
                 @resource
                 def value() -> int:
                     return 10
@@ -398,6 +418,7 @@ class TestPatch:
                 R(levels_up=0, path=("Base",)),
                 R(levels_up=0, path=("Patcher",)),
             )
+            @public
             @scope
             class Combined:
                 pass
@@ -410,6 +431,7 @@ class TestPatch:
         class Root:
             @scope
             class Base:
+                @public
                 @resource
                 def value() -> int:
                     return 10
@@ -431,6 +453,7 @@ class TestPatch:
                 R(levels_up=0, path=("Patch1",)),
                 R(levels_up=0, path=("Patch2",)),
             )
+            @public
             @scope
             class Combined:
                 pass
@@ -447,6 +470,7 @@ class TestPatches:
         class Root:
             @scope
             class Base:
+                @public
                 @resource
                 def value() -> int:
                     return 10
@@ -461,6 +485,7 @@ class TestPatches:
                 R(levels_up=0, path=("Base",)),
                 R(levels_up=0, path=("Patcher",)),
             )
+            @public
             @scope
             class Combined:
                 pass
@@ -475,12 +500,15 @@ class TestCapturedScopes:
     def test_same_name_lookup_via_nested_scope(self) -> None:
         @scope
         class Outer:
+            @public
             @resource
             def counter() -> int:
                 return 0
 
+            @public
             @scope
             class Inner:
+                @public
                 @resource
                 def counter(counter: int) -> int:
                     return counter + 1
@@ -498,6 +526,7 @@ class TestMerger:
         class Root:
             @scope
             class Base:
+                @public
                 @merge
                 def tags() -> type[frozenset]:
                     return frozenset
@@ -519,6 +548,7 @@ class TestMerger:
                 R(levels_up=0, path=("Provider1",)),
                 R(levels_up=0, path=("Provider2",)),
             )
+            @public
             @scope
             class Combined:
                 pass
@@ -535,12 +565,14 @@ class TestUnionMountV2:
         class Root:
             @scope
             class Namespace1:
+                @public
                 @resource
                 def foo() -> str:
                     return "foo_value"
 
             @scope
             class Namespace2:
+                @public
                 @resource
                 def bar() -> str:
                     return "bar_value"
@@ -549,6 +581,7 @@ class TestUnionMountV2:
                 R(levels_up=0, path=("Namespace1",)),
                 R(levels_up=0, path=("Namespace2",)),
             )
+            @public
             @scope
             class Combined:
                 pass
@@ -562,16 +595,19 @@ class TestUnionMountV2:
         class Root:
             @scope
             class Namespace1:
+                @public
                 @resource
                 def base_value() -> str:
                     return "base"
 
             @extend(R(levels_up=0, path=("Namespace1",)))
+            @public
             @scope
             class Namespace2:
                 @extern
                 def base_value() -> str: ...
 
+                @public
                 @resource
                 def combined(base_value: str) -> str:
                     return f"{base_value}_combined"
@@ -586,6 +622,7 @@ class TestUnionMountV2:
         class Root:
             @scope
             class branch0:
+                @public
                 @merge
                 def deduplicated_tags() -> type[frozenset]:
                     return frozenset
@@ -596,6 +633,7 @@ class TestUnionMountV2:
                 def deduplicated_tags() -> str:
                     return "tag1"
 
+                @public
                 @resource
                 def another_dependency() -> str:
                     return "dependency_value"
@@ -614,6 +652,7 @@ class TestUnionMountV2:
                 R(levels_up=0, path=("branch1",)),
                 R(levels_up=0, path=("branch2",)),
             )
+            @public
             @scope
             class Combined:
                 pass
@@ -630,6 +669,7 @@ class TestUnionMountV2:
         class Root:
             @scope
             class branch1:
+                @public
                 @resource
                 def foo() -> str:
                     return "foo"
@@ -639,6 +679,7 @@ class TestUnionMountV2:
                 @extern
                 def foo() -> str: ...
 
+                @public
                 @resource
                 def bar(foo: str) -> str:
                     return f"{foo}_bar"
@@ -647,6 +688,7 @@ class TestUnionMountV2:
                 R(levels_up=0, path=("branch1",)),
                 R(levels_up=0, path=("branch2",)),
             )
+            @public
             @scope
             class Combined:
                 pass
@@ -660,12 +702,14 @@ class TestUnionMountV2:
 
         @scope
         class Namespace1:
+            @public
             @resource
             def foo() -> str:
                 return "foo_value"
 
         @scope
         class Namespace2:
+            @public
             @resource
             def bar() -> str:
                 return "bar_value"
@@ -679,6 +723,7 @@ class TestUnionMountV2:
 
         @scope
         class Provider:
+            @public
             @resource
             def base_value() -> str:
                 return "base"
@@ -688,6 +733,7 @@ class TestUnionMountV2:
             @extern
             def base_value() -> str: ...
 
+            @public
             @resource
             def derived(base_value: str) -> str:
                 return f"{base_value}_derived"
@@ -701,6 +747,7 @@ class TestUnionMountV2:
 
         @scope
         class MergerNamespace:
+            @public
             @merge
             def tags() -> type[frozenset]:
                 return frozenset
@@ -731,13 +778,16 @@ class TestExtendNameResolution:
         class Root:
             @scope
             class Base:
+                @public
                 @resource
                 def base_value() -> int:
                     return 42
 
             @extend(R(levels_up=0, path=("Base",)))
+            @public
             @scope
             class Extended:
+                @public
                 @resource
                 def doubled(base_value: int) -> int:
                     return base_value * 2
@@ -757,12 +807,14 @@ class TestScalaStylePathDependentTypes:
         class Root:
             @scope
             class Base:
+                @public
                 @resource
                 def foo() -> int:
                     return 10
 
             @scope
             class object1:
+                @public
                 @resource
                 def i() -> int:
                     return 1
@@ -776,6 +828,7 @@ class TestScalaStylePathDependentTypes:
 
             @scope
             class object2:
+                @public
                 @resource
                 def i() -> int:
                     return 2
@@ -791,6 +844,7 @@ class TestScalaStylePathDependentTypes:
                 R(levels_up=0, path=("object1", "MyInner")),
                 R(levels_up=0, path=("object2", "MyInner")),
             )
+            @public
             @scope
             class MyObjectA:
                 @patch
@@ -838,7 +892,7 @@ class TestModuleParsing:
         try:
             import nested_pkg
 
-            root = evaluate_v2(nested_pkg)
+            root = evaluate_v2(nested_pkg, modules_public=True)
 
             # After evaluate_v2(nested_pkg):
             # - nested_pkg is imported
@@ -868,7 +922,7 @@ class TestModuleParsing:
         try:
             import regular_pkg
 
-            root = evaluate_v2(regular_pkg)
+            root = evaluate_v2(regular_pkg, modules_public=True)
             assert root.pkg_value == "from_pkg"
             assert root.child.child_value == "from_child"
         finally:
@@ -897,7 +951,7 @@ class TestModuleParsing:
             scope_def = _parse_package(ns_pkg)
             assert isinstance(scope_def, PackageScopeDefinition)
 
-            root = evaluate_v2(ns_pkg)
+            root = evaluate_v2(ns_pkg, modules_public=True)
             assert root.mod_a.value_a == "a"
             assert root.mod_b.base == "base"
         finally:
@@ -911,7 +965,7 @@ class TestModuleParsing:
         try:
             import ns_pkg
 
-            root = evaluate_v2(ns_pkg)
+            root = evaluate_v2(ns_pkg, modules_public=True)
             assert root.mod_b.base == "base"
             assert root.mod_b.derived == "base_derived"
         finally:
@@ -928,7 +982,8 @@ class TestModuleParsing:
             ns_pkg_dir = Path(tmpdir) / "ns_pkg"
             ns_pkg_dir.mkdir()
             (ns_pkg_dir / "mod_c.py").write_text(
-                "from mixinject import resource\n" "value_c = resource(lambda: 'c')\n"
+                "from mixinject import public, resource\n"
+                "value_c = public(resource(lambda: 'c'))\n"
             )
 
             sys.path.insert(0, FIXTURES_DIR)
@@ -940,7 +995,7 @@ class TestModuleParsing:
                 scope_def = _parse_package(ns_pkg)
                 assert isinstance(scope_def, PackageScopeDefinition)
 
-                root = evaluate_v2(ns_pkg)
+                root = evaluate_v2(ns_pkg, modules_public=True)
                 assert root.mod_a.value_a == "a"
                 assert root.mod_b.base == "base"
                 assert root.mod_c.value_c == "c"
@@ -961,6 +1016,7 @@ class TestMissingDependency:
 
         @scope
         class Namespace:
+            @public
             @resource
             def greeting(nonexistent_dependency: str) -> str:
                 return f"Hello, {nonexistent_dependency}!"
@@ -978,12 +1034,15 @@ class TestFixtureReference:
 
         @scope
         class Outer:
+            @public
             @resource
             def counter() -> int:
                 return 0
 
+            @public
             @scope
             class Inner:
+                @public
                 @resource
                 def counter(counter: int) -> int:
                     return counter + 1
@@ -997,12 +1056,15 @@ class TestFixtureReference:
 
         @scope
         class Outer:
+            @public
             @resource
             def other() -> str:
                 return "other_value"
 
+            @public
             @scope
             class Inner:
+                @public
                 @resource
                 def something(other: str) -> str:
                     return f"got_{other}"
@@ -1015,18 +1077,23 @@ class TestFixtureReference:
 
         @scope
         class Root:
+            @public
             @resource
             def value() -> int:
                 return 10
 
+            @public
             @scope
             class Level1:
+                @public
                 @resource
                 def value(value: int) -> int:
                     return value + 1
 
+                @public
                 @scope
                 class Level2:
+                    @public
                     @resource
                     def value(value: int) -> int:
                         return value + 1
@@ -1076,6 +1143,7 @@ class TestInstanceScope:
 
         @scope
         class Config:
+            @public
             @extern
             def foo() -> str: ...
 
@@ -1089,12 +1157,15 @@ class TestInstanceScope:
 
         @scope
         class Config:
+            @public
             @extern
             def foo() -> str: ...
 
+            @public
             @extern
             def count() -> int: ...
 
+            @public
             @extern
             def flag() -> bool: ...
 
@@ -1123,6 +1194,7 @@ class TestScopeCallable:
             @extern
             def db_config() -> dict: ...
 
+            @public
             @resource
             def connection_string(db_config: dict) -> str:
                 return f"host={db_config['host']}:{db_config['port']}"
@@ -1145,6 +1217,7 @@ class TestInstanceScopeImplementation:
         @scope
         class Config:
 
+            @public
             @patch
             def greeting() -> Endofunction[str]:
                 return lambda s: s + "!"
@@ -1169,16 +1242,19 @@ class TestSyntheticScopeCallable:
         class Root:
             @scope
             class Base:
+                @public
                 @scope
                 class Inner:
                     @extern
                     def arg() -> str: ...
 
+                    @public
                     @resource
                     def value(arg: str) -> str:
                         return f"value_{arg}"
 
             @extend(R(levels_up=0, path=("Base",)))
+            @public
             @scope
             class Extended:
                 pass
@@ -1201,13 +1277,16 @@ class TestInstanceScopeNestedAccess:
 
         @scope
         class Root:
+            @public
             @scope
             class MyOuter:
                 @extern
                 def i() -> int: ...
 
+                @public
                 @scope
                 class MyInner:
+                    @public
                     @resource
                     def foo(i: int) -> str:
                         return f"foo_{i}"
@@ -1230,13 +1309,16 @@ class TestDefinitionSharing:
 
         @scope
         class Root:
+            @public
             @scope
             class Outer:
                 @extern
                 def arg() -> str: ...
 
+                @public
                 @scope
                 class Inner:
+                    @public
                     @resource
                     def value(arg: str) -> str:
                         return f"value_{arg}"
@@ -1262,11 +1344,13 @@ class TestExtendInstanceScopeProhibition:
 
         @scope
         class Root:
+            @public
             @scope
             class MyOuter:
                 @extern
                 def i() -> int: ...
 
+                @public
                 @resource
                 def foo(i: int) -> str:
                     return f"foo_{i}"
@@ -1276,6 +1360,7 @@ class TestExtendInstanceScopeProhibition:
                 return MyOuter(i=42)
 
             @extend(R(levels_up=0, path=("my_instance",)))
+            @public
             @scope
             class Extended:
                 pass
@@ -1330,18 +1415,22 @@ class TestExtendInstanceScopeProhibition:
 
         @scope
         class Root:
+            @public
             @scope
             class MyOuter:
                 @extern
                 def i() -> int: ...
 
+                @public
                 @scope
                 class Inner2:
+                    @public
                     @resource
                     def base_value() -> int:
                         return 100
 
                 @extend(R(levels_up=0, path=("Inner2",)))
+                @public
                 @scope
                 class Inner1:
                     @patch
@@ -1370,11 +1459,13 @@ class TestExtendNonMixin:
 
         @scope
         class Root:
+            @public
             @resource
             def base_value() -> int:
                 return 10
 
             # Extending a Resource (not a Scope) with a patch
+            # The resulting merged resource inherits is_public from base_value
             @extend(R(levels_up=0, path=("base_value",)))
             @patch
             def patched_value() -> Callable[[int], int]:
@@ -1391,6 +1482,7 @@ class TestScopeAsSymlink:
     def test_scope_symlink(self) -> None:
         @scope
         class Inner:
+            @public
             @extern
             def inner_value() -> str: ...
 
@@ -1398,6 +1490,7 @@ class TestScopeAsSymlink:
 
         @scope
         class Namespace:
+            @public
             @resource
             def linked() -> ScopeV2:
                 return inner_scope
@@ -1423,18 +1516,21 @@ class TestScopeDir:
         assert isinstance(result, list)
 
     def test_dir_includes_names(self) -> None:
-        """Test that __dir__ includes all resource names."""
+        """Test that __dir__ includes all public resource names."""
 
         @scope
         class Namespace:
+            @public
             @resource
             def resource1() -> str:
                 return "r1"
 
+            @public
             @resource
             def resource2() -> str:
                 return "r2"
 
+            @public
             @resource
             def resource3() -> str:
                 return "r3"
@@ -1488,12 +1584,14 @@ class TestScopeDir:
         class Root:
             @scope
             class Namespace1:
+                @public
                 @resource
                 def foo() -> str:
                     return "foo"
 
             @scope
             class Namespace2:
+                @public
                 @resource
                 def bar() -> str:
                     return "bar"
@@ -1502,6 +1600,7 @@ class TestScopeDir:
                 R(levels_up=0, path=("Namespace1",)),
                 R(levels_up=0, path=("Namespace2",)),
             )
+            @public
             @scope
             class Combined:
                 pass
@@ -1518,6 +1617,7 @@ class TestScopeDir:
         class Root:
             @scope
             class Namespace1:
+                @public
                 @resource
                 def shared() -> str:
                     return "from_ns1"
@@ -1532,6 +1632,7 @@ class TestScopeDir:
                 R(levels_up=0, path=("Namespace1",)),
                 R(levels_up=0, path=("Namespace2",)),
             )
+            @public
             @scope
             class Combined:
                 pass
@@ -1545,10 +1646,12 @@ class TestScopeDir:
 
         @scope
         class Namespace:
+            @public
             @resource
             def accessible1() -> str:
                 return "a1"
 
+            @public
             @resource
             def accessible2() -> str:
                 return "a2"
@@ -1571,6 +1674,7 @@ class TestParameter:
             @extern
             def database_url() -> str: ...
 
+            @public
             @resource
             def connection_string(database_url: str) -> str:
                 return f"Connected to: {database_url}"
@@ -1592,6 +1696,7 @@ class TestParameter:
                 """This parameter depends on host but returns nothing useful."""
                 return f"postgresql://{host}/db"  # Return value is ignored
 
+            @public
             @resource
             def connection_string(database_url: str) -> str:
                 return f"Connected to: {database_url}"
@@ -1607,6 +1712,7 @@ class TestParameter:
             @extern
             def database_url() -> str: ...
 
+            @public
             @resource
             def connection_string(database_url: str) -> str:
                 return f"Connected to: {database_url}"
@@ -1621,11 +1727,13 @@ class TestParameter:
 
         @scope
         class WithParameter:
+            @public
             @extern
             def value() -> int: ...
 
         @scope
         class WithEmptyPatches:
+            @public
             @patch_many
             def value() -> tuple[Callable[[int], int], ...]:
                 return ()
@@ -1647,6 +1755,7 @@ class TestParameter:
             @extern
             def port() -> int: ...
 
+            @public
             @resource
             def url(host: str, port: int) -> str:
                 return f"http://{host}:{port}"
@@ -1659,19 +1768,23 @@ class TestParameter:
 
         @scope
         class WithParameter:
+            @public
             @extern
             def value() -> int: ...
 
+            @public
             @resource
             def doubled(value: int) -> int:
                 return value * 2
 
         @scope
         class WithIdentityPatch:
+            @public
             @patch
             def value() -> Callable[[int], int]:
                 return lambda x: x
 
+            @public
             @resource
             def doubled(value: int) -> int:
                 return value * 2
@@ -1690,6 +1803,7 @@ class TestParameter:
 
         @scope
         class WithIdentityPatch:
+            @public
             @patch
             def config() -> Callable[[dict], dict]:
                 return lambda x: x
@@ -1748,6 +1862,7 @@ class TestInstanceScopeV2Specific:
 
         @scope
         class Config:
+            @public
             @extern
             def foo() -> str: ...
 
@@ -1763,6 +1878,7 @@ class TestInstanceScopeV2Specific:
             @extern
             def foo() -> str: ...
 
+            @public
             @extern
             def bar() -> str: ...
 
@@ -1779,10 +1895,13 @@ class TestInstanceScopeV2Specific:
             @extern
             def value() -> int: ...
 
+            @public
             @scope
             class Level1:
+                @public
                 @scope
                 class Level2:
+                    @public
                     @resource
                     def doubled(value: int) -> int:
                         return value * 2

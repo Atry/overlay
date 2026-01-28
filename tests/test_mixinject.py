@@ -25,7 +25,7 @@ def _make_scope_symbol(
     underlying = TestUnderlying()
     for key, child_def in children.items():
         setattr(underlying, key, child_def)
-    return ScopeDefinition(bases=bases, underlying=underlying)
+    return ScopeDefinition(bases=bases, is_public=False, underlying=underlying)
 
 
 class TestResolvedBases:
@@ -33,7 +33,7 @@ class TestResolvedBases:
 
     def test_root_symbol_with_empty_bases_returns_empty_tuple(self) -> None:
         """Root symbol with empty bases should return empty tuple."""
-        scope_def = ScopeDefinition(bases=(), underlying=object())
+        scope_def = ScopeDefinition(bases=(), is_public=False, underlying=object())
         root_symbol = MixinSymbol(origin=(scope_def,))
         assert root_symbol.resolved_bases == ()
 
@@ -45,11 +45,12 @@ class TestLexicalReference:
         """LexicalReference finds property in outer scope, returns full path."""
         # Structure: root_symbol contains "target" as a child, target contains "foo"
         # inner_symbol references L(path=("target", "foo"))
-        foo_def = ScopeDefinition(bases=(), underlying=object())
+        foo_def = ScopeDefinition(bases=(), is_public=False, underlying=object())
         target_def = _make_scope_symbol({"foo": foo_def})
         inner_def = ScopeDefinition(
-            underlying=object(),
             bases=(L(path=("target", "foo")),),
+            is_public=False,
+            underlying=object(),
         )
         root_def = _make_scope_symbol({"target": target_def, "inner": inner_def})
         root_symbol = MixinSymbol(origin=(root_def,))
@@ -73,10 +74,11 @@ class TestLexicalReference:
         # middle_symbol contains "foo" as a child
         # inner_symbol references L(path=("Middle", "foo"))
         # "Middle" is NOT a property of middle_symbol, but IS middle_symbol's key
-        foo_def = ScopeDefinition(bases=(), underlying=object())
+        foo_def = ScopeDefinition(bases=(), is_public=False, underlying=object())
         inner_def = ScopeDefinition(
-            underlying=object(),
             bases=(L(path=("Middle", "foo")),),
+            is_public=False,
+            underlying=object(),
         )
         middle_def = _make_scope_symbol({"inner": inner_def, "foo": foo_def})
         root_def = _make_scope_symbol({"Middle": middle_def})
@@ -101,10 +103,11 @@ class TestLexicalReference:
         # inner references L(path=("A", "foo"))
         # A is NOT a property of B, and "A" != B.key
         # A is NOT a property of A, but "A" == A.key → self-reference at level 1
-        foo_def = ScopeDefinition(bases=(), underlying=object())
+        foo_def = ScopeDefinition(bases=(), is_public=False, underlying=object())
         inner_def = ScopeDefinition(
-            underlying=object(),
             bases=(L(path=("A", "foo")),),
+            is_public=False,
+            underlying=object(),
         )
         b_def = _make_scope_symbol({"inner": inner_def})
         a_def = _make_scope_symbol({"B": b_def, "foo": foo_def})
@@ -135,10 +138,11 @@ class TestLexicalReference:
         """
         # Structure: root_symbol -> A (key="A", contains property "A") -> inner
         # A also contains a property named "A" (ambiguous with self-reference)
-        child_a_def = ScopeDefinition(bases=(), underlying=object())
+        child_a_def = ScopeDefinition(bases=(), is_public=False, underlying=object())
         inner_def = ScopeDefinition(
-            underlying=object(),
             bases=(L(path=("A", "bar")),),
+            is_public=False,
+            underlying=object(),
         )
         a_def = _make_scope_symbol({"A": child_a_def, "inner": inner_def})
         root_def = _make_scope_symbol({"A": a_def})
@@ -157,8 +161,9 @@ class TestLexicalReference:
     def test_lexical_reference_not_found_raises_lookup_error(self) -> None:
         """LexicalReference raises LookupError when first segment not found."""
         inner_def = ScopeDefinition(
-            underlying=object(),
             bases=(L(path=("nonexistent",)),),
+            is_public=False,
+            underlying=object(),
         )
         root_def = _make_scope_symbol({"inner": inner_def})
         root_symbol = MixinSymbol(origin=(root_def,))
@@ -169,8 +174,9 @@ class TestLexicalReference:
     def test_lexical_reference_empty_path_raises_value_error(self) -> None:
         """LexicalReference with empty path raises ValueError."""
         inner_def = ScopeDefinition(
-            underlying=object(),
             bases=(L(path=()),),
+            is_public=False,
+            underlying=object(),
         )
         root_def = _make_scope_symbol({"inner": inner_def})
         root_symbol = MixinSymbol(origin=(root_def,))
@@ -185,8 +191,9 @@ class TestFixtureReference:
     def test_fixture_reference_not_found_raises_lookup_error(self) -> None:
         """FixtureReference raises LookupError when name not found."""
         inner_def = ScopeDefinition(
-            underlying=object(),
             bases=(F(name="nonexistent"),),
+            is_public=False,
+            underlying=object(),
         )
         root_def = _make_scope_symbol({"inner": inner_def})
         root_symbol = MixinSymbol(origin=(root_def,))

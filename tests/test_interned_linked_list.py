@@ -11,7 +11,7 @@ from mixinject import (
 
 def _empty_definition() -> ScopeDefinition:
     """Create a minimal empty scope definition for testing."""
-    return ScopeDefinition(bases=(), underlying=object())
+    return ScopeDefinition(bases=(), is_public=False, underlying=object())
 
 
 def _root_symbol(definition: ScopeDefinition) -> MixinSymbol:

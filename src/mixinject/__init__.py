@@ -965,15 +965,15 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
                             is_property = first_segment in outer_symbol
                             is_self_reference = first_segment == outer_symbol.key
 
-                            # Error on is_local=True resources when levels_up >= 1
-                            # Local resources are only visible within their own scope
+                            # Error on is_public=False resources when levels_up >= 1
+                            # Private resources are only visible within their own scope
                             # Silently skipping would be surprising behavior for users
                             if is_property and levels_up >= 1:
                                 child_symbol = outer_symbol.get(first_segment)
-                                if child_symbol is not None and child_symbol.is_local:
+                                if child_symbol is not None and not child_symbol.is_public:
                                     raise LookupError(
-                                        f"Cannot resolve '{first_segment}': resource is marked "
-                                        f"as @local and is not accessible from nested scopes"
+                                        f"Cannot resolve '{first_segment}': resource is not marked "
+                                        f"as @public and is not accessible from nested scopes"
                                     )
 
                             if is_property and is_self_reference:
@@ -1006,17 +1006,17 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
                             levels_up += 1
                             # Check if name exists in outer_symbol
                             if name in outer_symbol:
-                                # Error on is_local=True resources when levels_up >= 1
-                                # Local resources are only visible within their own scope
+                                # Error on is_public=False resources when levels_up >= 1
+                                # Private resources are only visible within their own scope
                                 # Silently skipping would be surprising behavior for users
                                 child_symbol = outer_symbol.get(name)
-                                is_local = (
-                                    child_symbol is not None and child_symbol.is_local
+                                is_private = (
+                                    child_symbol is not None and not child_symbol.is_public
                                 )
-                                if is_local and levels_up >= 1:
+                                if is_private and levels_up >= 1:
                                     raise LookupError(
-                                        f"Cannot resolve '{name}': resource is marked "
-                                        f"as @local and is not accessible from nested scopes"
+                                        f"Cannot resolve '{name}': resource is not marked "
+                                        f"as @public and is not accessible from nested scopes"
                                     )
 
                                 if skip_first:
@@ -1192,12 +1192,12 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
                 return outer_symbol.depth + 1
 
     @cached_property
-    def is_local(self):
+    def is_public(self):
+        # Check if any definition is public
         return any(
-            definition.is_local
+            definition.is_public
             for super_symbol in chain((self,), self.strict_super_indices)
             for definition in super_symbol.definitions
-            if isinstance(definition, MergerDefinition)
         )
 
     @cached_property
@@ -1941,6 +1941,7 @@ class Definition(ABC):
     """Base class for all definitions."""
 
     bases: tuple["ResourceReference", ...]
+    is_public: bool
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
@@ -1967,7 +1968,6 @@ class EvaluatorDefinition(Definition, ABC):
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
 class MergerDefinition(EvaluatorDefinition, Generic[TPatch_contra, TResult_co]):
     is_eager: bool
-    is_local: bool
 
 
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
@@ -2104,10 +2104,11 @@ class PackageScopeDefinition(ScopeDefinition):
 
         submod = importlib.import_module(full_name)
 
+        # Submodules inherit is_public from their parent package
         if hasattr(submod, "__path__"):
-            return (PackageScopeDefinition(bases=(), underlying=submod),)
+            return (PackageScopeDefinition(bases=(), is_public=self.is_public, underlying=submod),)
         else:
-            return (ScopeDefinition(bases=(), underlying=submod),)
+            return (ScopeDefinition(bases=(), is_public=self.is_public, underlying=submod),)
 
 
 def scope(c: object) -> ScopeDefinition:
@@ -2161,7 +2162,7 @@ def scope(c: object) -> ScopeDefinition:
             root.Combined.bar  # "foo_bar"
 
     """
-    return ScopeDefinition(bases=(), underlying=c)
+    return ScopeDefinition(bases=(), is_public=False, underlying=c)
 
 
 TDefinition = TypeVar("TDefinition", bound=Definition)
@@ -2256,9 +2257,10 @@ def _parse_package(module: ModuleType) -> ScopeDefinition:
     For packages (modules with __path__), uses pkgutil.iter_modules to discover submodules
     and importlib.import_module to lazily import them when accessed.
     """
+    # Modules are private by default; use modules_public=True in evaluate_v2 to make public
     if hasattr(module, "__path__"):
-        return PackageScopeDefinition(bases=(), underlying=module)
-    return ScopeDefinition(bases=(), underlying=module)
+        return PackageScopeDefinition(bases=(), is_public=False, underlying=module)
+    return ScopeDefinition(bases=(), is_public=False, underlying=module)
 
 
 Endofunction = Callable[[TResult], TResult]
@@ -2323,7 +2325,7 @@ def merge(
     See :func:`scope` for examples.
     """
     return FunctionalMergerDefinition(
-        bases=(), function=callable, is_eager=False, is_local=False
+        bases=(), function=callable, is_eager=False, is_public=False
     )
 
 
@@ -2333,7 +2335,7 @@ def patch(
     """
     A decorator that converts a callable into a patch definition.
     """
-    return SinglePatcherDefinition(bases=(), function=callable)
+    return SinglePatcherDefinition(bases=(), is_public=False, function=callable)
 
 
 def patch_many(
@@ -2342,7 +2344,7 @@ def patch_many(
     """
     A decorator that converts a callable into a patch definition.
     """
-    return MultiplePatcherDefinition(bases=(), function=callable)
+    return MultiplePatcherDefinition(bases=(), is_public=False, function=callable)
 
 
 def extern(callable: Callable[..., Any]) -> PatcherDefinition[Any]:
@@ -2385,7 +2387,7 @@ def extern(callable: Callable[..., Any]) -> PatcherDefinition[Any]:
 
     empty_patches_provider.__signature__ = sig  # type: ignore[attr-defined]
 
-    return MultiplePatcherDefinition(bases=(), function=empty_patches_provider)
+    return MultiplePatcherDefinition(bases=(), is_public=False, function=empty_patches_provider)
 
 
 def resource(
@@ -2419,10 +2421,11 @@ def resource(
             )
     """
     return EndofunctionMergerDefinition(
-        bases=(), function=callable, is_eager=False, is_local=False
+        bases=(), function=callable, is_eager=False, is_public=False
     )
 
 
+TPublicDefinition = TypeVar("TPublicDefinition", bound=Definition)
 TMergerDefinition = TypeVar("TMergerDefinition", bound=MergerDefinition[Any, Any])
 
 
@@ -2446,23 +2449,32 @@ def eager(definition: TMergerDefinition) -> TMergerDefinition:
     return replace(definition, is_eager=True)
 
 
-def local(definition: TMergerDefinition) -> TMergerDefinition:
+def public(definition: TPublicDefinition) -> TPublicDefinition:
     """
-    Decorator to mark a resource as local.
+    Decorator to mark a definition as public.
 
-    Local resources are intermediate values, served as dependencies of other resources in the same scope.
-    They are inaccessible from neither child scopes via dependency injection nor from getattr/getitem access.
+    Public definitions are accessible from child scopes via dependency injection
+    and from getattr/getitem access on the scope object.
+
+    Definitions are private by default, meaning they are only accessible as
+    dependencies within the same scope. Use @public to expose them externally.
+
     Example::
 
-        @local
+        @public
         @resource
         def api_endpoint() -> str:
             return "/api/v1"
 
-    :param definition: A MergerDefinition to mark as local.
-    :return: A new MergerDefinition with is_local=True.
+        @public
+        @scope
+        class NestedScope:
+            pass
+
+    :param definition: A Definition to mark as public.
+    :return: A new Definition with is_public=True.
     """
-    return replace(definition, is_local=True)
+    return replace(definition, is_public=True)
 
 
 # V1 function evaluate() removed - use evaluate_v2() from v2.py instead
@@ -2765,11 +2777,10 @@ class ResolvedReference:
                 raise ValueError(
                     f"Key {key!r} not found in scope {scope.symbol.key!r}"
                 )
-            if child_symbol not in scope._children:
-                raise ValueError(
-                    f"Key {key!r} not in _children (is it local?)"
-                )
-            # _children ALWAYS contains MixinV2 (never evaluated values)
+            # _children contains ALL mixins (including private) for internal navigation
+            assert child_symbol in scope._children, (
+                f"Symbol {child_symbol.key!r} not in _children (internal error)"
+            )
             current = scope._children[child_symbol]
 
         return current

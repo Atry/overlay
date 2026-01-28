@@ -1,8 +1,9 @@
 """Module A in namespace package."""
 
-from mixinject import resource
+from mixinject import public, resource
 
 
+@public
 @resource
 def value_a() -> str:
     return "a"

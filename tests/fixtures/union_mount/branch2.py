@@ -4,7 +4,7 @@ Note: @resource decorator returns a MergerDefinition object, not a function,
 so @staticmethod is not needed (Python's descriptor protocol only applies to functions).
 """
 
-from mixinject import extern, patch, resource, scope
+from mixinject import extern, patch, public, resource, scope
 
 
 @extern
@@ -17,6 +17,7 @@ def deduplicated_tags(another_dependency: str) -> str:
     return f"tag2_{another_dependency}"
 
 
+@public
 @scope
 class union_mount_point:
     """Provides bar resource via @scope semigroup, depending on foo from branch1."""
@@ -24,6 +25,7 @@ class union_mount_point:
     @extern
     def foo() -> str: ...
 
+    @public
     @resource
     def bar(foo: str) -> str:
         return f"{foo}_bar"

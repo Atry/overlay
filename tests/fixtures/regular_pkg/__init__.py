@@ -1,8 +1,9 @@
 """A regular package for testing."""
 
-from mixinject import resource
+from mixinject import public, resource
 
 
+@public
 @resource
 def pkg_value() -> str:
     return "from_pkg"
