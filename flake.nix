@@ -22,7 +22,12 @@
   outputs = inputs: inputs.flake-parts.lib.mkFlake { inherit inputs; } {
     imports = [
       ./modules/lib.nix
+      ./modules/dev.nix
+      ./modules/texlive.nix
+      ./modules/tests.nix
     ];
+    systems = import inputs.systems;
+
   };
 }
 
