@@ -16,6 +16,9 @@
             "latexmk"
             "pdftex"
             "latex"
+            "mathtools"
+            "listings"
+            "xcolor"
           ];
         };
       };

@@ -3,6 +3,12 @@
 .envrc.private
 result
 .pre-commit-config.yaml
+*.pdf
+*.log
+*.aux
+*.fls
+*.fdb_latexmk
+*.synctex.gz
 
 # nixago: ignore-linked-files
 /.vscode/extensions.json
