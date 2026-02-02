@@ -1,0 +1,404 @@
+# MIXIN Standard Library
+# Church-encoded data types and polymorphic operations
+# Demonstrating Expression Problem solution via 2D modular composition
+#
+# No wrapper key: the file name "stdlib" provides the namespace via selfName.
+# Internal references use [stdlib, ...] which resolves through selfName matching.
+
+# Layer 1: Abstract Structures
+
+abstract:
+  Semigroup:
+    element_type: {}
+    Combine:
+      left: {}
+      right: {}
+      result: {}
+
+# Layer 2: Core Types (observer interfaces)
+
+types:
+  Boolean:
+    on_true: {}
+    on_false: {}
+    result: {}
+
+  Nat:
+    successor:
+      argument: {}
+      result: {}
+    zero: {}
+    result: {}
+
+  BinNat:
+    on_odd:
+      argument: {}
+      result: {}
+    on_even:
+      argument: {}
+      result: {}
+    on_zero: {}
+    result: {}
+
+  List:
+    on_nil:
+      result: {}
+    on_cons:
+      item: {}
+      rest: {}
+      result: {}
+    result: {}
+
+# Constructors
+
+constructors:
+  "True":
+    - [stdlib, types, Boolean]
+    - result:
+        - ["True", on_true]
+
+  "False":
+    - [stdlib, types, Boolean]
+    - result:
+        - ["False", on_false]
+
+  Zero:
+    - [stdlib, types, Nat]
+    - result:
+        - [Zero, zero]
+
+  Succ:
+    - [stdlib, types, Nat]
+    - predecessor:
+        - [stdlib, types, Nat]
+      successor:
+        - [Succ, successor]
+        - argument:
+            - [Succ, predecessor]
+          result: {}
+      result:
+        - [Succ, successor, result]
+
+  BinNatZero:
+    - [stdlib, types, BinNat]
+    - result:
+        - [BinNatZero, on_zero]
+
+  BinNatOdd:
+    - [stdlib, types, BinNat]
+    - operand:
+        - [stdlib, types, BinNat]
+      on_odd:
+        - [BinNatOdd, on_odd]
+        - argument:
+            - [BinNatOdd, operand]
+      result:
+        - [BinNatOdd, on_odd, result]
+
+  BinNatEven:
+    - [stdlib, types, BinNat]
+    - operand:
+        - [stdlib, types, BinNat]
+      on_even:
+        - [BinNatEven, on_even]
+        - argument:
+            - [BinNatEven, operand]
+      result:
+        - [BinNatEven, on_even, result]
+
+  ListNil:
+    - [stdlib, types, List]
+    - result:
+        - [ListNil, on_nil, result]
+
+  ListCons:
+    - [stdlib, types, List]
+    - item: {}
+      rest:
+        - [stdlib, types, List]
+      on_cons:
+        - [ListCons, on_cons]
+        - item:
+            - [ListCons, item]
+          rest:
+            - [ListCons, rest]
+      result:
+        - [ListCons, on_cons, result]
+
+# Layer 3: Type-Specific Operations
+
+boolean:
+  equality:
+    BooleanEquality:
+      - [stdlib, types, Boolean]
+      - left:
+          - [stdlib, types, Boolean]
+        right:
+          - [stdlib, types, Boolean]
+        _applied_left:
+          - [left]
+          - on_true:
+              - [right]
+              - on_true:
+                  result:
+                    - [stdlib, constructors, "True"]
+                on_false:
+                  result:
+                    - [stdlib, constructors, "False"]
+            on_false:
+              - [right]
+              - on_true:
+                  result:
+                    - [stdlib, constructors, "False"]
+                on_false:
+                  result:
+                    - [stdlib, constructors, "True"]
+        result:
+          - [_applied_left, result]
+
+  operations:
+    BooleanAnd:
+      - [stdlib, types, Boolean]
+      - left:
+          - [stdlib, types, Boolean]
+        right:
+          - [stdlib, types, Boolean]
+        _applied_left:
+          - [left]
+          - on_true:
+              - [right]
+            on_false:
+              - [stdlib, constructors, "False"]
+        result:
+          - [_applied_left, result]
+
+    BooleanOr:
+      - [stdlib, types, Boolean]
+      - left:
+          - [stdlib, types, Boolean]
+        right:
+          - [stdlib, types, Boolean]
+        _applied_left:
+          - [left]
+          - on_true:
+              - [stdlib, constructors, "True"]
+            on_false:
+              - [right]
+        result:
+          - [_applied_left, result]
+
+  semigroups:
+    BooleanAndSemigroup:
+      - [stdlib, abstract, Semigroup]
+      - element_type:
+          - [stdlib, types, Boolean]
+        Combine:
+          left:
+            - [stdlib, types, Boolean]
+          right:
+            - [stdlib, types, Boolean]
+          result:
+            - [stdlib, boolean, operations, BooleanAnd]
+            - left:
+                - [BooleanAndSemigroup, Combine, left]
+              right:
+                - [BooleanAndSemigroup, Combine, right]
+
+    BooleanOrSemigroup:
+      - [stdlib, abstract, Semigroup]
+      - element_type:
+          - [stdlib, types, Boolean]
+        Combine:
+          left:
+            - [stdlib, types, Boolean]
+          right:
+            - [stdlib, types, Boolean]
+          result:
+            - [stdlib, boolean, operations, BooleanOr]
+            - left:
+                - [BooleanOrSemigroup, Combine, left]
+              right:
+                - [BooleanOrSemigroup, Combine, right]
+
+nat:
+  equality:
+    # TODO: Implement recursive equality (requires fixpoint support)
+    NatEquality:
+      - [stdlib, types, Boolean]
+      - left:
+          - [stdlib, types, Nat]
+        right:
+          - [stdlib, types, Nat]
+        result:
+          - [stdlib, constructors, "True"]
+
+  arithmetic:
+    # NatAdd: Church-encoded addition using fold pattern (non-recursive)
+    # add(augend, addend)(s, z) = augend(s, addend(s, z))
+    NatAdd:
+      - [stdlib, types, Nat]
+      - augend:
+          - [stdlib, types, Nat]
+        addend:
+          - [stdlib, types, Nat]
+        _applied_addend:
+          - [NatAdd, addend]
+          - successor:
+              - [NatAdd, successor]
+            zero:
+              - [NatAdd, zero]
+        _applied_augend:
+          - [NatAdd, augend]
+          - successor:
+              - [NatAdd, successor]
+            zero:
+              - [_applied_addend, result]
+        result:
+          - [_applied_augend, result]
+
+    # NatMultiply: Church-encoded multiplication using fold pattern (non-recursive)
+    # multiply(multiplicand, multiplier)(s, z) = multiplicand(multiplier(s), z)
+    NatMultiply:
+      - [stdlib, types, Nat]
+      - multiplicand:
+          - [stdlib, types, Nat]
+        multiplier:
+          - [stdlib, types, Nat]
+        # _multiplier_applied folds multiplier with NatMultiply's successor
+        # Effectively: "apply s multiplier-many times"
+        _multiplier_applied:
+          - [NatMultiply, multiplier]
+          - successor:
+              - [NatMultiply, successor]
+            zero:
+              - [NatMultiply, zero]
+        # Fold multiplicand where each successor step applies _multiplier_applied
+        _applied_multiplicand:
+          - [NatMultiply, multiplicand]
+          - successor:
+              argument: {}
+              result:
+                - [_multiplier_applied]
+                - zero:
+                    - [_applied_multiplicand, successor, argument]
+            zero:
+              - [NatMultiply, zero]
+        result:
+          - [_applied_multiplicand, result]
+
+  semigroups:
+    NatAddSemigroup:
+      - [stdlib, abstract, Semigroup]
+      - element_type:
+          - [stdlib, types, Nat]
+        Combine:
+          left:
+            - [stdlib, types, Nat]
+          right:
+            - [stdlib, types, Nat]
+          result:
+            - [stdlib, nat, arithmetic, NatAdd]
+            - augend:
+                - [NatAddSemigroup, Combine, left]
+              addend:
+                - [NatAddSemigroup, Combine, right]
+
+    NatMultiplySemigroup:
+      - [stdlib, abstract, Semigroup]
+      - element_type:
+          - [stdlib, types, Nat]
+        Combine:
+          left:
+            - [stdlib, types, Nat]
+          right:
+            - [stdlib, types, Nat]
+          result:
+            - [stdlib, nat, arithmetic, NatMultiply]
+            - multiplicand:
+                - [NatMultiplySemigroup, Combine, left]
+              multiplier:
+                - [NatMultiplySemigroup, Combine, right]
+
+binnat:
+  equality:
+    # TODO: Implement recursive equality (requires fixpoint support)
+    BinNatEquality:
+      - [stdlib, types, Boolean]
+      - left:
+          - [stdlib, types, BinNat]
+        right:
+          - [stdlib, types, BinNat]
+        result:
+          - [stdlib, constructors, "True"]
+
+  arithmetic:
+    # TODO: Implement BinNat addition (requires recursive carry propagation)
+    BinNatAdd:
+      - [stdlib, types, BinNat]
+      - augend:
+          - [stdlib, types, BinNat]
+        addend:
+          - [stdlib, types, BinNat]
+        result:
+          - [stdlib, constructors, BinNatZero]
+
+    # TODO: Implement BinNat multiplication (requires recursive definition)
+    BinNatMultiply:
+      - [stdlib, types, BinNat]
+      - multiplicand:
+          - [stdlib, types, BinNat]
+        multiplier:
+          - [stdlib, types, BinNat]
+        result:
+          - [stdlib, constructors, BinNatZero]
+
+  semigroups:
+    BinNatAddSemigroup:
+      - [stdlib, abstract, Semigroup]
+      - element_type:
+          - [stdlib, types, BinNat]
+        Combine:
+          left:
+            - [stdlib, types, BinNat]
+          right:
+            - [stdlib, types, BinNat]
+          result:
+            - [stdlib, binnat, arithmetic, BinNatAdd]
+            - augend:
+                - [BinNatAddSemigroup, Combine, left]
+              addend:
+                - [BinNatAddSemigroup, Combine, right]
+
+    BinNatMultiplySemigroup:
+      - [stdlib, abstract, Semigroup]
+      - element_type:
+          - [stdlib, types, BinNat]
+        Combine:
+          left:
+            - [stdlib, types, BinNat]
+          right:
+            - [stdlib, types, BinNat]
+          result:
+            - [stdlib, binnat, arithmetic, BinNatMultiply]
+            - multiplicand:
+                - [BinNatMultiplySemigroup, Combine, left]
+              multiplier:
+                - [BinNatMultiplySemigroup, Combine, right]
+
+# Layer 4: Polymorphic Operations
+
+algorithms:
+  comparison:
+    PolyEquality:
+      equality_operator: {}
+      left: {}
+      right: {}
+      result:
+        - [stdlib, algorithms, comparison, PolyEquality, equality_operator]
+        - left:
+            - [stdlib, algorithms, comparison, PolyEquality, left]
+          right:
+            - [stdlib, algorithms, comparison, PolyEquality, right]
+
+  # TODO: Implement Fold, Sum, and Product (require recursive definitions
+  # and snapshot system support for cycle detection).

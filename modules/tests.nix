@@ -13,14 +13,23 @@
         packages.update-tests-snapshot =
           let
             nixago = inputs.nix-ml-ops.inputs.nixago;
+
+            stdlibDirectory = ../stdlib;
+
+            stdlibMixin = config.flake.lib.compileDirectory {
+              directory = stdlibDirectory;
+              pathMapping = path:
+                builtins.replaceStrings [ (toString stdlibDirectory) ] [ "stdlib" ] (toString path);
+            };
+
             evaluation = (config.flake.lib.evaluate [
+              stdlibMixin
               (config.flake.lib.compileDirectory rec {
                 directory = ../tests;
 
                 # Replace the hashed path with a relative path
                 pathMapping = path:
                   builtins.replaceStrings [ (toString directory) ] [ "tests" ] (toString path);
-
               })
             ]);
             snapshot = evaluation: {
