@@ -1,0 +1,52 @@
+# Test fixture for Church arithmetic
+# Defines concrete numbers and addition tests
+
+# Import the nat module types (via inheritance path)
+# Note: These inherit from the stdlib nat types
+
+# Concrete Church numerals
+Zero:
+  - [stdlib, nat, Zero]
+
+One:
+  - [stdlib, nat, Succ]
+  - predecessor:
+      - [Zero]
+
+Two:
+  - [stdlib, nat, Succ]
+  - predecessor:
+      - [One]
+
+Three:
+  - [stdlib, nat, Succ]
+  - predecessor:
+      - [Two]
+
+Four:
+  - [stdlib, nat, Succ]
+  - predecessor:
+      - [Three]
+
+Five:
+  - [stdlib, nat, Succ]
+  - predecessor:
+      - [Four]
+
+Six:
+  - [stdlib, nat, Succ]
+  - predecessor:
+      - [Five]
+
+Seven:
+  - [stdlib, nat, Succ]
+  - predecessor:
+      - [Six]
+
+# Test: 3 + 4 = 7
+add_three_four:
+  - [stdlib, nat, add]
+  - operand0:
+      - [Three]
+    operand1:
+      - [Four]
