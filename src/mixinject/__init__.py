@@ -537,7 +537,7 @@ import importlib.util
 from inspect import Parameter, signature
 from itertools import chain
 import os
-from pathlib import PurePath
+from pathlib import Path, PurePath
 import pkgutil
 from types import ModuleType
 from typing import (
@@ -566,6 +566,7 @@ from typing import (
 
 if TYPE_CHECKING:
     from mixinject import runtime
+    from mixinject.mixin_parser import FileMixinDefinition
 
 
 import weakref
@@ -963,7 +964,6 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
                             )
                         case MixinSymbol() as outer_symbol:
                             is_property = first_segment in outer_symbol
-                            is_self_reference = first_segment == outer_symbol.key
 
                             # Error on is_public=False resources when levels_up >= 1
                             # Private resources are only visible within their own scope
@@ -976,18 +976,8 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
                                         f"as @public and is not accessible from nested scopes"
                                     )
 
-                            if is_property and is_self_reference:
-                                raise ValueError(
-                                    f"Ambiguous LexicalReference: '{first_segment}' is both "
-                                    f"a property of scope '{outer_symbol.key}' and the scope's "
-                                    f"own key (self-reference). Use explicit path to disambiguate."
-                                )
                             if is_property:
                                 hashable_path = path
-                                break
-                            if is_self_reference:
-                                # Self-reference: skip first segment, navigate via rest
-                                hashable_path = path[1:]
                                 break
                             # Recurse to outer
                             levels_up += 1
@@ -1024,6 +1014,28 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
                                 else:
                                     hashable_path = (name,)
                                     break
+                            current = outer_symbol
+            case QualifiedThisReference(self_name=self_name, path=path):
+                # Qualified this: [SelfName, ~, path...] - late binding via dynamic self
+                # Walk up to find scope with matching key, then resolve through dynamic self
+                # This is partially compile-time: we find the scope, but path resolution
+                # happens at runtime through the scope's dynamic self
+                levels_up = 0
+                current: MixinSymbol = self
+
+                while True:
+                    match current.outer:
+                        case OuterSentinel.ROOT:
+                            raise LookupError(
+                                f"QualifiedThisReference: scope '{self_name}' not found"
+                            )
+                        case MixinSymbol() as outer_symbol:
+                            if outer_symbol.key == self_name:
+                                # Found the enclosing scope
+                                # Path will be resolved at runtime through dynamic self
+                                hashable_path = path
+                                break
+                            levels_up += 1
                             current = outer_symbol
             case _ as unreachable:
                 assert_never(unreachable)
@@ -2074,9 +2086,35 @@ class ScopeDefinition(
 @final
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
 class PackageScopeDefinition(ScopeDefinition):
-    """A definition for packages that discovers submodules via pkgutil."""
+    """A definition for packages that discovers submodules and *.mixin.* files via pkgutil."""
 
     underlying: ModuleType
+
+    @cached_property
+    def _mixin_files(self) -> Mapping[str, Path]:
+        """Discover *.mixin.yaml/json/toml files in the package directory."""
+        result: dict[str, Path] = {}
+        package_paths = getattr(self.underlying, "__path__", None)
+        if package_paths is None:
+            return result
+
+        mixin_extensions = (".mixin.yaml", ".mixin.yml", ".mixin.json", ".mixin.toml")
+        for package_path in package_paths:
+            package_dir = Path(package_path)
+            if not package_dir.is_dir():
+                continue
+            for file_path in package_dir.iterdir():
+                if not file_path.is_file():
+                    continue
+                name_lower = file_path.name.lower()
+                for extension in mixin_extensions:
+                    if name_lower.endswith(extension):
+                        # Extract stem: foo.mixin.yaml -> foo
+                        stem = file_path.name[: -len(extension)]
+                        if stem not in result:
+                            result[stem] = file_path
+                        break
+        return result
 
     @override
     def __iter__(self) -> Iterator[Hashable]:
@@ -2085,30 +2123,89 @@ class PackageScopeDefinition(ScopeDefinition):
         for mod_info in pkgutil.iter_modules(self.underlying.__path__):
             yield mod_info.name
 
+        # Also yield mixin file stems
+        yield from self._mixin_files.keys()
+
     @override
     def __getitem__(self, key: Hashable) -> Sequence[Definition]:
-        """Get Definitions by key name, including lazily imported submodules."""
+        """Get Definitions by key name, including submodules and mixin files."""
+        definitions: list[Definition] = []
+
+        # Try Python module definitions first
         try:
-            return super(PackageScopeDefinition, self).__getitem__(key)
+            definitions.extend(super(PackageScopeDefinition, self).__getitem__(key))
         except KeyError:
             pass
 
-        full_name = f"{self.underlying.__name__}.{key}"
-        try:
-            spec = importlib.util.find_spec(full_name)
-        except ImportError as error:
-            raise KeyError(key) from error
+        # Try submodule import
+        if not definitions:
+            full_name = f"{self.underlying.__name__}.{key}"
+            try:
+                spec = importlib.util.find_spec(full_name)
+                if spec is not None:
+                    submod = importlib.import_module(full_name)
+                    # Submodules inherit is_public from their parent package
+                    if hasattr(submod, "__path__"):
+                        definitions.append(
+                            PackageScopeDefinition(
+                                bases=(), is_public=self.is_public, underlying=submod
+                            )
+                        )
+                    else:
+                        definitions.append(
+                            ScopeDefinition(bases=(), is_public=self.is_public, underlying=submod)
+                        )
+            except ImportError:
+                pass
 
-        if spec is None:
+        # Try mixin file
+        assert isinstance(key, str)
+        mixin_file = self._mixin_files.get(key)
+        if mixin_file is not None:
+            from mixinject.mixin_parser import parse_mixin_file
+
+            parsed_definitions = parse_mixin_file(mixin_file)
+            # A mixin file can define multiple top-level mixins
+            # Return all of them as a scope containing them
+            # Create a scope definition containing all mixins from the file
+            # The file becomes a "module-like" scope
+            definitions.append(
+                _MixinFileScopeDefinition(
+                    bases=(),
+                    is_public=self.is_public,
+                    underlying=parsed_definitions,
+                    source_file=mixin_file,
+                )
+            )
+
+        if not definitions:
             raise KeyError(key)
 
-        submod = importlib.import_module(full_name)
+        return tuple(definitions)
 
-        # Submodules inherit is_public from their parent package
-        if hasattr(submod, "__path__"):
-            return (PackageScopeDefinition(bases=(), is_public=self.is_public, underlying=submod),)
-        else:
-            return (ScopeDefinition(bases=(), is_public=self.is_public, underlying=submod),)
+
+@final
+@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
+class _MixinFileScopeDefinition(ScopeDefinition):
+    """Internal scope definition for a parsed mixin file."""
+
+    underlying: Mapping[str, "FileMixinDefinition"]  # type: ignore[assignment]
+    source_file: Path
+
+    @override
+    def __iter__(self) -> Iterator[Hashable]:
+        yield from self.underlying.keys()
+
+    @override
+    def __len__(self) -> int:
+        return len(self.underlying)
+
+    @override
+    def __getitem__(self, key: Hashable) -> Sequence[Definition]:
+        assert isinstance(key, str)
+        if key not in self.underlying:
+            raise KeyError(key)
+        return (self.underlying[key],)
 
 
 def scope(c: object) -> ScopeDefinition:
@@ -2880,8 +2977,33 @@ class FixtureReference:
     name: str
 
 
+@final
+@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
+class QualifiedThisReference:
+    """
+    A qualified this reference: [SelfName, ~, property, path].
+
+    The second element is null (~ in YAML), distinguishing from regular inheritance.
+    This provides late binding by resolving through the dynamic self of the
+    enclosing scope named SelfName.
+
+    Semantics: Walk up the symbol table chain to find a scope whose key matches
+    self_name, retrieve that scope's dynamic self (fully composed evaluation),
+    then navigate the path segments through allProperties.
+
+    This is analogous to Java's Outer.this.property.path.
+    """
+
+    self_name: str
+    path: Final[tuple[str, ...]]
+
+
 ResourceReference: TypeAlias = (
-    AbsoluteReference | RelativeReference | LexicalReference | FixtureReference
+    AbsoluteReference
+    | RelativeReference
+    | LexicalReference
+    | FixtureReference
+    | QualifiedThisReference
 )
 """
 A reference to a resource in the lexical scope.
