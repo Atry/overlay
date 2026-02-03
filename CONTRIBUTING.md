@@ -92,10 +92,58 @@ In `.mixin.yaml` files, the following naming conventions apply:
 | Module / namespace | `snake_case` | `boolean`, `nat`, `arithmetic`, `algorithms` |
 | Type / class / trait | `PascalCase` | `Boolean`, `Nat`, `BinNat`, `Semigroup` |
 | Constructor / value | `PascalCase` | `True`, `False`, `Zero`, `Succ`, `ListNil` |
-| Operation / function | `PascalCase` | `BooleanAnd`, `NatAdd`, `PolyEquality` |
+| Method / function (verb) | `snake_case` | `and`, `add`, `equalize` |
 | Implementation binding | `PascalCase` | `NatAddSemigroup`, `BooleanOrSemigroup` |
 | Data field / parameter | `snake_case` | `element_type`, `left`, `right`, `on_true` |
 | Temporary variable | `_snake_case` | `_applied_addend`, `_applied_augend`, `_applied_left` |
+
+**Method / function `return` requirement**: Every method and function must have exactly one `return` member that holds its result. If a computation produces multiple named outputs, it is not a function — it is a type (class/trait) and must use `PascalCase`:
+
+```yaml
+# CORRECT: a function with a single return
+nat_add:
+  - [types, Nat]
+  - augend:
+      - [types, Nat]
+    addend:
+      - [types, Nat]
+    return:
+      # ... computes the sum
+
+# CORRECT: multiple named outputs → this is a type, not a function
+DivisionResult:
+  - quotient:
+      - [types, Nat]
+    remainder:
+      - [types, Nat]
+
+# WRONG: a function without return
+nat_add:
+  - [types, Nat]
+  - result:       # should be "return", not "result"
+      # ...
+```
+
+### Module Design Philosophy
+
+Each module should be understood as a **category** (in the sense of abstract algebra and category theory). A module defines a collection of types, constructors, and operations that form a coherent algebraic structure (e.g., a group, monoid, or semiring).
+
+**Abstract dependencies**: When a module depends on another module's interface, it must declare that dependency **abstractly** — depending on the interface (types and operation signatures), not on a specific implementation. For example, `nat` depends on the interface of `boolean` (the type `Boolean` with `True` and `False` constructors), but it does not depend on how `boolean` is implemented:
+
+```yaml
+# nat module: depends on boolean's INTERFACE, not its implementation
+nat:
+  - [boolean]       # ← declares dependency on boolean's abstract interface
+  - Nat:
+      is_zero:
+        return: {}  # ← returns a Boolean, but nat doesn't define Boolean
+      # ...
+```
+
+This separation ensures that:
+- Modules can be composed freely: any conforming implementation of `boolean` can be substituted.
+- The dependency graph is explicit: each module's mixin list declares exactly which abstract interfaces it requires.
+- Modules remain testable in isolation: mock implementations of dependencies can be provided.
 
 **Qualified `this`** is a reference of the form `[MixinName, [property, path]]` where `MixinName` is the name of an enclosing mixin resolved via `selfName`. It resolves through dynamic `self`, meaning the path is navigated on the fully composed evaluation — not just the mixin's own definition. The mixin name in a qualified `this` must be `PascalCase` to avoid name shadowing:
 
