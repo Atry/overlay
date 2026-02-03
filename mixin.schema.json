@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "title": "MIXIN Language Schema",
+  "$ref": "#/definitions/mixin",
+  "definitions": {
+    "inheritance": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "description": "An inheritance, represented as an array of strings."
+    },
+    "qualifiedThisReference": {
+      "type": "array",
+      "description": "A qualified this reference [SelfName, ~, path, segments...], accessing the dynamic self of an enclosing scope. In YAML, use ~ (null) as the delimiter.",
+      "items": [
+        { "type": "string" },
+        { "type": "null" }
+      ],
+      "additionalItems": { "type": "string" },
+      "minItems": 2
+    },
+    "properties": {
+      "type": "object",
+      "description": "A collection of property definitions.",
+      "additionalProperties": {
+        "$ref": "#/definitions/mixin"
+      }
+    },
+    "inheritanceAndOwnProperties": {
+      "type": "array",
+      "description": "An array representing a combination of super mixins, properties, or nested structures.",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/definitions/inheritance"
+          },
+          {
+            "$ref": "#/definitions/qualifiedThisReference"
+          },
+          {
+            "$ref": "#/definitions/properties"
+          },
+          {
+            "$ref": "#/definitions/inheritanceAndOwnProperties"
+          }
+        ]
+      }
+    },
+    "mixin": {
+      "description": "A mixin",
+      "oneOf": [
+        {
+          "$ref": "#/definitions/inheritance"
+        },
+        {
+          "$ref": "#/definitions/qualifiedThisReference"
+        },
+        {
+          "$ref": "#/definitions/properties"
+        },
+        {
+          "$ref": "#/definitions/inheritanceAndOwnProperties"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  }
+}

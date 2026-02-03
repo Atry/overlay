@@ -119,7 +119,7 @@ class DirectoryMixinDefinition(ScopeDefinition):
 class _DirectoryMixinFileScopeDefinition(ScopeDefinition):
     """Internal scope definition for a parsed mixin file in a directory."""
 
-    underlying: Mapping[str, FileMixinDefinition]  # type: ignore[assignment]
+    underlying: Mapping[str, Sequence[FileMixinDefinition]]  # type: ignore[assignment]
     source_file: Path
 
     def __iter__(self) -> Iterator[Hashable]:
@@ -132,7 +132,7 @@ class _DirectoryMixinFileScopeDefinition(ScopeDefinition):
         assert isinstance(key, str)
         if key not in self.underlying:
             raise KeyError(key)
-        return (self.underlying[key],)
+        return self.underlying[key]
 
 
 def evaluate_mixin_directory(directory: Path) -> "runtime.Scope":

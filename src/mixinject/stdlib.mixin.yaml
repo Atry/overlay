@@ -2,6 +2,9 @@
 #
 # Design: Single interface class per type with empty recursive fields.
 # This ensures finite symbol tree depth while maintaining compile-time path validation.
+#
+# Note: Uses strict lexical scoping. To reference inherited members,
+# use QualifiedThisReference: ["ScopeName", ~, "member", ...]
 
 # =============================================================================
 # Unit type
@@ -25,12 +28,12 @@ boolean:
   "True":
     - [Boolean]
     - switch:
-        return: ["True", ~, case_true, return]
+        return: [switch, ~, case_true, return]
 
   "False":
     - [Boolean]
     - switch:
-        return: ["False", ~, case_false, return]
+        return: [switch, ~, case_false, return]
 
   not:
     operand:
@@ -86,12 +89,12 @@ option:
     - [Option]
     - value: {}
       switch:
-        return: [case_some, return]
+        return: [Some, ~, switch, case_some, return]
 
   None:
     - [Option]
     - switch:
-        return: [case_none, return]
+        return: [None, ~, switch, case_none, return]
 
 # =============================================================================
 # Either type - tagged union
@@ -111,13 +114,13 @@ either:
     - [Either]
     - value: {}
       switch:
-        return: [case_left, return]
+        return: [Left, ~, switch, case_left, return]
 
   Right:
     - [Either]
     - value: {}
       switch:
-        return: [case_right, return]
+        return: [Right, ~, switch, case_right, return]
 
 # =============================================================================
 # Pair type - product
@@ -137,19 +140,19 @@ nat:
       case_zero:
         return: {}
       case_succ:
-        predecessor: {}  # Empty in interface - terminates recursion
+        predecessor: {} # Empty in interface - terminates recursion
         return: {}
       return: {}
 
   Zero:
     - [Nat]
     - switch:
-        return: [case_zero, return]
+        return: [Zero, ~, switch, case_zero, return]
 
   Succ:
     - [Nat]
     - predecessor:
-        - [Nat]  # Concrete type has predecessor inheriting Nat
+        - [Nat] # Concrete type has predecessor inheriting Nat
       switch:
         _applied_predecessor:
           - [Succ, ~, predecessor, switch]
@@ -182,8 +185,7 @@ nat:
             - case_succ:
                 - [switch, ~, case_succ]
               case_zero:
-                return:
-                  - [_applied_operand1, return]
+                return: [_applied_operand1, return]
           return: [_applied_operand0, return]
 
 # =============================================================================
@@ -197,19 +199,19 @@ list:
         return: {}
       case_cons:
         head: {}
-        tail: {}  # Empty in interface - terminates recursion
+        tail: {} # Empty in interface - terminates recursion
         return: {}
       return: {}
 
   Nil:
     - [List]
     - switch:
-        return: [case_nil, return]
+        return: [switch, ~, case_nil, return]
 
   Cons:
     - [List]
     - head: {}
       tail:
-        - [List]  # Concrete type has tail inheriting List
+        - [List] # Concrete type has tail inheriting List
       switch:
-        return: [case_cons, return]
+        return: [switch, ~, case_cons, return]

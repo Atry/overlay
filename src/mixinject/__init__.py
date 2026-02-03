@@ -944,12 +944,9 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
                 levels_up = depth - 1
                 hashable_path = path
             case LexicalReference(path=path):
-                # MIXIN-style resolution (see lib.nix lookUpVariable):
-                # At each level, check in order:
-                # 1. Is first_segment a property? → early binding, return full path
-                #    (but skip is_local=True when levels_up >= 1)
-                # 2. Is first_segment == that level's key? → self-reference, return path[1:]
-                # 3. Recurse to outer
+                # Strict lexical scoping: only search own definitions, not inherited.
+                # To reference inherited members, use QualifiedThisReference:
+                # ["ScopeName", ~, "inherited_member"]
                 if not path:
                     raise ValueError("LexicalReference path must not be empty")
                 first_segment = path[0]
@@ -963,12 +960,13 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
                                 f"LexicalReference '{first_segment}' not found"
                             )
                         case MixinSymbol() as outer_symbol:
-                            is_property = first_segment in outer_symbol
+                            # Strict lexical scope: only check own definitions
+                            is_own_property = outer_symbol.has_own_key(first_segment)
 
                             # Error on is_public=False resources when levels_up >= 1
                             # Private resources are only visible within their own scope
                             # Silently skipping would be surprising behavior for users
-                            if is_property and levels_up >= 1:
+                            if is_own_property and levels_up >= 1:
                                 child_symbol = outer_symbol.get(first_segment)
                                 if child_symbol is not None and not child_symbol.is_public:
                                     raise LookupError(
@@ -976,7 +974,7 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
                                         f"as @public and is not accessible from nested scopes"
                                     )
 
-                            if is_property:
+                            if is_own_property:
                                 hashable_path = path
                                 break
                             # Recurse to outer
@@ -1126,6 +1124,17 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
 
     def __eq__(self, other: object) -> bool:
         return self is other
+
+    def has_own_key(self, key: Hashable) -> bool:
+        """Check if key exists in own definitions (strict lexical scope).
+
+        Only checks keys defined directly in this symbol's definitions,
+        not keys inherited from bases. Used for strict lexical scoping.
+        """
+        for definition in self.definitions:
+            if isinstance(definition, ScopeDefinition) and key in definition:
+                return True
+        return False
 
     def __iter__(self) -> Iterator[Hashable]:
         """Iterate over keys in this symbol.
@@ -2189,7 +2198,7 @@ class PackageScopeDefinition(ScopeDefinition):
 class _MixinFileScopeDefinition(ScopeDefinition):
     """Internal scope definition for a parsed mixin file."""
 
-    underlying: Mapping[str, "FileMixinDefinition"]  # type: ignore[assignment]
+    underlying: Mapping[str, Sequence["FileMixinDefinition"]]  # type: ignore[assignment]
     source_file: Path
 
     @override
@@ -2205,7 +2214,7 @@ class _MixinFileScopeDefinition(ScopeDefinition):
         assert isinstance(key, str)
         if key not in self.underlying:
             raise KeyError(key)
-        return (self.underlying[key],)
+        return self.underlying[key]
 
 
 def scope(c: object) -> ScopeDefinition:

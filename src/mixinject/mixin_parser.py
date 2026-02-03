@@ -64,11 +64,22 @@ class FileMixinDefinition(ScopeDefinition):
 
         value = self.underlying[key]
         parsed = parse_mixin_value(value, source_file=self.source_file)
-        return (
+        # Each property_definition becomes a separate origin
+        return tuple(
+            FileMixinDefinition(
+                bases=parsed.inheritances if i == 0 else (),
+                is_public=True,
+                underlying=props,
+                scalar_values=parsed.scalar_values if i == 0 else (),
+                source_file=self.source_file,
+            )
+            for i, props in enumerate(parsed.property_definitions)
+        ) or (
+            # No property definitions, just inheritances/scalars
             FileMixinDefinition(
                 bases=parsed.inheritances,
                 is_public=True,
-                underlying=parsed.properties,
+                underlying={},
                 scalar_values=parsed.scalar_values,
                 source_file=self.source_file,
             ),
@@ -83,8 +94,8 @@ class ParsedMixinValue:
     inheritances: tuple[ResourceReference, ...]
     """Inheritance references (bases)."""
 
-    properties: Mapping[str, JsonValue]
-    """Property definitions."""
+    property_definitions: tuple[Mapping[str, JsonValue], ...]
+    """Property definitions (multiple origins)."""
 
     scalar_values: tuple[JsonScalar, ...]
     """Scalar values."""
@@ -132,6 +143,58 @@ def parse_reference(array: list[JsonValue]) -> ResourceReference:
     return LexicalReference(path=tuple(path_elements))
 
 
+def _is_reference_array(value: JsonValue) -> bool:
+    """
+    Check if a value is a reference array (inheritance or qualified this).
+
+    In MIXIN, arrays are ONLY used for references:
+    - Inheritance: [str, str, ...] - all strings
+    - Qualified this: [str, null, str, ...] - string, null, then strings
+
+    MIXIN does not have first-class list/array type.
+    """
+    if not isinstance(value, list) or len(value) == 0:
+        return False
+    # Check for qualified this: [str, null, ...]
+    if len(value) >= 2 and isinstance(value[0], str) and value[1] is None:
+        return all(isinstance(e, str) for e in value[2:])
+    # Check for regular inheritance: all strings
+    return all(isinstance(e, str) for e in value)
+
+
+def _parse_array_item(item: JsonValue) -> tuple[
+    ResourceReference | None, Mapping[str, JsonValue] | None, JsonScalar | None
+]:
+    """
+    Parse a single item from a mixin array.
+
+    :return: Tuple of (inheritance_ref, properties, scalar_value).
+             Only one will be non-None.
+    """
+    if isinstance(item, list):
+        return (parse_reference(item), None, None)
+    if isinstance(item, dict):
+        return (None, item, None)
+    if isinstance(item, str | int | float | bool) or item is None:
+        return (None, None, item)
+    raise ValueError(f"Unexpected item type in mixin array: {type(item).__name__}")
+
+
+def _parse_array_value(items: list[JsonValue]) -> ParsedMixinValue:
+    """Parse a mixin array (not a reference array) into components."""
+    parsed_items = tuple(_parse_array_item(item) for item in items)
+
+    inheritances = tuple(ref for ref, _, _ in parsed_items if ref is not None)
+    property_definitions = tuple(props for _, props, _ in parsed_items if props is not None)
+    scalar_values = tuple(scalar for _, _, scalar in parsed_items if scalar is not None)
+
+    return ParsedMixinValue(
+        inheritances=inheritances,
+        property_definitions=property_definitions,
+        scalar_values=scalar_values,
+    )
+
+
 def parse_mixin_value(
     value: JsonValue,
     source_file: Path,  # noqa: ARG001 - reserved for future error messages
@@ -139,8 +202,12 @@ def parse_mixin_value(
     """
     Parse a MIXIN value into inheritances, properties, and scalar values.
 
+    In MIXIN language, arrays are ONLY used for references (inheritance or qualified this).
+    There is no first-class list type in MIXIN.
+
     A mixin value can be:
-    - An array containing inheritance references, property objects, and scalars
+    - A reference array: [str, str, ...] or [str, null, str, ...] → inheritance
+    - An array containing nested references, property objects, and scalars
     - An object containing only properties
     - A scalar value
 
@@ -149,58 +216,79 @@ def parse_mixin_value(
     :return: ParsedMixinValue with separated components.
     """
     del source_file  # Reserved for future error messages
-    inheritances: list[ResourceReference] = []
-    properties: dict[str, JsonValue] = {}
-    scalar_values: list[JsonScalar] = []
 
     if isinstance(value, list):
-        # Array format: can contain inheritances, properties, and scalars
-        for item in value:
-            if isinstance(item, list):
-                # Inheritance reference
-                inheritances.append(parse_reference(item))
-            elif isinstance(item, dict):
-                # Property definition(s)
-                for prop_name, prop_value in item.items():
-                    if prop_name in properties:
-                        # Merge properties with same name
-                        existing = properties[prop_name]
-                        if isinstance(existing, dict) and isinstance(prop_value, dict):
-                            merged = dict(existing)
-                            merged.update(prop_value)
-                            properties[prop_name] = merged
-                        else:
-                            # For non-dict values, later definition wins
-                            properties[prop_name] = prop_value
-                    else:
-                        properties[prop_name] = prop_value
-            elif isinstance(item, str | int | float | bool) or item is None:
-                # Scalar value
-                scalar_values.append(item)
-            else:
-                raise ValueError(f"Unexpected item type in mixin array: {type(item).__name__}")
-    elif isinstance(value, dict):
+        if _is_reference_array(value):
+            # Single inheritance reference
+            return ParsedMixinValue(
+                inheritances=(parse_reference(value),),
+                property_definitions=(),
+                scalar_values=(),
+            )
+        # Array with mixed content
+        return _parse_array_value(value)
+
+    if isinstance(value, dict):
         # Object format: all properties, no inheritances
-        properties = dict(value)
-    elif isinstance(value, str | int | float | bool) or value is None:
+        return ParsedMixinValue(
+            inheritances=(),
+            property_definitions=(value,),
+            scalar_values=(),
+        )
+
+    if isinstance(value, str | int | float | bool) or value is None:
         # Single scalar value
-        scalar_values.append(value)
+        return ParsedMixinValue(
+            inheritances=(),
+            property_definitions=(),
+            scalar_values=(value,),
+        )
+
+    raise ValueError(f"Unexpected mixin value type: {type(value).__name__}")
+
+
+def _parse_top_level_mixin(
+    mixin_name: str,
+    mixin_value: JsonValue,
+    file_path: Path,
+) -> tuple[str, Sequence[FileMixinDefinition]]:
+    """Parse a single top-level mixin entry."""
+    if not isinstance(mixin_name, str):
+        raise ValueError(f"Mixin name must be a string, got {type(mixin_name).__name__}")
+
+    parsed = parse_mixin_value(mixin_value, source_file=file_path)
+    # Each property_definition becomes a separate origin
+    if parsed.property_definitions:
+        definitions = tuple(
+            FileMixinDefinition(
+                bases=parsed.inheritances if i == 0 else (),
+                is_public=True,
+                underlying=props,
+                scalar_values=parsed.scalar_values if i == 0 else (),
+                source_file=file_path,
+            )
+            for i, props in enumerate(parsed.property_definitions)
+        )
     else:
-        raise ValueError(f"Unexpected mixin value type: {type(value).__name__}")
+        # No property definitions, just inheritances/scalars
+        definitions = (
+            FileMixinDefinition(
+                bases=parsed.inheritances,
+                is_public=True,
+                underlying={},
+                scalar_values=parsed.scalar_values,
+                source_file=file_path,
+            ),
+        )
+    return (mixin_name, definitions)
 
-    return ParsedMixinValue(
-        inheritances=tuple(inheritances),
-        properties=properties,
-        scalar_values=tuple(scalar_values),
-    )
 
-
-def parse_mixin_file(file_path: Path) -> Mapping[str, FileMixinDefinition]:
+def parse_mixin_file(file_path: Path) -> Mapping[str, Sequence[FileMixinDefinition]]:
     """
     Parse a MIXIN file (YAML/JSON/TOML) into definitions.
 
     :param file_path: Path to the mixin file.
-    :return: Mapping of top-level mixin names to their definitions.
+    :return: Mapping of top-level mixin names to sequences of definitions (multiple origins).
     :raises ValueError: If the file format is not recognized or parsing fails.
     """
     content = file_path.read_text(encoding="utf-8")
@@ -224,18 +312,7 @@ def parse_mixin_file(file_path: Path) -> Mapping[str, FileMixinDefinition]:
             f"MIXIN file must contain a mapping at top level, got {type(data).__name__}"
         )
 
-    result: dict[str, FileMixinDefinition] = {}
-    for mixin_name, mixin_value in data.items():
-        if not isinstance(mixin_name, str):
-            raise ValueError(f"Mixin name must be a string, got {type(mixin_name).__name__}")
-
-        parsed = parse_mixin_value(mixin_value, source_file=file_path)
-        result[mixin_name] = FileMixinDefinition(
-            bases=parsed.inheritances,
-            is_public=True,
-            underlying=parsed.properties,
-            scalar_values=parsed.scalar_values,
-            source_file=file_path,
-        )
-
-    return result
+    return dict(
+        _parse_top_level_mixin(mixin_name, mixin_value, file_path)
+        for mixin_name, mixin_value in data.items()
+    )

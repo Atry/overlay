@@ -66,7 +66,7 @@ class TestParseMixinValue:
         result = parse_mixin_value(value, source_file=Path("test.mixin.yaml"))
 
         assert result.inheritances == ()
-        assert result.properties == {"name": "test", "value": 42}
+        assert result.property_definitions == ({"name": "test", "value": 42},)
         assert result.scalar_values == ()
 
     def test_scalar_value(self) -> None:
@@ -74,7 +74,7 @@ class TestParseMixinValue:
         result = parse_mixin_value(42, source_file=Path("test.mixin.yaml"))
 
         assert result.inheritances == ()
-        assert result.properties == {}
+        assert result.property_definitions == ()
         assert result.scalar_values == (42,)
 
     def test_array_with_inheritance(self) -> None:
@@ -84,7 +84,7 @@ class TestParseMixinValue:
 
         assert len(result.inheritances) == 1
         assert isinstance(result.inheritances[0], LexicalReference)
-        assert result.properties == {"property": "value"}
+        assert result.property_definitions == ({"property": "value"},)
         assert result.scalar_values == ()
 
     def test_array_with_scalar(self) -> None:
@@ -103,19 +103,19 @@ class TestParseMixinFile:
         """Parse a YAML mixin file."""
         yaml_content = """
 bar:
-  - baz: "qux"
-  - sub:
-      - [bar, ~, a]
-      - c: [sub, ~, b]
+  baz: "qux"
+  sub:
+    - [bar, ~, a]
+    - c: [sub, ~, b]
 
 test_late_binding:
   my_mixin1:
-    - inner:
-        field1: "value1"
-    - early_binding:
-        - [test_late_binding, ~, my_mixin1, inner]
-    - late_binding:
-        - [my_mixin1, ~, inner]
+    inner:
+      field1: "value1"
+    early_binding:
+      - [test_late_binding, ~, my_mixin1, inner]
+    late_binding:
+      - [my_mixin1, ~, inner]
 """
         yaml_file = tmp_path / "foo.mixin.yaml"
         yaml_file.write_text(yaml_content)
@@ -125,10 +125,11 @@ test_late_binding:
         assert "bar" in result
         assert "test_late_binding" in result
 
-        bar_def = result["bar"]
-        assert isinstance(bar_def, FileMixinDefinition)
-        assert "baz" in bar_def.underlying
-        assert "sub" in bar_def.underlying
+        bar_defs = result["bar"]
+        assert len(bar_defs) == 1
+        assert isinstance(bar_defs[0], FileMixinDefinition)
+        assert "baz" in bar_defs[0].underlying
+        assert "sub" in bar_defs[0].underlying
 
     def test_parse_json_file(self, tmp_path: Path) -> None:
         """Parse a JSON mixin file."""
@@ -139,7 +140,8 @@ test_late_binding:
         result = parse_mixin_file(json_file)
 
         assert "TestMixin" in result
-        assert isinstance(result["TestMixin"], FileMixinDefinition)
+        assert len(result["TestMixin"]) == 1
+        assert isinstance(result["TestMixin"][0], FileMixinDefinition)
 
     def test_parse_toml_file(self, tmp_path: Path) -> None:
         """Parse a TOML mixin file."""
@@ -154,7 +156,8 @@ name = "test"
         result = parse_mixin_file(toml_file)
 
         assert "TestMixin" in result
-        assert isinstance(result["TestMixin"], FileMixinDefinition)
+        assert len(result["TestMixin"]) == 1
+        assert isinstance(result["TestMixin"][0], FileMixinDefinition)
 
     def test_invalid_format_raises(self, tmp_path: Path) -> None:
         """Unrecognized file format should raise ValueError."""
@@ -162,6 +165,31 @@ name = "test"
         invalid_file.write_text("{}")
         with pytest.raises(ValueError, match="Unrecognized MIXIN file format"):
             parse_mixin_file(invalid_file)
+
+    def test_multiple_origins(self, tmp_path: Path) -> None:
+        """Mixin with multiple property definitions should have multiple origins."""
+        yaml_content = """
+MultiOriginMixin:
+  - [BaseMixin]
+  - field1: "value1"
+  - field2: "value2"
+"""
+        yaml_file = tmp_path / "multi.mixin.yaml"
+        yaml_file.write_text(yaml_content)
+
+        result = parse_mixin_file(yaml_file)
+
+        assert "MultiOriginMixin" in result
+        origins = result["MultiOriginMixin"]
+        assert len(origins) == 2  # Two property definitions = two origins
+
+        # First origin has inheritance and first properties
+        assert len(origins[0].bases) == 1
+        assert "field1" in origins[0].underlying
+
+        # Second origin has no inheritance, just properties
+        assert len(origins[1].bases) == 0
+        assert "field2" in origins[1].underlying
 
 
 class TestFileMixinDefinition:
