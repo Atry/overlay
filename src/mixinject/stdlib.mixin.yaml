@@ -3,9 +3,6 @@ Nat:
     Visitors:
       - ZeroVisitor: []
         Visitor: [ZeroVisitor]
-    Addition:
-      addend: []
-      sum: [addend]
 
   Succ:
     predecessor: []
@@ -14,12 +11,23 @@ Nat:
       - SuccVisitor: []
         Visitor: [SuccVisitor]
 
-    Addition:
-      addend: []
-      _increased_addend:
-        - [Succ]
-        - predecessor: [addend]
-      _recursive_addition:
-        - [predecessor, Addition]
-        - addend: [_increased_addend]
-      sum: [_recursive_addition, sum]
+  Addition:
+    addend0: []
+    addend1: []
+    
+    _Visitors:
+      - [addend0, Visitors]
+      - SuccVisitor:
+          _increased_addend1:
+            - [Succ]
+            - predecessor: [addend1]
+          _recursive_addition:
+            - [Addition]
+            - addend0: [addend0, predecessor]
+            - addend1: [_increased_addend1]
+          sum: [_recursive_addition, sum]
+        ZeroVisitor:
+          sum: [addend1]
+        Visitor:
+          sum: []
+    sum: [_Visitors, Visitor, sum]

@@ -3,6 +3,36 @@ Parser for MIXIN specification files (YAML/JSON/TOML).
 
 This module provides parsing of MIXIN files into Definition objects that can be
 evaluated by the mixinject runtime.
+
+.. todo::
+   Implement naming convention detection for automatic decorator inference.
+
+   Variables whose first non-underscore character is lowercase should be
+   translated to ``@resource`` instead of ``@scope``. Currently all parsed
+   definitions are treated as scopes (``is_public=True``).
+
+   Example naming convention in YAML::
+
+       Nat:           # PascalCase → @scope
+         predecessor: []  # lowercase → @resource (currently incorrect)
+         _private:    []  # underscore + lowercase → private @resource
+
+   **Once implemented, this will give us a language with the following properties:**
+
+   - **Compile-time Turing complete**: The symbol tree construction can express
+     arbitrary computations during compilation.
+   - **AOT compiled programs are total**: All runtime computations terminate or
+     are productive (for infinite structures).
+   - **Supports circular references**: With lazy evaluation, resources can form
+     cycles while remaining total.
+   - **Lazy evaluation**: Resources are computed on-demand, enabling infinite
+     structures and breaking circular dependencies.
+   - **Structural recursion**: Tree structure + naming convention enforce that
+     recursive calls are made only on structurally smaller values.
+
+   This combination enables MIXIN to support both finite structures (via
+   recursion/termination) and infinite structures (via corecursion/productivity),
+   similar to Haskell's lazy evaluation or Coq's coinductive types.
 """
 
 from __future__ import annotations

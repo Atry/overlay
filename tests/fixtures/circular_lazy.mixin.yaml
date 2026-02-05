@@ -1,0 +1,17 @@
+# Circular reference example demonstrating totality with lazy evaluation
+#
+# This file demonstrates that with lazy evaluation:
+# - foo and bar form a circular reference (foo._1 → bar, bar._1 → foo)
+# - Yet the program is total: each finite access terminates
+# - This is similar to Haskell's "tying the knot" technique
+
+Tuple1:
+  _1: []
+
+foo:
+  - [Tuple1]
+  - _1: [bar]
+
+bar:
+  - [Tuple1]
+  - _1: foo
