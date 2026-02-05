@@ -1,3 +1,73 @@
+## Git Workflow
+
+### Code Rollback Policy
+
+**NEVER** use `git checkout` to discard changes or revert files. Always use **named `git stash`** instead.
+
+**Why this rule exists:**
+- `git checkout` permanently destroys uncommitted work with no recovery option
+- Named stashes preserve the context and allow recovery if needed
+- Stash names document why changes were saved, making it easier to find and restore work later
+- This enforces a "safety first" approach where you can always undo mistakes
+
+**Correct workflow for reverting changes:**
+
+```bash
+# ✗ FORBIDDEN - Never use git checkout to discard changes
+git checkout src/mixinject/runtime.py
+git checkout .
+
+# ✓ REQUIRED - Use named git stash with descriptive message
+git stash push -m "refactoring: move _outer_mixin to StaticScope - testing if failure exists before refactor"
+
+# Later, if you need to restore the stashed changes:
+git stash list  # Find your stash
+git stash apply stash@{0}  # Restore without removing from stash
+git stash pop stash@{0}    # Restore and remove from stash
+```
+
+**Stash naming convention:**
+
+Use descriptive names that explain:
+1. What changes were stashed
+2. Why they were stashed (e.g., testing, comparing, temporary work)
+
+Examples:
+- `"refactoring: testing original behavior before applying changes"`
+- `"experiment: trying alternative implementation approach"`
+- `"backup: preserving working state before major refactor"`
+- `"debugging: isolating issue by reverting recent changes"`
+
+**Viewing and managing stashes:**
+
+```bash
+# List all stashes with names
+git stash list
+
+# Show what's in a specific stash
+git stash show stash@{0}
+git stash show -p stash@{0}  # Show full diff
+
+# Drop a stash when you're sure you don't need it
+git stash drop stash@{0}
+
+# Clear all stashes (use with caution)
+git stash clear
+```
+
+**Exception:**
+
+The only acceptable use of `git checkout` is for switching branches:
+
+```bash
+# ✓ ACCEPTABLE - Switching branches
+git checkout main
+git checkout -b feature-branch
+
+# But prefer git switch for clarity:
+git switch main
+git switch -c feature-branch
+```
 
 ## Dependency Management
 
