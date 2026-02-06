@@ -49,16 +49,17 @@ as the foundation of declarative programming. Unlike the $\lambda$-calculus,
 which requires first-class functions, or Turing machines, which require
 mutable state, MixinCalculus is purely declarative and function-free,
 yet Turing complete. Composition ($\oplus$) is commutative, idempotent,
-and associative, dissolving the linearization problem in traditional
-mixin and trait systems. We prove Turing completeness by systematically
-translating the $\lambda$-calculus into MixinCalculus, demonstrating
-that function application is derivable from symmetric mixin composition.
+and associative---the linearization problem familiar from traditional
+mixin and trait systems simply does not arise. We demonstrate Turing
+completeness by giving a straightforward translation from the
+$\lambda$-calculus into MixinCalculus, showing that function application
+is derivable from symmetric mixin composition.
 Programs are inherently in A-normal form; unlike compiler-internal ANF
 which targets a fixed monad, MixinCalculus ANF supports dependency
 injection, making programs CPS-agnostic---the same code serves as either
 continuation-passing or direct-style depending on assembly.
 Records serve as tries, making MixinCalculus an immutable analogue of
-the RAM machine. This establishes MixinCalculus as a computational model
+the RAM machine. These observations suggest MixinCalculus as a computational model
 for declarative programming, with applications to configuration languages,
 mixin-based object systems, composable effect systems, and modular software
 architectures.
@@ -179,14 +180,14 @@ This paper provides the missing theoretical foundation. We present
 \textbf{MixinCalculus}, a minimal calculus that distills the essence of
 this mechanism into three constructs---record literals, references,
 and composition ($\oplus$)---without functions or let-bindings.
-The key insight is that
-\emph{function application can be trivially translated into inheritance}:
+A key observation is that
+\emph{function application admits a straightforward translation into inheritance}:
 a $\lambda$-abstraction corresponds to a record with an
 $\mathrm{argument}$ slot and a $\mathrm{result}$ slot, and function
 application corresponds to composing the function record with a record
-that supplies the argument. This translation proves that MixinCalculus
+that supplies the argument. This translation demonstrates that MixinCalculus
 subsumes the $\lambda$-calculus and is therefore Turing complete.
-Crucially, this translation exhibits a profound \emph{asymmetry}:
+This translation reveals an \emph{asymmetry}:
 while embedding the $\lambda$-calculus into MixinCalculus is trivial,
 the reverse is non-trivial because MixinCalculus provides primitive
 operations---self-referential records, open recursion, symmetric
@@ -195,11 +196,11 @@ Moreover, MixinCalculus naturally encodes random-access memory:
 records are tries, and composition is trie union, yielding an
 immutable analogue of the RAM machine
 (Section~\ref{sec:trie}).
-This asymmetry demonstrates that MixinCalculus is not merely a
-syntactic variant of the $\lambda$-calculus but captures fundamentally
+This asymmetry suggests that MixinCalculus is not merely a
+syntactic variant of the $\lambda$-calculus but captures
 different computational patterns.
 
-A third insight concerns the relationship between MixinCalculus and
+A further observation concerns the relationship between MixinCalculus and
 continuation-passing style (CPS). Because every intermediate result in
 MixinCalculus has a name, programs are inherently in A-normal
 form~\cite{flanagan1993essence}. However, unlike ANF in functional
@@ -223,7 +224,7 @@ solution is even more concise than the original, despite MixinCalculus
 having only three primitives whereas DOT is a substantially larger
 system.
 
-A second insight concerns the linearization problem that has long plagued
+Another observation concerns the linearization problem that has long plagued
 mixin-based systems~\cite{bracha1990mixin,c3linearization}. In traditional
 mixin or trait calculi~\cite{scharli2003traits,ducasse2006traits}, composing
 mixins that define the same field raises conflicts that must be resolved by
@@ -254,11 +255,12 @@ mechanically verified against expected output snapshots.
   \item We present MixinCalculus, a minimal computational model for
     declarative programming that contains only mixin constructs (record,
     reference, composition) and no functions or scalar types.
-  \item We prove that composition ($\oplus$) is commutative, idempotent,
-    and associative, thereby dissolving the linearization problem
-    inherent in prior mixin and trait calculi.
+  \item We observe that composition ($\oplus$) is commutative, idempotent,
+    and associative, and provide an intuitive explanation for why this
+    holds. The linearization problem inherent in prior mixin and trait
+    calculi simply does not arise.
   \item We give a translation from the $\lambda$-calculus (with
-    De~Bruijn indices) to MixinCalculus, proving that MixinCalculus
+    De~Bruijn indices) to MixinCalculus, demonstrating that MixinCalculus
     subsumes the $\lambda$-calculus and is Turing complete.
     As a corollary, standard data types (booleans, natural numbers)
     can be Church-encoded without scalars (Appendix~\ref{app:church}).
@@ -443,15 +445,16 @@ Properties of $\oplus$: commutative, idempotent, associative.
 The identity element is the empty class $\Class_\varnothing$
 where $\Class_\varnothing(\ell) = []$ for all $\ell$.
 
-\medskip\noindent\textit{Proof sketch.}\quad
+\medskip\noindent\textit{Intuition.}\quad
 List concatenation is not commutative.
 However, $\eval$ calls all constructors with the \emph{same} $\Object_{\mathrm{self}}$
 and merges results via $\oplus$ recursively.
-At every leaf, the observable is only key presence---a set of labels.
+To see why commutativity holds, observe that at every leaf the only
+observable is key presence---a set of labels.
 Since there are no scalars, the only observable at any node is which keys exist.
 Set union is commutative and idempotent:
 $\{a,b\} \cup \{b,c\} = \{b,c\} \cup \{a,b\}$ and $S \cup S = S$.
-Therefore, the observable tree is invariant under reordering or deduplication of constructors.
+The observable tree is therefore invariant under reordering or deduplication of constructors.
 
 Since duplicate constructors produce the same observable result,
 implementations may deduplicate constructors (e.g., by source location)
@@ -546,7 +549,7 @@ is significant: the full computational power of the $\lambda$-calculus
 embeds into MixinCalculus with minimal overhead.
 
 The reverse direction---encoding MixinCalculus in pure
-$\lambda$-calculus---is fundamentally more difficult. The denotational
+$\lambda$-calculus---appears considerably more difficult. The denotational
 semantics in Section~4 already demonstrates this complexity: defining
 the meaning of MixinCalculus required a metalanguage with fixed points,
 higher-order functions, and recursive domains. This sophistication is
@@ -785,7 +788,7 @@ explicit data structure engineering in the $\lambda$-calculus, is
 simply the native record structure of MixinCalculus
 (Section~\ref{sec:trie}). This difference in problem difficulty
 demonstrates that MixinCalculus captures computational patterns that
-are \emph{fundamentally different} from those of the $\lambda$-calculus,
+are \emph{different} from those of the $\lambda$-calculus,
 not merely syntactic variants.
 
 \section{Discussion}
@@ -836,7 +839,7 @@ and the same problems hard. As shown in Section~5, they do not:
 The fact that MixinCalculus requires no additional machinery for either
 problem class---while the $\lambda$-calculus requires elaborate
 encodings for both---demonstrates that MixinCalculus captures
-fundamentally different computational primitives, not merely a
+different computational primitives, not merely a
 syntactic reshuffling.
 
 \subsection{Properties of Composition}
@@ -864,9 +867,9 @@ The NixOS module system~\cite{dolstra2008nixos,nixosmodules}---whose
 recursive attribute merging motivated this work---can be understood as an
 implementation of MixinCalculus with additional features (type checking,
 error reporting, FFI to the Nix language). The module system's
-expressiveness stems from the properties proven in Section~4: composition
-is commutative, idempotent, and associative, dissolving the linearization
-problem. Other configuration languages exhibit similar patterns:
+expressiveness stems from the properties described in Section~4: composition
+is commutative, idempotent, and associative, so the linearization
+problem does not arise. Other configuration languages exhibit similar patterns:
 Jsonnet~\cite{jsonnet} provides inheritance-based composition over JSON;
 CUE~\cite{cue2019} unifies types and values through lattice-based merging;
 Dhall~\cite{dhall2017} combines functional programming with configuration.
@@ -878,7 +881,7 @@ Scala traits~\cite{odersky2004overview}, Ruby mixins~\cite{flanagan2008ruby},
 and similar object-oriented mechanisms use symmetric composition to extend
 classes. Traditional mixin calculi~\cite{bracha1990mixin,scharli2003traits}
 face the linearization problem when composing mixins with conflicting
-fields. MixinCalculus dissolves this problem (Section~4) by eliminating
+fields. In MixinCalculus, this problem does not arise (Section~4) because eliminating
 scalar values: only key presence is observable, making composition
 naturally commutative. This explains why trait systems with
 conflict-resolution strategies (e.g., Scala's linearization) require
