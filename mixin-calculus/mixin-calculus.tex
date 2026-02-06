@@ -671,10 +671,11 @@ identical---only the interpretation differs. An empty API is
 simultaneously an abstract requirement (when viewed as a dependency) and
 a concrete extension point (when viewed as an injection site).
 
-The Selector and Rebuilder combinators (Section~\ref{sec:trie}) demonstrate this
-flexibility: their callback slots (\texttt{on\_zero}, \texttt{on\_odd},
-\texttt{on\_even}) can be filled externally (CPS interpretation) or
-composed locally (direct interpretation).
+The Selector and Rebuilder combinators (Appendix~\ref{app:trie})
+demonstrate this flexibility: their callback slots
+($\mathrm{on\_zero}$, $\mathrm{on\_odd}$, $\mathrm{on\_even}$) can be
+filled externally (CPS interpretation) or composed locally (direct
+interpretation).
 
 \paragraph{Practical implications.}
 This design enables flexible library interfaces. A library component with
@@ -696,9 +697,175 @@ maintained separately.
 A record $\{\ell_1 \mapsto e_1,\; \ldots,\; \ell_n \mapsto e_n\}$ is
 a trie node: each label selects a child subtree. Nested records form a
 trie whose depth corresponds to key length. Composition ($\oplus$) is
-trie union: merging two records combines their children recursively.
+natively trie union: merging two records combines their children
+recursively. This observation yields an immutable analogue of
+random-access memory.
 
-This observation yields an immutable analogue of random-access memory.
+The fundamental operations on random-access memory correspond directly
+to MixinCalculus primitives:
+\begin{itemize}
+  \item \textbf{Write}: composing a singleton trie ($\oplus$).
+  \item \textbf{Read (static)}: reference-path navigation
+    ($\up^n.\ell_1.\ell_2\ldots\ell_k$).
+  \item \textbf{Read (dynamic)}: folding a key into a Selector
+    combinator that navigates the trie at runtime.
+  \item \textbf{Delete}: folding a key into a Rebuilder combinator
+    that reconstructs the trie, omitting the targeted entry.
+  \item \textbf{Update}: composing deletion with insertion.
+\end{itemize}
+
+\noindent
+In the $\lambda$-calculus, implementing a persistent trie with
+efficient union requires explicit data structure encodings
+(e.g., hash array mapped tries or finger trees). In MixinCalculus,
+records \emph{are} tries and composition \emph{is} trie union---no
+additional data structure is needed.
+The full constructions (Selector, Rebuilder, Lookup, Delete, Update)
+are given in Appendix~\ref{app:trie}.%
+\footnote{A runnable implementation using YAML syntax has been tested;
+see the accompanying repository.}
+
+\subsection{Contrast with SKI Combinator Calculus}
+
+A natural question arises: is MixinCalculus merely another function-free
+reformulation of the $\lambda$-calculus, analogous to the SKI combinator
+calculus~\cite{schonfinkel1924,curry1958combinatory}?
+
+Like MixinCalculus, the SKI combinator calculus is function-free at the
+object level (no $\lambda$-abstractions), Turing complete, and minimal
+(three combinators). However, SKI is \emph{isomorphic} to the
+$\lambda$-calculus in terms of problem difficulty: the bracket
+abstraction algorithm translates between the two systems while
+preserving computational structure. Problems that are hard in the
+$\lambda$-calculus---such as the Expression
+Problem~(Section~\ref{sec:expression-problem})---remain equally hard
+in SKI.
+
+MixinCalculus, by contrast, exhibits a genuine shift in problem
+difficulty. The Expression Problem, which requires sophisticated
+encodings in $\lambda$-calculus-based systems---object
+algebras~\cite{oliveira2012extensibility}, finally tagless
+interpreters~\cite{carette2009finally}, or multi-parameter type
+classes---becomes direct and natural in MixinCalculus via $\oplus$.
+Similarly, random-access memory via immutable tries, which requires
+explicit data structure engineering in the $\lambda$-calculus, is
+simply the native record structure of MixinCalculus
+(Section~\ref{sec:trie}). This difference in problem difficulty
+demonstrates that MixinCalculus captures computational patterns that
+are \emph{fundamentally different} from those of the $\lambda$-calculus,
+not merely syntactic variants.
+
+\section{Discussion}
+
+\subsection{Is MixinCalculus Just Functions in Disguise?}
+
+A skeptical reader might observe that the semantic domain uses
+$\Constructor = \Object \to \Class$, which is literally a function
+type in the metalanguage. Does this mean MixinCalculus is simply
+the $\lambda$-calculus with different syntax?
+
+This objection confuses the object language with the metalanguage.
+The semantic domain uses functions as a \emph{mathematical tool} to
+define the meaning of MixinCalculus expressions, just as set theory is
+used to define natural numbers without making arithmetic ``just set
+theory in disguise.'' The crucial question is not what appears in the
+denotational semantics, but what computational patterns are
+\emph{primitive} in the language itself.
+
+In MixinCalculus, the primitive operations are record construction,
+reference, and composition. Function application is \emph{derived}
+from these primitives (Section~5.1), not primitive itself.
+Indeed, the asymmetry demonstrated in Section~5.2 makes this concrete:
+embedding the $\lambda$-calculus into MixinCalculus requires only three
+simple rules, while the reverse direction requires the sophisticated
+machinery of Section~4. The real test of whether two computational
+models are ``the same'' is whether they make the same problems easy
+and the same problems hard. As shown in Section~5, they do not:
+
+\begin{center}
+\begin{tabular}{lll}
+  \textbf{System} & \textbf{Expression Problem} & \textbf{Random-access memory} \\
+  \hline
+  $\lambda$-calculus
+    & Object algebras~\cite{oliveira2012extensibility},
+    & Explicit trie encoding \\
+    & finally tagless~\cite{carette2009finally} & \\
+  SKI combinators
+    & Same difficulty as $\lambda$
+    & Same difficulty as $\lambda$ \\
+  MixinCalculus
+    & Direct composition ($\oplus$)
+    & Records \emph{are} tries \\
+\end{tabular}
+\end{center}
+
+\noindent
+The fact that MixinCalculus requires no additional machinery for either
+problem class---while the $\lambda$-calculus requires elaborate
+encodings for both---demonstrates that MixinCalculus captures
+fundamentally different computational primitives, not merely a
+syntactic reshuffling.
+
+\subsection{Properties of Composition}
+
+Commutativity and idempotence of $\oplus$ make MixinCalculus
+transparent to linearization order.
+Deduplication of inherited mixins is purely an optimization.
+
+\subsection{Implementation Considerations}
+
+De Bruijn indices $\up^n$ are typically implemented as
+qualified \textbf{self} references for readability.
+Each scope level is given a name (e.g., $\mathrm{Succ}$),
+and $\up^1.\mathrm{successor}$ is written as
+$\mathrm{Succ}.\mathrm{successor}$,
+where the name is resolved by walking up the scope chain.
+
+\section{Future Work}
+
+\paragraph{Typed Mixin Calculus.}
+MixinCalculus as presented here is untyped. A natural next step is to
+develop a \emph{Typed Mixin Calculus} (TMC) that adds a type system
+while preserving the declarative character of the calculus.
+The key observation is that type systems are themselves a form of
+declarative programming: one declares types to guide meta-computation
+(type checking, type inference) without specifying operational steps.
+Since MixinCalculus demonstrates that declarative programming can be
+Turing complete, applying this insight to the type level yields a type
+system built from the same mixin primitives.
+TMC would relate to the DOT calculus~\cite{amin2016dot} in a manner
+analogous to how MixinCalculus relates to the $\lambda$-calculus:
+TMC can be viewed as DOT without $\lambda$, retaining
+path-dependent types while replacing functions with inheritance-based
+composition.
+
+A key difference concerns the interpretation of structural annotations.
+In untyped MixinCalculus, writing $\mathrm{magnitude} \mapsto \{\}$ in
+a schema (as in the informal example of Section~1) is purely
+documentary---it defines a structural slot but imposes no constraint.
+The expression $\mathrm{outcome} \mapsto \up^0.\mathrm{magnitude}$
+succeeds as long as $\mathrm{magnitude}$ exists somewhere in the
+composition chain, regardless of any schema declaration.
+TMC would enforce such annotations statically, rejecting programs at
+compile time where the declared structure does not match the actual
+composition.
+
+\paragraph{Mechanized proofs.}
+The properties of MixinCalculus (commutativity, idempotence,
+associativity of $\oplus$, and the correctness of the $\lambda$-calculus
+translation) are amenable to formalization in a proof assistant such as
+Coq or Agda.
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{mixin-calculus}
+
+\appendix
+
+\section{Trie Operations}
+\label{app:trie}
+
+This appendix gives the full constructions for the RAM machine
+operations summarized in Section~\ref{sec:trie}.
 Index the trie by binary natural numbers using three labels---$\mathrm{value}$
 for the stored entry at a node, $\mathrm{at\_odd}$ and $\mathrm{at\_even}$
 for the two children corresponding to the bit structure of the key:
@@ -707,8 +874,6 @@ for the two children corresponding to the bit structure of the key:
   \mathrm{Odd}(n) &\;\longrightarrow\; \mathrm{at\_odd},\;\text{then path for } n \\
   \mathrm{Even}(n) &\;\longrightarrow\; \mathrm{at\_even},\;\text{then path for } n
 \end{align*}
-The fundamental operations on random-access memory---write, read,
-and delete---correspond directly to MixinCalculus primitives:
 
 \paragraph{Write (insertion).}
 Inserting an entry with value $v$ at key $k$ is composing a singleton
@@ -881,152 +1046,6 @@ carries internal scaffolding ($\mathrm{key}$, $\mathrm{trie\_input}$,
 $\mathrm{applied\_key}$, etc.), and only its $\mathrm{result}$
 property holds the rebuilt trie.  This intermediate projection
 prevents Update from being a single symmetric composition.
-
-\medskip
-\noindent
-In the $\lambda$-calculus, implementing a persistent trie with
-efficient union requires explicit data structure encodings
-(e.g., hash array mapped tries or finger trees). In MixinCalculus,
-records \emph{are} tries and composition \emph{is} trie union---no
-additional data structure is needed.%
-\footnote{A runnable implementation using YAML syntax has been tested;
-see the accompanying repository.}
-
-\subsection{Contrast with SKI Combinator Calculus}
-
-A natural question arises: is MixinCalculus merely another function-free
-reformulation of the $\lambda$-calculus, analogous to the SKI combinator
-calculus~\cite{schonfinkel1924,curry1958combinatory}?
-
-Like MixinCalculus, the SKI combinator calculus is function-free at the
-object level (no $\lambda$-abstractions), Turing complete, and minimal
-(three combinators). However, SKI is \emph{isomorphic} to the
-$\lambda$-calculus in terms of problem difficulty: the bracket
-abstraction algorithm translates between the two systems while
-preserving computational structure. Problems that are hard in the
-$\lambda$-calculus---such as the Expression
-Problem~(Section~\ref{sec:expression-problem})---remain equally hard
-in SKI.
-
-MixinCalculus, by contrast, exhibits a genuine shift in problem
-difficulty. The Expression Problem, which requires sophisticated
-encodings in $\lambda$-calculus-based systems---object
-algebras~\cite{oliveira2012extensibility}, finally tagless
-interpreters~\cite{carette2009finally}, or multi-parameter type
-classes---becomes direct and natural in MixinCalculus via $\oplus$.
-Similarly, random-access memory via immutable tries, which requires
-explicit data structure engineering in the $\lambda$-calculus, is
-simply the native record structure of MixinCalculus
-(Section~\ref{sec:trie}). This difference in problem difficulty
-demonstrates that MixinCalculus captures computational patterns that
-are \emph{fundamentally different} from those of the $\lambda$-calculus,
-not merely syntactic variants.
-
-\section{Discussion}
-
-\subsection{Is MixinCalculus Just Functions in Disguise?}
-
-A skeptical reader might observe that the semantic domain uses
-$\Constructor = \Object \to \Class$, which is literally a function
-type in the metalanguage. Does this mean MixinCalculus is simply
-the $\lambda$-calculus with different syntax?
-
-This objection confuses the object language with the metalanguage.
-The semantic domain uses functions as a \emph{mathematical tool} to
-define the meaning of MixinCalculus expressions, just as set theory is
-used to define natural numbers without making arithmetic ``just set
-theory in disguise.'' The crucial question is not what appears in the
-denotational semantics, but what computational patterns are
-\emph{primitive} in the language itself.
-
-In MixinCalculus, the primitive operations are record construction,
-reference, and composition. Function application is \emph{derived}
-from these primitives (Section~5.1), not primitive itself.
-Indeed, the asymmetry demonstrated in Section~5.2 makes this concrete:
-embedding the $\lambda$-calculus into MixinCalculus requires only three
-simple rules, while the reverse direction requires the sophisticated
-machinery of Section~4. The real test of whether two computational
-models are ``the same'' is whether they make the same problems easy
-and the same problems hard. As shown in Section~5, they do not:
-
-\begin{center}
-\begin{tabular}{lll}
-  \textbf{System} & \textbf{Expression Problem} & \textbf{Random-access memory} \\
-  \hline
-  $\lambda$-calculus
-    & Object algebras~\cite{oliveira2012extensibility},
-    & Explicit trie encoding \\
-    & finally tagless~\cite{carette2009finally} & \\
-  SKI combinators
-    & Same difficulty as $\lambda$
-    & Same difficulty as $\lambda$ \\
-  MixinCalculus
-    & Direct composition ($\oplus$)
-    & Records \emph{are} tries \\
-\end{tabular}
-\end{center}
-
-\noindent
-The fact that MixinCalculus requires no additional machinery for either
-problem class---while the $\lambda$-calculus requires elaborate
-encodings for both---demonstrates that MixinCalculus captures
-fundamentally different computational primitives, not merely a
-syntactic reshuffling.
-
-\subsection{Properties of Composition}
-
-Commutativity and idempotence of $\oplus$ make MixinCalculus
-transparent to linearization order.
-Deduplication of inherited mixins is purely an optimization.
-
-\subsection{Implementation Considerations}
-
-De Bruijn indices $\up^n$ are typically implemented as
-qualified \textbf{self} references for readability.
-Each scope level is given a name (e.g., $\mathrm{Succ}$),
-and $\up^1.\mathrm{successor}$ is written as
-$\mathrm{Succ}.\mathrm{successor}$,
-where the name is resolved by walking up the scope chain.
-
-\section{Future Work}
-
-\paragraph{Typed Mixin Calculus.}
-MixinCalculus as presented here is untyped. A natural next step is to
-develop a \emph{Typed Mixin Calculus} (TMC) that adds a type system
-while preserving the declarative character of the calculus.
-The key observation is that type systems are themselves a form of
-declarative programming: one declares types to guide meta-computation
-(type checking, type inference) without specifying operational steps.
-Since MixinCalculus demonstrates that declarative programming can be
-Turing complete, applying this insight to the type level yields a type
-system built from the same mixin primitives.
-TMC would relate to the DOT calculus~\cite{amin2016dot} in a manner
-analogous to how MixinCalculus relates to the $\lambda$-calculus:
-TMC can be viewed as DOT without $\lambda$, retaining
-path-dependent types while replacing functions with inheritance-based
-composition.
-
-A key difference concerns the interpretation of structural annotations.
-In untyped MixinCalculus, writing $\mathrm{magnitude} \mapsto \{\}$ in
-a schema (as in the informal example of Section~1) is purely
-documentary---it defines a structural slot but imposes no constraint.
-The expression $\mathrm{outcome} \mapsto \up^0.\mathrm{magnitude}$
-succeeds as long as $\mathrm{magnitude}$ exists somewhere in the
-composition chain, regardless of any schema declaration.
-TMC would enforce such annotations statically, rejecting programs at
-compile time where the declared structure does not match the actual
-composition.
-
-\paragraph{Mechanized proofs.}
-The properties of MixinCalculus (commutativity, idempotence,
-associativity of $\oplus$, and the correctness of the $\lambda$-calculus
-translation) are amenable to formalization in a proof assistant such as
-Coq or Agda.
-
-\bibliographystyle{ACM-Reference-Format}
-\bibliography{mixin-calculus}
-
-\appendix
 
 \section{Church Encoding of Standard Types}
 \label{app:church}
