@@ -48,6 +48,10 @@ and associative, dissolving the linearization problem in traditional
 mixin and trait systems. We prove Turing completeness by systematically
 translating the $\lambda$-calculus into MixinCalculus, demonstrating
 that function application is derivable from symmetric mixin composition.
+Programs are inherently in A-normal form; unlike compiler-internal ANF
+which targets a fixed monad, MixinCalculus ANF supports dependency
+injection, making programs CPS-agnostic---the same code serves as either
+continuation-passing or direct-style depending on assembly.
 Records serve as tries, making MixinCalculus an immutable analogue of
 the RAM machine. This provides a computational foundation for declarative
 configuration languages and object-oriented composition mechanisms.
@@ -187,6 +191,23 @@ immutable analogue of the RAM machine
 This asymmetry demonstrates that MixinCalculus is not merely a
 syntactic variant of the $\lambda$-calculus but captures fundamentally
 different computational patterns.
+
+A third insight concerns the relationship between MixinCalculus and
+continuation-passing style (CPS). Because every intermediate result in
+MixinCalculus has a name, programs are inherently in A-normal
+form~\cite{flanagan1993essence}. However, unlike ANF in functional
+language compilers---which targets a fixed monad (typically the identity
+monad~\cite{moggi1991notions}) and cannot express CPS
+transformations---MixinCalculus ANF supports dependency injection through
+empty record slots. This makes programs \emph{CPS-agnostic}: the same
+code can be interpreted as continuation-passing (when slots are filled by
+an external orchestrator) or as direct-style (when slots are composed
+locally). From a category-theoretic perspective, this means abstract
+interfaces and concrete implementations are syntactically
+identical---only the assembly strategy differs. The $\lambda$-calculus
+lacks this flexibility: converting between CPS and direct style requires
+an explicit program transformation~\cite{plotkin1975callbyname,sabry1993reasoning}.
+
 As a demonstration of this expressiveness, we port the Expression
 Problem~\cite{wadler1998expression} solution of Wang and
 Oliveira~\cite{wang2016trivially} from Scala (whose type system rests
@@ -223,6 +244,10 @@ composition) to serve as the foundation of declarative programming.
     subsumes the $\lambda$-calculus and is Turing complete.
     As a corollary, standard data types (booleans, natural numbers)
     can be Church-encoded without scalars (Appendix~\ref{app:church}).
+  \item We show that MixinCalculus programs are CPS-agnostic: the same code
+    can be interpreted as either continuation-passing or direct-style depending
+    on assembly strategy, in contrast to the $\lambda$-calculus where CPS
+    conversion is an explicit program transformation.
 \end{itemize}
 
 \paragraph{Informal example.}\label{sec:expression-problem}
@@ -535,6 +560,136 @@ $\lambda$-calculus in disguise. Rather, MixinCalculus provides
 primitive operations for computational patterns that are
 \emph{derivable but complex} in the $\lambda$-calculus.
 
+\subsection{CPS-Agnostic Programs}
+
+In the $\lambda$-calculus, a program is either in continuation-passing
+style (CPS) or direct style. Converting between these representations
+requires explicit transformation---the CPS
+conversion~\cite{plotkin1975callbyname,sabry1993reasoning}.
+MixinCalculus exhibits a different property: the same program text can
+be interpreted as either CPS or direct-style depending on how
+dependencies are assembled.
+
+Consider a generic computation step:
+\begin{align*}
+  \mathrm{Step} \mapsto \{
+    \mathrm{input} \mapsto \{\},\;
+    \mathrm{process} \mapsto \{\},\;
+    \mathrm{result} \mapsto \{\}
+  \}
+\end{align*}
+
+The empty $\mathrm{process}$ slot is an \emph{interpretation point}. If
+filled externally by an orchestrator, it acts as a continuation parameter
+(CPS interpretation). If composed locally with an implementation, it acts
+as a direct dependency (direct-style interpretation). The
+$\mathrm{Step}$ code remains unchanged.
+
+\paragraph{CPS interpretation via external orchestration.}
+When $\mathrm{process}$ is injected from outside, the computation passes
+its intermediate result to an external handler:
+\begin{align*}
+  &\mathrm{Step} \oplus \{ \\
+  &\quad \mathrm{input} \mapsto \{\mathrm{data} \mapsto \{\}\},\; \\
+  &\quad \mathrm{process} \mapsto \{ \\
+  &\qquad \mathrm{result} \mapsto \{\mathrm{handled} \mapsto \{\}\} \\
+  &\quad \} \\
+  &\}
+\end{align*}
+The $\mathrm{process}$ slot acts as a continuation: it receives the
+result and determines what happens next. This is CPS-style programming.
+
+\paragraph{Direct-style interpretation via local composition.}
+Alternatively, $\mathrm{process}$ can be filled by local composition:
+\begin{align*}
+  &\mathrm{Step} \oplus \{ \\
+  &\quad \mathrm{input} \mapsto \{\mathrm{data} \mapsto \{\}\},\; \\
+  &\quad \mathrm{process.result} \mapsto \{\mathrm{computed} \mapsto \{\}\} \\
+  &\}
+\end{align*}
+Here $\mathrm{process}$ is implemented directly within the composition.
+This is direct-style programming. The $\mathrm{Step}$ code is identical
+in both cases---only the assembly strategy differs.
+
+\paragraph{Representation independence.}
+This property is a form of representation
+independence~\cite{reynolds1983types} applied to control flow: client
+code using $\mathrm{Step}$ need not know whether $\mathrm{process}$ will
+be filled continuation-style or directly. Library authors write code
+once; users choose the control flow style at assembly time.
+
+The $\lambda$-calculus lacks this flexibility. A function written in
+direct style must be explicitly transformed (CPS conversion) before it
+can be used continuation-style. MixinCalculus programs are inherently in
+A-normal form~\cite{flanagan1993essence}, where every intermediate result
+has a name.
+
+However, MixinCalculus ANF differs critically from ANF in functional
+programming. In functional language compilers, ANF conversion requires
+specifying a target monad---either a concrete monad or an abstract
+one~\cite{moggi1991notions}. Compiler-internal ANF transformations (the
+ANF form used in intermediate representations) typically target the
+identity monad, which cannot express CPS transformations. This is
+analogous to how imperative compilers use SSA (Static Single Assignment)
+form, which similarly lacks control flow flexibility. MixinCalculus ANF,
+by contrast, has built-in dependency injection: empty API slots can be
+filled by external orchestrators. This capability enables the same ANF
+program to serve both CPS and direct-style interpretations without monad
+specification or transformation.
+
+\paragraph{Multiple symmetric continuations.}
+When interpreted continuation-style, MixinCalculus naturally supports
+multiple exit points:
+\begin{align*}
+  \mathrm{Choice} \mapsto \{
+    \mathrm{on\_success} &\mapsto \{\},\; \\
+    \mathrm{on\_failure} &\mapsto \{\},\; \\
+    \mathrm{on\_timeout} &\mapsto \{\},\; \\
+    \mathrm{result} &\mapsto \{\}
+  \}
+\end{align*}
+
+All continuation slots are symmetric under $\oplus$. Traditional CPS in
+the $\lambda$-calculus distinguishes a single continuation parameter;
+additional continuations must be encoded (e.g., as pairs or disjoint
+sums). MixinCalculus treats all continuation slots uniformly, eliminating
+the need for specialized encodings.
+
+\paragraph{Abstract and concrete are syntactically identical.}
+From a category-theoretic perspective, abstract algebra and concrete
+implementation have the same syntactic structure in MixinCalculus:
+\begin{align*}
+  \text{Abstract:} \quad & \mathrm{API} \mapsto \{\} \\
+  \text{Concrete:} \quad & \mathrm{API} \mapsto \{\text{implementation}\}
+\end{align*}
+
+This is the abstract/concrete correspondence: the same functor applies to
+both. In traditional languages, abstract interfaces (e.g., Java
+interfaces, Haskell type classes) have different syntax from concrete
+implementations. In MixinCalculus, they are syntactically
+identical---only the interpretation differs. An empty API is
+simultaneously an abstract requirement (when viewed as a dependency) and
+a concrete extension point (when viewed as an injection site).
+
+The Selector and Rebuilder combinators (Section~\ref{sec:trie}) demonstrate this
+flexibility: their callback slots (\texttt{on\_zero}, \texttt{on\_odd},
+\texttt{on\_even}) can be filled externally (CPS interpretation) or
+composed locally (direct interpretation).
+
+\paragraph{Practical implications.}
+This design enables flexible library interfaces. A library component with
+empty API slots can be used in multiple contexts without modification:
+\begin{itemize}
+  \item In synchronous code, fill slots with direct implementations
+  \item In asynchronous code, fill slots with continuation handlers
+  \item In test code, fill slots with mock implementations
+\end{itemize}
+
+No dual APIs are needed. The same component serves all use cases. This
+eliminates a common source of code duplication in traditional languages,
+where async and sync versions of the same functionality must be
+maintained separately.
+
 \subsection{Records as Tries: The RAM Machine Connection}
 \label{sec:trie}
 
@@ -591,7 +746,11 @@ A Selector declares the trie shape and a result slot:
       \mathrm{at\_even} \mapsto \{\}\},\;
     \mathrm{result} \mapsto \{\}\}
 \]
-Three observer callbacks build Selectors bottom-up.
+Three observer callbacks build Selectors bottom-up. These callbacks
+($\mathrm{on\_zero}$, $\mathrm{on\_odd}$, $\mathrm{on\_even}$) are
+interpretation points in the sense of Section~5.3: they can be filled
+externally by an orchestrator (CPS interpretation) or composed locally
+(direct interpretation), demonstrating the CPS-agnostic property.
 The $\mathrm{on\_zero}$ callback returns a Selector that reads
 $.\mathrm{value}$ from the trie:
 \[
