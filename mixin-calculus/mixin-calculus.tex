@@ -872,6 +872,17 @@ systems work: components can be composed in any order without changing
 behavior. MixinCalculus formalizes the composition patterns that these
 systems implement ad hoc.
 
+\paragraph{Union file systems.}
+Union file systems (UnionFS, OverlayFS, AUFS) layer multiple directory
+hierarchies to present a unified view. The composition semantics directly
+mirror MixinCalculus: later layers override earlier layers (asymmetric
+composition), files from all layers remain accessible (non-destructive
+merging), and composition order affects conflict resolution (non-commutative
+when scalar files conflict). A proof-of-concept implementation~\cite{ratarmount2024}
+demonstrates that MixinCalculus patterns emerge naturally in union mount
+composition through late-binding semantics and dynamic dispatch for file
+lookups across layers.
+
 \section{Future Work}
 
 \paragraph{Typed Mixin Calculus.}
