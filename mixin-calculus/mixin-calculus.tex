@@ -13,6 +13,11 @@
 
 \usepackage{mathtools}
 
+%% Conditional citation: hide self-citations under anonymous review
+\newcommand{\selfcite}[2]{%
+  \if@ACM@anonymous{#2}\else{#1}\fi
+}
+
 \DeclareMathOperator{\Class}{Class}
 \DeclareMathOperator{\Mixin}{Mixin}
 \DeclareMathOperator{\Object}{Object}
@@ -233,11 +238,16 @@ application, variable) to serve as the foundation of functional
 programming, MixinCalculus uses three primitives (record, reference,
 composition) to serve as the foundation of declarative programming.
 
-All constructions in this paper---trie operations, Church encodings,
-and the $\lambda$-calculus translation---have been implemented and
-tested in MIXIN, an implementation of MixinCalculus using YAML syntax.
-This executable implementation validates the computational properties
-proven theoretically.
+All constructions in this paper have been implemented and tested in
+MIXIN, an executable implementation of MixinCalculus using YAML syntax,
+\selfcite{available as open source~\cite{mixin2025}}{included as supplementary material}. The implementation comprises a core
+evaluator, a standard library of Church-encoded data types, and a test
+suite covering every example in this paper: the Expression Problem
+solution (Section~\ref{sec:expression-problem}), escape and multi-exit
+continuations (Section~5.3), the Selector and Rebuilder combinators for
+dynamic trie operations (Appendix~\ref{app:trie}), and Church-encoded
+booleans and natural numbers (Appendix~\ref{app:church}). All tests are
+mechanically verified against expected output snapshots.
 
 \paragraph{Contributions.}
 \begin{itemize}
@@ -328,6 +338,12 @@ and an empty API for the arithmetic primitive:
 \end{align*}
 All modules compose freely via $\oplus$; none requires modification of
 existing definitions.
+A complete executable version of this example---including both the
+evaluation and display operations, a negation extension, and their free
+composition---is \selfcite{available in the implementation~\cite{mixin2025}}{included in the supplementary material}, along with test
+cases verifying evaluation and display for nested expressions mixing old
+and new cases.
+
 Note that $\mathrm{magnitude} \mapsto \{\}$ in $\mathrm{Constant}$
 resembles a type annotation but is purely structural in MixinCalculus:
 the evaluator works as long as the required fields appear somewhere in
@@ -700,6 +716,13 @@ eliminates a common source of code duplication in traditional languages,
 where async and sync versions of the same functionality must be
 maintained separately.
 
+\selfcite{The implementation~\cite{mixin2025} includes}{The supplementary material includes} executable examples of all three
+patterns described above: escape continuations analogous to
+\texttt{call/cc}, success/failure continuations analogous to exception
+handling, and protected computations with multiple symmetric exit points.
+Each example includes test cases verifying that the correct continuation
+path is taken.
+
 \subsection{Records as Tries: The RAM Machine Connection}
 \label{sec:trie}
 
@@ -730,9 +753,10 @@ efficient union requires explicit data structure encodings
 records \emph{are} tries and composition \emph{is} trie union---no
 additional data structure is needed.
 The full constructions (Selector, Rebuilder, Lookup, Delete, Update)
-are given in Appendix~\ref{app:trie}.%
-\footnote{A runnable implementation using YAML syntax has been tested;
-see the accompanying repository.}
+are given in Appendix~\ref{app:trie}.
+\selfcite{The implementation~\cite{mixin2025} includes}{The supplementary material includes} executable implementations of all
+trie operations---static and dynamic lookup, deletion, update, and trie
+union---with test cases covering keys of varying bit structure.
 
 \subsection{Contrast with SKI Combinator Calculus}
 
@@ -884,10 +908,11 @@ hierarchies to present a unified view. The composition semantics directly
 mirror MixinCalculus: later layers override earlier layers (asymmetric
 composition), files from all layers remain accessible (non-destructive
 merging), and composition order affects conflict resolution (non-commutative
-when scalar files conflict). A proof-of-concept implementation~\cite{ratarmount2024}
-demonstrates that MixinCalculus patterns emerge naturally in union mount
-composition through late-binding semantics and dynamic dispatch for file
-lookups across layers.
+when scalar files conflict). A proof-of-concept
+\selfcite{implementation~\cite{ratarmount2025} (included as supplementary material)}{implementation (included as supplementary material)}
+demonstrates that MixinCalculus
+patterns emerge naturally in union mount composition through late-binding
+semantics and dynamic dispatch for file lookups across layers.
 
 \section{Future Work}
 
@@ -1122,6 +1147,11 @@ built entirely within MixinCalculus. Each encoding is presented as a
 module mixin. In practical implementations, more efficient
 representations (e.g., binary naturals) or FFI to host language
 primitives would typically be used.
+\selfcite{The implementation~\cite{mixin2025} includes}{The supplementary material includes} executable implementations of these
+encodings with test cases for $\mathrm{Not}(\mathrm{True})$,
+$\mathrm{And}(\mathrm{True}, \mathrm{True})$,
+$\mathrm{Or}(\mathrm{False}, \mathrm{True})$, and natural number
+addition, all verified against expected output snapshots.
 
 \subsection{Boolean Module}
 
