@@ -1,0 +1,349 @@
+\documentclass[11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath, amssymb, mathtools}
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+
+\newcommand{\Class}{\mathrm{Class}}
+\newcommand{\Mixin}{\mathrm{Mixin}}
+\newcommand{\Object}{\mathrm{Object}}
+\newcommand{\Constructor}{\mathrm{Constructor}}
+\newcommand{\eval}{\mathrm{evaluate}}
+\newcommand{\bind}{\mathrm{bind}}
+\newcommand{\dom}{\mathrm{dom}}
+\newcommand{\up}{\mathop{\uparrow}}
+
+\title{MixinCalculus}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+MixinCalculus is a minimal computational model extracted from the MIXIN language.
+It contains only mixin constructs and no scalar types.
+The only built-in operation is composition ($\oplus$).
+References use De Bruijn indices, where each $\{\ldots\}$ creates a new scope level.
+
+The observable behavior of a MixinCalculus program is key presence at each node
+of the resulting recursive dictionary structure.
+Since there are no scalars, merge is both commutative and idempotent,
+making the result transparent to linearization order.
+Deduplication of inherited mixins is an implementation optimization, not a semantic distinction.
+
+A mixin cannot inherit from itself or from its inner mixins.
+
+\section{Syntax}
+
+Let $e$ denote an expression.
+Let $\ell$ denote a label (property name).
+Let $n$ denote a non-negative integer (scope depth).
+Let $k$ denote a non-negative integer (path length).
+
+\begin{align*}
+e \quad ::= \quad & \{\ell_1 \mapsto e_1,\; \ldots,\; \ell_n \mapsto e_n\}
+    && \text{(record, } n \ge 0\text{)} \\
+  \mid\quad & \up^n.\ell_1.\ell_2\ldots\ell_k
+    && \text{(reference, } k \ge 0\text{)} \\
+  \mid\quad & e_1 \oplus e_2
+    && \text{(composition)}
+\end{align*}
+
+The $\mapsto$ in $\{\ell \mapsto e\}$ defines a mixin property, not a let-binding.
+There is no variable binding in MixinCalculus.
+
+\paragraph{Scope levels.}
+A new scope level is created at each $\{\ldots\}$ (record literal).
+The scope contains all properties of that mixin, including those introduced by $\oplus$.
+In particular, $\{a \mapsto \{\}\} \oplus \{b \mapsto \{\}\}$ is a single mixin whose scope
+contains both $a$ and $b$.
+The operator $\oplus$ does not create additional scope levels.
+
+\begin{itemize}
+  \item $\up^0$ refers to the innermost enclosing $\{\ldots\}$.
+  \item $\up^1$ refers to the next enclosing $\{\ldots\}$.
+  \item $\up^n.\ell$ indexes into the scope chain at depth $n$, then projects property $\ell$.
+\end{itemize}
+
+\section{Semantic Domain}
+
+\paragraph{Class.}
+A multimap from labels to constructor lists, analogous to a class or trait.
+A $\Class$ is not yet bound to self.
+\[
+  \Class = \ell \rightharpoonup \Constructor^*
+\]
+
+\paragraph{Constructor.}
+A single $\{\ldots\}$ definition bound to its captured lexical scope.
+A $\Constructor$ takes a single $\Object$ (the parent's self, after all merges) and returns a $\Class$.
+Multiple constructors under the same label arise from merging via $\oplus$.
+\[
+  \Constructor = \Object \to \Class
+\]
+
+\paragraph{Mixin.}
+A $\Class$ paired with its evaluated $\Object$.
+This is the value at each node of the result.
+\[
+  \Mixin = (\Class, \Object)
+\]
+
+\paragraph{Object.}
+The result of evaluating a $\Class$.
+Each child is a $\Mixin$.
+\[
+  \Object = \ell \rightharpoonup \Mixin
+\]
+
+The only externally observable fact is key presence: $\ell \in \dom(\Object_0)$
+for an $\Object$ named $\Object_0$.
+
+\paragraph{Scope chain.}
+The scope chain $\rho$ is an ordered list of $\Mixin$ values,
+with index~0 being the innermost scope:
+\[
+  \rho = [\Mixin_0, \Mixin_1, \ldots]
+       = [(\Class_0, \Object_0),\; (\Class_1, \Object_1),\; \ldots]
+\]
+
+\section{Semantics}
+
+\paragraph{Composition ($\oplus$) on Classes.}
+For each label $\ell$, concatenate the constructor lists:
+\[
+  (\Class_1 \oplus \Class_2)(\ell) = \Class_1(\ell) \mathbin{+\!\!+} \Class_2(\ell)
+\]
+Properties of $\oplus$: commutative, idempotent, associative.
+The identity element is the empty class $\Class_\varnothing$
+where $\Class_\varnothing(\ell) = []$ for all $\ell$.
+
+\medskip\noindent\textit{Proof sketch.}\quad
+List concatenation is not commutative.
+However, $\eval$ calls all constructors with the \emph{same} $\Object_{\mathrm{self}}$
+and merges results via $\oplus$ recursively.
+At every leaf, the observable is only key presence---a set of labels.
+Since there are no scalars, the only observable at any node is which keys exist.
+Set union is commutative and idempotent:
+$\{a,b\} \cup \{b,c\} = \{b,c\} \cup \{a,b\}$ and $S \cup S = S$.
+Therefore, the observable tree is invariant under reordering or deduplication of constructors.
+
+Since duplicate constructors produce the same observable result,
+implementations may deduplicate constructors (e.g., by source location)
+to avoid the exponential blowup from diamond inheritance.
+
+\paragraph{Evaluate.}
+$\eval : \Class \to \Object$.
+
+Let $\Class_{\mathrm{input}}$ be the input class.
+Then $\eval(\Class_{\mathrm{input}}) = \Object_{\mathrm{self}}$ where:
+\[
+  \Object_{\mathrm{self}}(\ell) = (\Class_\ell,\; \eval(\Class_\ell))
+  \quad\text{with}\quad
+  \Class_\ell = \bigoplus_{\Constructor_i \in \Class_{\mathrm{input}}(\ell)} \Constructor_i(\Object_{\mathrm{self}})
+\]
+for all $\ell \in \dom(\Class_{\mathrm{input}})$,
+where $\Constructor_i$ ranges over the constructors under label $\ell$.
+This is a fixed point: $\Object_{\mathrm{self}}$ appears in its own definition.
+All constructors under label $\ell$ are called with $\Object_{\mathrm{self}}$,
+their results merged via $\oplus$,
+then the merged $\Class$ is evaluated.
+Each child entry is a $\Mixin = (\Class_\ell, \eval(\Class_\ell))$.
+
+\paragraph{Bind.}
+$\bind : (e, \rho) \to \Class$,
+where $e$ is an expression and $\rho$ is a scope chain.
+
+\begin{itemize}
+\item \textbf{Record:}
+  $\bind(\{\ell_1 \mapsto e_1, \ldots, \ell_n \mapsto e_n\},\; \rho) = \Class_{\mathrm{record}}$
+  where
+  \[
+    \Class_{\mathrm{record}}(\ell_i) = \bigl[\lambda \Object_{\mathrm{self}}.\;
+      \bind(e_i,\; (\Class_{\mathrm{record}}, \Object_{\mathrm{self}}) :: \rho)\bigr]
+  \]
+  Each label gets a singleton list with one constructor.
+  The constructor captures the scope chain $\rho$ and $\Class_{\mathrm{record}}$.
+
+\item \textbf{Composition:}
+  $\bind(e_1 \oplus e_2,\; \rho) = \bind(e_1, \rho) \oplus \bind(e_2, \rho)$
+
+\item \textbf{Reference:}
+  $\bind(\up^n.\ell_1.\ell_2\ldots\ell_k,\; \rho)$ with $k \ge 0$:
+
+  Let $(\Class_n, \Object_n) = \rho(n)$, the $n$-th entry in the scope chain.
+  \begin{align*}
+    \text{if } k = 0 &: \quad \text{result} = \Class_n \\
+    \text{if } k \ge 1 &: \quad
+      (\Class_{\ell_1}, \Object_{\ell_1}) = \Object_n(\ell_1),\;\;
+      \ldots,\;\;
+      (\Class_{\ell_k}, \Object_{\ell_k}) = \Object_{\ell_{k-1}}(\ell_k) \\
+      & \quad\;\; \text{result} = \Class_{\ell_k}
+  \end{align*}
+  Navigate through the $\Object$ chain by successive label projections,
+  then return the $\Class$ at the final node.
+  When $k = 0$, the reference inherits the entire enclosing scope's $\Class$,
+  which may produce an infinitely deep tree.
+  MixinCalculus does not prohibit infinite trees.
+\end{itemize}
+
+\section{Church Booleans}
+
+All definitions live inside a single root mixin.
+References to sibling definitions use De Bruijn indices.
+
+\begin{align*}
+  \{ \quad \mathrm{Boolean} &\mapsto \{\mathrm{on\_true} \mapsto \{\},\;
+    \mathrm{on\_false} \mapsto \{\},\;
+    \mathrm{result} \mapsto \{\}\},
+  \\[6pt]
+  \mathrm{True} &\mapsto \up^0.\mathrm{Boolean} \oplus
+    \{\mathrm{result} \mapsto \up^0.\mathrm{on\_true}\},
+  \\
+  \mathrm{False} &\mapsto \up^0.\mathrm{Boolean} \oplus
+    \{\mathrm{result} \mapsto \up^0.\mathrm{on\_false}\},
+  \\[6pt]
+  \mathrm{Not} &\mapsto \up^0.\mathrm{Boolean} \oplus \{\\
+    &\qquad \mathrm{operand} \mapsto \up^1.\mathrm{Boolean},\\
+    &\qquad \mathrm{applied\_operand} \mapsto \up^0.\mathrm{operand} \oplus \{\\
+    &\qquad\qquad \mathrm{on\_true} \mapsto \up^1.\mathrm{on\_false},\\
+    &\qquad\qquad \mathrm{on\_false} \mapsto \up^1.\mathrm{on\_true}\},\\
+    &\qquad \mathrm{result} \mapsto \up^0.\mathrm{applied\_operand}.\mathrm{result}\},
+  \\[6pt]
+  \mathrm{And} &\mapsto \up^0.\mathrm{Boolean} \oplus \{\\
+    &\qquad \mathrm{left} \mapsto \up^1.\mathrm{Boolean},\\
+    &\qquad \mathrm{right} \mapsto \up^1.\mathrm{Boolean},\\
+    &\qquad \mathrm{applied\_left} \mapsto \up^0.\mathrm{left} \oplus \{\\
+    &\qquad\qquad \mathrm{on\_true} \mapsto \up^1.\mathrm{right},\\
+    &\qquad\qquad \mathrm{on\_false} \mapsto \up^2.\mathrm{False}\},\\
+    &\qquad \mathrm{result} \mapsto \up^0.\mathrm{applied\_left}.\mathrm{result}\},
+  \\[6pt]
+  \mathrm{Or} &\mapsto \up^0.\mathrm{Boolean} \oplus \{\\
+    &\qquad \mathrm{left} \mapsto \up^1.\mathrm{Boolean},\\
+    &\qquad \mathrm{right} \mapsto \up^1.\mathrm{Boolean},\\
+    &\qquad \mathrm{applied\_left} \mapsto \up^0.\mathrm{left} \oplus \{\\
+    &\qquad\qquad \mathrm{on\_true} \mapsto \up^2.\mathrm{True},\\
+    &\qquad\qquad \mathrm{on\_false} \mapsto \up^1.\mathrm{right}\},\\
+    &\qquad \mathrm{result} \mapsto \up^0.\mathrm{applied\_left}.\mathrm{result}\} \quad \}
+\end{align*}
+
+\paragraph{De Bruijn index explanation.}
+\begin{itemize}
+  \item At the top level of the root $\{\ldots\}$:
+    $\up^0$ refers to $\{\mathrm{Boolean}, \mathrm{True}, \mathrm{False},
+    \mathrm{Not}, \mathrm{And}, \mathrm{Or}\}$.
+  \item Inside True's $\{\mathrm{result} \mapsto \ldots\}$:
+    $\up^0$ refers to True's properties after merge with Boolean
+    (including $\mathrm{result}$, $\mathrm{on\_true}$, $\mathrm{on\_false}$).
+    $\up^1$ refers to the root scope.
+  \item Inside Not's $\{\mathrm{operand},\; \mathrm{applied\_operand},\; \mathrm{result},\; \ldots\}$:
+    $\up^0$ refers to Not's properties after merge.
+    $\up^1$ refers to the root scope.
+  \item Inside $\{\mathrm{on\_true},\; \mathrm{on\_false}\}$ nested in Not:
+    $\up^0$ refers to the inner record's properties.
+    $\up^1$ refers to Not's scope.
+    $\up^2$ refers to the root scope.
+\end{itemize}
+
+\paragraph{Worked example.}
+Consider the expression
+$\up^0.\mathrm{Not} \oplus \{\mathrm{operand} \mapsto \up^1.\mathrm{True}\}
+\oplus \{\mathrm{on\_true} \mapsto A,\; \mathrm{on\_false} \mapsto B\}$
+at the root scope level,
+where $A$ and $B$ are arbitrary expressions.
+The result is an object whose $\mathrm{result}$ key contains the same observable tree as $B$,
+because $\mathrm{Not}$ swaps $\mathrm{on\_true}$ and $\mathrm{on\_false}$,
+and $\mathrm{True}$ selects $\mathrm{on\_true}$,
+which after swapping becomes $B$.
+
+\section{Church Naturals}
+
+\begin{align*}
+  \{ \quad \mathrm{Nat} &\mapsto \{\mathrm{successor} \mapsto \{\mathrm{argument} \mapsto \{\},\;
+    \mathrm{result} \mapsto \{\}\},\;
+    \mathrm{zero} \mapsto \{\},\;
+    \mathrm{result} \mapsto \{\}\},
+  \\[6pt]
+  \mathrm{Zero} &\mapsto \up^0.\mathrm{Nat} \oplus
+    \{\mathrm{result} \mapsto \up^0.\mathrm{zero}\},
+  \\[6pt]
+  \mathrm{Succ} &\mapsto \up^0.\mathrm{Nat} \oplus \{\\
+    &\qquad \mathrm{predecessor} \mapsto \up^1.\mathrm{Nat},\\
+    &\qquad \mathrm{applied\_predecessor} \mapsto \up^0.\mathrm{predecessor} \oplus \{\\
+    &\qquad\qquad \mathrm{successor} \mapsto \up^1.\mathrm{successor},\\
+    &\qquad\qquad \mathrm{zero} \mapsto \up^1.\mathrm{zero}\},\\
+    &\qquad \mathrm{applied\_successor} \mapsto \up^0.\mathrm{successor} \oplus \{\\
+    &\qquad\qquad \mathrm{argument} \mapsto \up^1.\mathrm{applied\_predecessor}.\mathrm{result}\},\\
+    &\qquad \mathrm{result} \mapsto \up^0.\mathrm{applied\_successor}.\mathrm{result}\},
+  \\[6pt]
+  \mathrm{Add} &\mapsto \up^0.\mathrm{Nat} \oplus \{\\
+    &\qquad \mathrm{augend} \mapsto \up^1.\mathrm{Nat},\\
+    &\qquad \mathrm{addend} \mapsto \up^1.\mathrm{Nat},\\
+    &\qquad \mathrm{applied\_addend} \mapsto \up^0.\mathrm{addend} \oplus \{\\
+    &\qquad\qquad \mathrm{successor} \mapsto \up^1.\mathrm{successor},\\
+    &\qquad\qquad \mathrm{zero} \mapsto \up^1.\mathrm{zero}\},\\
+    &\qquad \mathrm{applied\_augend} \mapsto \up^0.\mathrm{augend} \oplus \{\\
+    &\qquad\qquad \mathrm{successor} \mapsto \up^1.\mathrm{successor},\\
+    &\qquad\qquad \mathrm{zero} \mapsto \up^1.\mathrm{applied\_addend}.\mathrm{result}\},\\
+    &\qquad \mathrm{result} \mapsto \up^0.\mathrm{applied\_augend}.\mathrm{result}\} \quad \}
+\end{align*}
+
+\paragraph{Concrete example.}
+At the root scope level,
+$\mathrm{one} \mapsto \up^0.\mathrm{Succ} \oplus \{\mathrm{predecessor} \mapsto \up^1.\mathrm{Zero}\}$.
+Applying this with a Peano-style successor and zero:
+$\up^0.\mathrm{one} \oplus \{\mathrm{successor} \mapsto S,\; \mathrm{zero} \mapsto Z\}$
+produces an object whose $\mathrm{result}$ key contains the same observable tree as
+$S \oplus \{\mathrm{argument} \mapsto Z.\mathrm{result}\}.\mathrm{result}$,
+i.e., successor applied once to zero.
+Here $S$ and $Z$ are arbitrary expressions representing
+a successor operation and a zero value respectively.
+
+\section{Translation from $\lambda$-Calculus}
+
+The following translation maps $\lambda$-calculus with De Bruijn indices
+to MixinCalculus.
+Let $\mathcal{T}$ denote the translation function,
+mapping a $\lambda$-term to a MixinCalculus expression $e$.
+
+\medskip
+\begin{center}
+\begin{tabular}{l@{\qquad$\longrightarrow$\qquad}l}
+  $n$ (variable) & $\up^n.\mathrm{argument}$ \\
+  $\lambda.\, e$ (abstraction) &
+    $\{\mathrm{argument} \mapsto \{\},\; \mathrm{result} \mapsto \mathcal{T}(e)\}$ \\
+  $e_1\; e_2$ (application) &
+    $\mathcal{T}(e_1) \oplus \{\mathrm{argument} \mapsto \mathcal{T}(e_2)\}$
+\end{tabular}
+\end{center}
+\medskip
+
+The result of an application is accessed via $.\mathrm{result}$.
+Nested applications require ANF-style naming of intermediate results.
+
+The translation from $\lambda$-calculus to MixinCalculus is straightforward.
+The reverse direction is non-trivial because self-referential records
+with recursive merge are difficult to encode in pure $\lambda$-calculus.
+
+\section{Discussion}
+
+\begin{itemize}
+  \item Commutativity and idempotence of $\oplus$ make MixinCalculus
+    transparent to linearization order.
+    Deduplication of inherited mixins is purely an optimization.
+  \item De Bruijn indices $\up^n$ are typically implemented as
+    qualified \textbf{self} references for readability.
+    Each scope level is given a name (e.g., $\mathrm{Succ}$),
+    and $\up^1.\mathrm{successor}$ is written as
+    $\mathrm{Succ}.\mathrm{successor}$,
+    where the name is resolved by walking up the scope chain.
+  \item MixinCalculus subsumes $\lambda$-calculus
+    ($\lambda$-calculus $\subset$ MixinCalculus).
+    The reverse embedding is non-trivial.
+\end{itemize}
+
+\end{document}
