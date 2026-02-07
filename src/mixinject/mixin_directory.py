@@ -154,7 +154,6 @@ def evaluate_mixin_directory(directory: Path) -> "runtime.Scope":
     root_mixin = runtime.Mixin(
         symbol=root_symbol,
         outer=OuterSentinel.ROOT,
-        lexical_outer=OuterSentinel.ROOT,
         kwargs=runtime.KwargsSentinel.STATIC,
     )
     result = root_mixin.evaluated

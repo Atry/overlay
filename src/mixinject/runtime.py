@@ -29,7 +29,7 @@ from typing import (
     final,
 )
 
-from mixinject import HasDict
+from mixinject import HasDict, OuterSentinel
 
 
 class KwargsSentinel(Enum):
@@ -45,7 +45,6 @@ if TYPE_CHECKING:
         FunctionalMergerSymbol,
         MixinSymbol,
         MultiplePatcherSymbol,
-        OuterSentinel,
         ResolvedReference,
         SinglePatcherSymbol,
         SymbolIndexSentinel,
@@ -134,8 +133,25 @@ class Mixin(HasDict):
     - Then access the dependency from that Scope
     """
 
-    lexical_outer: "Mixin | OuterSentinel"
-    """The lexical outer Mixin, or OuterSentinel.ROOT for root."""
+    @property
+    def lexical_outer(self) -> "Mixin | OuterSentinel":
+        """The lexical outer Mixin, computed from symbol.lexical_outer.
+
+        Looks up the corresponding Mixin in outer's super chain using
+        symbol.strict_super_reverse_index for O(1) lookup.
+
+        Guarantees isomorphism: mixin.lexical_outer.symbol is mixin.symbol.lexical_outer.
+        """
+        target_symbol = self.symbol.lexical_outer
+        match target_symbol:
+            case OuterSentinel.ROOT:
+                return OuterSentinel.ROOT
+            case _:
+                assert isinstance(self.outer, Mixin)
+                if target_symbol is self.outer.symbol:
+                    return self.outer
+                index = self.outer.symbol.strict_super_reverse_index[target_symbol]
+                return self.outer.strict_super_mixins[index]
 
     kwargs: Final["Mapping[str, object] | KwargsSentinel"]
     """
@@ -164,7 +180,7 @@ class Mixin(HasDict):
 
         For each nested_index in symbol.strict_super_indices:
         - OuterBaseIndex(i): Create child of lexical_outer's i-th super
-        - OwnBaseIndex(i): Resolve own base reference using self.lexical_outer
+        - OwnBaseIndex(i): Resolve own base reference
         - OWN: Return self
 
         NOTE: Super mixins do NOT use _sibling_dependencies because their
@@ -177,17 +193,15 @@ class Mixin(HasDict):
         for nested_index in self.symbol.strict_super_indices.values():
             match nested_index.primary_index:
                 case OuterBaseIndex(index=index):
-                    # Get the i-th super mixin from our lexical outer
-                    # (index is relative to symbol.lexical_outer's supers, which is
-                    # isomorphic to lexical_outer's supers)
+                    # Get the i-th super mixin from our outer
+                    # (index is relative to outer's strict_super_indices)
                     assert isinstance(self.outer, Mixin)
-                    base_mixin = self.lexical_outer.get_super(index)
+                    base_mixin = self.outer.get_super(index)
                     # Find our symbol's counterpart in the base mixin's symbol
                     child_symbol = base_mixin.symbol[self.symbol.key]
                     direct_mixin = Mixin(
                         symbol=child_symbol,
                         outer=self.outer,  # Same outer as us
-                        lexical_outer=base_mixin,  # Direct reference to the base
                         kwargs=self.kwargs,  # Propagate kwargs from parent
                     )
 
@@ -196,7 +210,6 @@ class Mixin(HasDict):
                     resolved_reference = self.symbol.resolved_bases[index]
                     direct_mixin = resolved_reference.get_mixin(
                         outer=self,
-                        lexical_outer=self.lexical_outer,
                     )
 
                 case SymbolIndexSentinel.OWN:
@@ -249,7 +262,6 @@ class Mixin(HasDict):
         # Always resolve via navigation
         return ref.get_mixin(
             outer=self,
-            lexical_outer=self.lexical_outer,
         )
 
     @cached_property
@@ -283,7 +295,6 @@ class Mixin(HasDict):
             (child_symbol := symbol[key]): Mixin(
                 symbol=child_symbol,
                 outer=self,
-                lexical_outer=self,
                 kwargs=KwargsSentinel.STATIC if child_symbol.is_scope else self.kwargs,
             )
             for key in symbol
@@ -517,7 +528,6 @@ class StaticScope(Scope):
         instance_mixin = Mixin(
             symbol=self.symbol.instance,
             outer=self._outer_mixin,
-            lexical_outer=self._outer_mixin,
             kwargs=kwargs,
         )
         result = instance_mixin.evaluated
@@ -714,7 +724,6 @@ def evaluate(
     root_mixin = Mixin(
         symbol=root_symbol,
         outer=OuterSentinel.ROOT,
-        lexical_outer=OuterSentinel.ROOT,
         kwargs=KwargsSentinel.STATIC,  # Root is always static
     )
 

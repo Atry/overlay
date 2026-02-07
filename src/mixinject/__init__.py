@@ -1563,6 +1563,18 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
         )
 
     @cached_property
+    def strict_super_reverse_index(self) -> Mapping["MixinSymbol", int]:
+        """Reverse mapping from super symbol to its position index in strict_super_indices.
+
+        Used by Mixin.lexical_outer to find the corresponding super Mixin
+        for a given symbol via ``self.outer.strict_super_mixins[index]``.
+        """
+        return {
+            symbol: index
+            for index, symbol in enumerate(self.strict_super_indices)
+        }
+
+    @cached_property
     def union_own_indices(self):
         """
         Index mapping for outer base classes themselves.
@@ -2939,7 +2951,6 @@ class ResolvedReference:
     def get_mixin(
         self,
         outer: "runtime.Mixin",
-        lexical_outer: "runtime.Mixin",
     ) -> "runtime.Mixin":
         """
         Get the target Mixin by navigating from outer using V2 semantics with late-binding.
@@ -2962,13 +2973,12 @@ class ResolvedReference:
         Uses key-based lookup at runtime to support merged scopes correctly.
 
         :param outer: The Mixin instance from which navigation starts.
-        :param lexical_outer: The lexical outer Mixin (static prototype context).
         :return: The resolved Mixin instance.
         """
         current = outer.outer
 
         # Traverse up the lexical scope chain with late-binding
-        current_lexical = lexical_outer
+        current_lexical = outer.lexical_outer
         for _ in range(self.de_bruijn_index):
             assert isinstance(current_lexical.outer, runtime.Mixin)
             current = current_lexical.outer

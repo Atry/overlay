@@ -212,10 +212,6 @@ class TestMixinSymbolLexicalOuterIsomorphicWithMixin:
         assert isinstance(foo_bar_mixin.lexical_outer, Mixin)
         assert foo_bar_mixin.lexical_outer.symbol is foo_bar_mixin.symbol.lexical_outer
 
-    @pytest.mark.xfail(
-        reason="Known bug: Mixin._construct_scope sets lexical_outer=self for all children, "
-        "including inherited ones. Should set lexical_outer to the base mixin for inherited children."
-    )
     def test_qux_bar_lexical_outer_isomorphism(self, fixture_scope: Scope) -> None:
         """mixin.lexical_outer.symbol is mixin.symbol.lexical_outer for inherited Qux.Bar."""
         qux_scope = fixture_scope.Qux
@@ -236,10 +232,6 @@ class TestMixinSymbolLexicalOuterIsomorphicWithMixin:
         assert isinstance(foo_bar_baz_mixin.lexical_outer, Mixin)
         assert foo_bar_baz_mixin.lexical_outer.symbol is foo_bar_baz_mixin.symbol.lexical_outer
 
-    @pytest.mark.xfail(
-        reason="Known bug: Mixin._construct_scope sets lexical_outer=self for all children, "
-        "including inherited ones. Should set lexical_outer to the base mixin for inherited children."
-    )
     def test_qux_bar_baz_lexical_outer_isomorphism(self, fixture_scope: Scope) -> None:
         """mixin.lexical_outer.symbol is mixin.symbol.lexical_outer for inherited Qux.Bar.Baz."""
         qux_scope = fixture_scope.Qux
