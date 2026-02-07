@@ -1089,7 +1089,7 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
         return ResolvedReference(
             de_bruijn_index=de_bruijn_index,
             path=hashable_path,
-            target_symbol=current_symbol,
+            target_symbol_bound=current_symbol,
         )
 
     def resolve_relative_reference(
@@ -1393,14 +1393,14 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
         match self.lexical_outer:
             case MixinSymbol():
                 return {
-                    resolved_reference.target_symbol: NestedSymbolIndex(
+                    resolved_reference.target_symbol_bound: NestedSymbolIndex(
                         primary_index=OwnBaseIndex(index=own_base_index),
                         secondary_index=SymbolIndexSentinel.OWN,
                     )
                     for own_base_index, resolved_reference in enumerate(
                         self.resolved_bases
                     )
-                    if resolved_reference.target_symbol.definitions
+                    if resolved_reference.target_symbol_bound.definitions
                 }
             case _:
                 return {}
@@ -1427,7 +1427,7 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
                     )
                     # Linearized strict super symbols of the extend reference
                     for secondary_index, symbol in enumerate(
-                        resolved_reference.target_symbol.generate_strict_super()
+                        resolved_reference.target_symbol_bound.generate_strict_super()
                     )
                     if symbol.definitions  # Only include symbols with definitions
                 }
@@ -2640,7 +2640,7 @@ def _get_param_resolved_reference(
             return ResolvedReference(
                 de_bruijn_index=de_bruijn_index,
                 path=(param_name,),
-                target_symbol=target_symbol,
+                target_symbol_bound=target_symbol,
             )
         match current.lexical_outer:
             case OuterSentinel.ROOT:
@@ -2706,7 +2706,7 @@ def _get_same_scope_dependencies_from_function(
         effective_levels_up = resolved_reference.de_bruijn_index + extra_levels
         # Only include dependencies with de_bruijn_index=0 (same scope)
         if effective_levels_up == 0:
-            result.append(resolved_reference.target_symbol)
+            result.append(resolved_reference.target_symbol_bound)
 
     return tuple(result)
 
@@ -2849,10 +2849,10 @@ class RelativeReference:
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
 class ResolvedReference:
     """
-    A reference with pre-resolved target symbol for compile-time access.
+    A reference with pre-resolved target symbol for compile-time type bound checking.
 
     The path uses Hashable keys for runtime navigation to support merged scopes.
-    The target_symbol provides compile-time access to the resolved symbol.
+    The target_symbol_bound provides compile-time type bound checking.
     """
 
     de_bruijn_index: Final[int]
@@ -2861,8 +2861,8 @@ class ResolvedReference:
     path: Final[tuple[Hashable, ...]]
     """Hashable path for runtime navigation (supports merged scopes)."""
 
-    target_symbol: Final["MixinSymbol"]
-    """The final resolved MixinSymbol (for compile-time access)."""
+    target_symbol_bound: Final["MixinSymbol"]
+    """The final resolved MixinSymbol (for compile-time type bound checking)."""
 
     # V1 method get_mixin() removed - use get_mixin() instead
 
