@@ -1,4 +1,4 @@
-"""Nested package for testing lazy import depth."""
+"""Nested package for testing lazy import de_bruijn_index."""
 from mixinject import public, resource
 
 
