@@ -69,9 +69,16 @@ class TestMultiModuleComposition:
         non_synthetic = {
             symbol for symbol in all_symbols if symbol.key in CLASS_NAMES
         }
+        non_synthetic_paths = sorted(
+            ".".join(str(segment) for segment in symbol.path)
+            for symbol in non_synthetic
+        )
 
-        # Should have at least 6 non-synthetic MixinSymbols:
+        # Should have 6 non-synthetic MixinSymbols:
         # From Module1: Class1, Class2 (2)
         # From Module2: Class1, Class2, Class3, Class4 (4)
         # Total: 6 distinct MixinSymbol objects
-        assert len(non_synthetic) == 6
+        assert len(non_synthetic) == 6, (
+            f"Expected 6 non-synthetic MixinSymbols, got {len(non_synthetic)}: "
+            f"{non_synthetic_paths}"
+        )

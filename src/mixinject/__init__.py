@@ -827,6 +827,21 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
                 return KeySentinel.ROOT
 
     @property
+    def path(self) -> tuple[Hashable, ...]:
+        """Get the full path from root to this symbol, excluding root itself."""
+        segments: list[Hashable] = []
+        current: MixinSymbol | OuterSentinel = self
+        while isinstance(current, MixinSymbol):
+            match current.origin:
+                case Nested(outer=outer, key=key):
+                    segments.append(key)
+                    current = outer
+                case _:
+                    break
+        segments.reverse()
+        return tuple(segments)
+
+    @property
     def attribute_name(self) -> str:
         """Generate a unique attribute name for caching this symbol's mixin on outer scope."""
         key_str = str(self.key)
