@@ -693,6 +693,191 @@ def fetch(url: str, policy: CachePolicy) -> Response:
 - Only when the user explicitly requests it
 - Never use it autonomously
 
+## MIXIN Language Coding Conventions
+
+MIXIN adopts C#-like naming conventions. The UpperCamelCase/lowerCamelCase distinction is not merely stylistic — it carries semantic meaning for the compiler's totality checker: UpperCamelCase symbols are **scopes** (can be instantiated at runtime), while lowerCamelCase symbols are **resources** (lazily evaluated). This naming convention enables automatic totality verification without manual proofs (see `mixin_totality.tex`).
+
+### Naming Convention Summary
+
+| Element | Casing | Examples | C# Analogy | ECS Analogy |
+|---------|--------|----------|-------------|-------------|
+| namespace | UpperCamelCase | `Nat`, `NatPlus`, `BooleanAnd` | namespace | system |
+| class | UpperCamelCase | `Zero`, `Successor`, `True`, `False` | class | entity (name as identity) |
+| nested class/method | UpperCamelCase | `Visitor`, `Plus`, `Equal`, `And`, `Or` | method/nested class | — |
+| field | lowerCamelCase | `predecessor`, `addend`, `sum` | field | — |
+| parameter | lowerCamelCase | `addend`, `other`, `operand0` | parameter | — |
+| private member | `_` prefix | `_increasedAddend`, `_recursiveAddition` | `private` | — |
+
+### Namespace (UpperCamelCase)
+
+Top-level groupings. Analogous to **ECS systems**. In abstract algebra, the collection of namespaces forms a **multi-sorted algebraic structure**:
+
+- **Sort definitions** establish carrier sets (data types): `Nat` defines `Zero` and `Successor`, `Boolean` defines `True` and `False`
+- **Endomorphic operations** operate within a single sort: `NatPlus` (Nat × Nat → Nat), `BooleanNegation` (Boolean → Boolean)
+- **Cross-sort operations** connect different sorts: `NatEquality` (Nat × Nat → Boolean)
+
+A namespace declares its **sort dependencies** by inheriting other namespaces. For example, `NatEquality` inherits `[NatVisitor]` (input sort: Nat, with dispatch capability) and `[Boolean]` (output sort: Boolean). The inherited entities (`True`, `False`) become part of `NatEquality`'s scope, and are referenced via qualified this (`[NatEquality, ~, "True"]`) so they participate in composition.
+
+This is how MIXIN natively solves the **expression problem**: namespaces can be freely composed. Composing `NatEquality` with `BooleanNegation` automatically gives the returned booleans a `not` operation — without modifying either namespace:
+
+```yaml
+# Sort definitions (carriers)
+Nat:               # Sort: natural numbers (Zero, Successor)
+Boolean:           # Sort: booleans (True, False)
+
+# Endomorphic operations (Sort → Sort)
+NatPlus:           # Nat × Nat → Nat (addition)
+BooleanNegation:   # Boolean → Boolean (negation)
+BooleanAnd:        # Boolean × Boolean → Boolean
+BooleanOr:         # Boolean × Boolean → Boolean
+
+# Cross-sort operations (Sort₁ → Sort₂)
+NatEquality:       # Nat × Nat → Boolean (equality)
+
+# Infrastructure
+NatVisitor:        # Dispatch mechanism for Nat
+BooleanVisitor:    # Dispatch mechanism for Boolean
+BooleanEquality:   # Boolean × Boolean → Boolean
+```
+
+### Class (UpperCamelCase)
+
+Concrete data variants/constructors. The class **name** is the entity — an identity that persists across compositions. Each individual **definition** of that class within a namespace is a component.
+
+When namespaces are composed, components with the same class name merge onto the same entity. For example, `Nat.Zero`, `NatVisitor.Zero`, and `NatPlus.Zero` are three separate components that all merge onto the entity `Zero`:
+
+```yaml
+# In Nat: Zero is defined as a data variant
+Nat:
+  Zero:
+  Successor:
+    predecessor: []
+
+# In NatPlus: Zero gets a Plus component overlaid
+NatPlus:
+  - [Nat]
+  - Zero:
+      Plus:
+        addend: []
+        sum: [addend]   # 0 + m = m
+
+# When composed, the entity Zero has both its original structure
+# and the Plus behavior merged together
+```
+
+### Nested Class / Method (UpperCamelCase)
+
+Prefer **nouns and adjectives** over verbs to reflect MIXIN's declarative nature:
+
+```yaml
+# ✓ GOOD - nouns and adjectives (declarative)
+Visitor:
+Plus:
+Addition:
+Equal:
+Negation:
+And:
+Or:
+
+# ✗ BAD - verbs (imperative)
+Visit:
+Add:
+Negate:
+Compare:
+```
+
+### Field (lowerCamelCase)
+
+Fields hold values within a class. The compiler currently does not treat fields specially, but they will be compiled to `@resource` in the future — meaning they are lazily evaluated and each value is computed at most once.
+
+```yaml
+Successor:
+  predecessor: []       # field: lowerCamelCase
+
+Zero:
+  Plus:
+    addend: []          # parameter: lowerCamelCase
+    sum: [addend]       # field: lowerCamelCase
+```
+
+### Parameter (lowerCamelCase)
+
+External inputs to operations, declared with an empty reference `[]` to indicate they must be provided at instantiation time:
+
+```yaml
+Plus:
+  addend: []            # parameter: must be provided
+  sum: [addend]         # field: computed from parameter
+
+Equal:
+  other: []             # parameter: must be provided
+  equal: [other]        # field: computed from parameter
+```
+
+### Private Members (Underscore Prefix)
+
+Underscore prefix denotes private implementation details — intermediate computations not part of the public API.
+
+**Naming rule for private members:** A resource (lowerCamelCase) **can contain** nested scopes via inheritance, but **cannot define** new nested scopes. If a symbol defines new UpperCamelCase children, it must itself be UpperCamelCase — even if private:
+
+```yaml
+Successor:
+  Equal:
+    other: []
+
+    # ✓ GOOD - lowerCamelCase: inherits [Successor] but only provides
+    # lowerCamelCase fields (no new scope definitions)
+    _increasedAddend:
+      - [Successor]
+      - predecessor: [addend]
+
+    # ✓ GOOD - UpperCamelCase: defines new nested scopes
+    # (VisitZero, VisitSuccessor, Visit are new scope definitions)
+    _OtherVisitor:
+      - [other, Visitor]
+      - VisitZero:
+            equal: [NatEquality, ~, "False"]
+          VisitSuccessor:
+            equal: [_recursiveEquality, equal]
+          Visit:
+            equal: []
+
+    # ✗ BAD - lowerCamelCase but defines new scopes
+    _otherVisitor:
+      - [other, Visitor]
+      - VisitZero:            # Defines a new scope → parent must be UpperCamelCase
+            equal: ...
+
+    equal: [_OtherVisitor, Visit, equal]
+```
+
+The distinction: `_increasedAddend` is lowerCamelCase because it only **contains** a Successor scope (via inheritance `- [Successor]`) and provides field values (`predecessor: [addend]`). `_OtherVisitor` is UpperCamelCase because it **defines** new nested scopes (`VisitZero`, `VisitSuccessor`, `Visit`).
+
+### Naming and Totality
+
+The UpperCamelCase/lowerCamelCase distinction directly determines how the compiler checks totality:
+
+- **UpperCamelCase** (scopes): Define the static symbol tree structure. Can be instantiated at runtime, creating new instantiation levels.
+- **lowerCamelCase** (resources): Lazily evaluated values. At each instantiation level, resource dependencies must form a DAG (Directed Acyclic Graph) — cycles at the same level are compile errors.
+
+This two-tier system enables automatic weak totality: every finite-depth access to any value terminates, even when runtime paths are conceptually infinite (via recursive instantiation). No manual termination proofs are required.
+
+```yaml
+# The compiler verifies this DAG at compile time:
+#   addend ← _increasedAddend ← _recursiveAddition ← sum
+# No cycles at the same level → guaranteed to terminate
+Successor:
+  Plus:
+    addend: []
+    _increasedAddend:
+      - [Successor]                          # cross-level: Level 0 → Level 1
+      - predecessor: [addend]
+    _recursiveAddition:
+      - [Successor, ~, predecessor, Plus]    # cross-level: structural recursion
+      - addend: [_increasedAddend]
+    sum: [_recursiveAddition, sum]
+```
+
 ## Nix Commands
 
 When running Nix commands (e.g., `nix build`, `nix develop`, `nix flake update`), always use `--print-build-logs` (or `-L`) to display build logs:
