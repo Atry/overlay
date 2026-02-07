@@ -19,3 +19,19 @@ Module2Flat:
 Module3Flat:
   - [Module1]
   - [Module2Flat]
+
+Module2MultiReference:
+  Class1:
+    - [Nested1, Class3]
+    - [Nested2, Class5]
+  Class2: []
+  Nested1:
+    Class3: []
+  Nested2:
+    Class4:
+      - [Class2]
+      - [Class5]
+    Class5: []
+Module3MultiReference:
+  - [Module1]
+  - [Module2MultiReference]
