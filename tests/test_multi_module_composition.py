@@ -8,7 +8,9 @@ Both are minimal reproductions for known bugs where inheritance chains
 should contain all non-synthetic MixinSymbol entries from constituent modules.
 """
 
+from collections.abc import Hashable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -20,6 +22,39 @@ from mixinject.runtime import Scope, evaluate
 FIXTURES_PATH = Path(__file__).parent / "fixtures"
 
 CLASS_NAMES = frozenset({"Class1", "Class2", "Class3", "Class4"})
+
+
+def _format_path(symbol: MixinSymbol) -> str:
+    """Format a MixinSymbol's path as a dot-separated string."""
+    return ".".join(str(segment) for segment in symbol.path)
+
+
+def _symbol_tree_snapshot(symbol: MixinSymbol) -> dict[str, Any]:
+    """Build a snapshot dict of the symbol subtree.
+
+    For each node, captures:
+    - strict_super: list of paths of strict super symbols
+    - children: recursive dict of child symbols (only for scope symbols)
+    """
+    strict_super = tuple(
+        _format_path(super_symbol)
+        for super_symbol in symbol.generate_strict_super()
+    )
+
+    children: dict[str, Any] = {}
+    if symbol.is_scope:
+        seen_keys: set[Hashable] = set()
+        for key in symbol:
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            child = symbol[key]
+            children[str(key)] = _symbol_tree_snapshot(child)
+
+    result: dict[str, Any] = {"strict_super": strict_super}
+    if children:
+        result["children"] = children
+    return result
 
 
 def _collect_all_super_symbols(symbol: MixinSymbol) -> set[MixinSymbol]:
@@ -87,6 +122,24 @@ class TestMultiModuleCompositionFlat:
             f"Expected 7 non-synthetic MixinSymbols, got {len(non_synthetic)}: "
             f"{non_synthetic_paths}"
         )
+
+
+class TestMultiModuleCompositionSnapshot:
+    """Snapshot tests capturing the full symbol tree of Module3 and Module3Flat."""
+
+    def test_module3_symbol_tree(self, multi_module_scope: Scope, snapshot) -> None:
+        module3 = multi_module_scope.Module3
+        assert isinstance(module3, Scope)
+        tree = _symbol_tree_snapshot(module3.symbol)
+        assert tree == snapshot
+
+    def test_module3_flat_symbol_tree(
+        self, multi_module_scope: Scope, snapshot
+    ) -> None:
+        module3_flat = multi_module_scope.Module3Flat
+        assert isinstance(module3_flat, Scope)
+        tree = _symbol_tree_snapshot(module3_flat.symbol)
+        assert tree == snapshot
 
 
 class TestMultiModuleCompositionNested:

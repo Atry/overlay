@@ -1,0 +1,85 @@
+# serializer version: 1
+# name: TestMultiModuleCompositionSnapshot.test_module3_flat_symbol_tree
+  dict({
+    'children': dict({
+      'Class1': dict({
+        'strict_super': tuple(
+          'multi_module_composition.Module2Flat.Class3',
+          'multi_module_composition.Module1.Class1',
+          'multi_module_composition.Module2Flat.Class1',
+        ),
+      }),
+      'Class2': dict({
+        'strict_super': tuple(
+          'multi_module_composition.Module1.Class1',
+          'multi_module_composition.Module1.Class2',
+          'multi_module_composition.Module2Flat.Class2',
+        ),
+      }),
+      'Class3': dict({
+        'strict_super': tuple(
+          'multi_module_composition.Module2Flat.Class3',
+        ),
+      }),
+      'Class4': dict({
+        'strict_super': tuple(
+          'multi_module_composition.Module2Flat.Class2',
+          'multi_module_composition.Module2Flat.Class4',
+        ),
+      }),
+    }),
+    'strict_super': tuple(
+      'multi_module_composition.Module1',
+      'multi_module_composition.Module2Flat',
+    ),
+  })
+# ---
+# name: TestMultiModuleCompositionSnapshot.test_module3_symbol_tree
+  dict({
+    'children': dict({
+      'Class1': dict({
+        'strict_super': tuple(
+          'multi_module_composition.Module2.Nested1.Class3',
+          'multi_module_composition.Module1.Class1',
+          'multi_module_composition.Module2.Class1',
+        ),
+      }),
+      'Class2': dict({
+        'strict_super': tuple(
+          'multi_module_composition.Module1.Class1',
+          'multi_module_composition.Module1.Class2',
+          'multi_module_composition.Module2.Class2',
+        ),
+      }),
+      'Nested1': dict({
+        'children': dict({
+          'Class3': dict({
+            'strict_super': tuple(
+              'multi_module_composition.Module2.Nested1.Class3',
+            ),
+          }),
+        }),
+        'strict_super': tuple(
+          'multi_module_composition.Module2.Nested1',
+        ),
+      }),
+      'Nested2': dict({
+        'children': dict({
+          'Class4': dict({
+            'strict_super': tuple(
+              'multi_module_composition.Module2.Class2',
+              'multi_module_composition.Module2.Nested2.Class4',
+            ),
+          }),
+        }),
+        'strict_super': tuple(
+          'multi_module_composition.Module2.Nested2',
+        ),
+      }),
+    }),
+    'strict_super': tuple(
+      'multi_module_composition.Module1',
+      'multi_module_composition.Module2',
+    ),
+  })
+# ---
