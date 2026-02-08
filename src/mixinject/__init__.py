@@ -610,6 +610,12 @@ class InstanceSymbolSentinel(Enum):
     ALREADY_INSTANCE = auto()
 
 
+class PathSentinel(Enum):
+    """Sentinel value used in MixinSymbol.path to mark instance boundaries."""
+
+    INSTANCE_PATH = auto()
+
+
 class Symbol(ABC):
     pass
 
@@ -870,11 +876,20 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
                 return KeySentinel.ROOT
 
     @property
-    def path(self) -> tuple[Hashable, ...]:
-        """Get the full path from root to this symbol, excluding root itself."""
-        segments: list[Hashable] = []
+    def path(self) -> tuple[Hashable | PathSentinel, ...]:
+        """Get the full path from root to this symbol, excluding root itself.
+
+        Instance symbols include an InstanceSentinel.INSTANCE marker after the key.
+        For example, ``Foo.Bar(a=1).Baz.Qux(b=2)`` produces::
+
+            ("Foo", "Bar", InstanceSentinel.INSTANCE, "Baz", "Qux", InstanceSentinel.INSTANCE)
+        """
+        segments: list[Hashable | PathSentinel] = []
         current: MixinSymbol | OuterSentinel = self
         while isinstance(current, MixinSymbol):
+            match current.prototype:
+                case MixinSymbol():
+                    segments.append(PathSentinel.INSTANCE_PATH)
             match current.origin:
                 case Nested(outer=outer, key=key):
                     segments.append(key)
@@ -3069,12 +3084,26 @@ class ResolvedReference:
         """
         # Start from outer directly (caller already passed outer.outer)
         current = outer
-
-        current_lexical = current.get_super(
-            current.symbol.strict_super_reverse_index.get(
-                self.origin_symbol, SymbolIndexSentinel.OWN
+        if (
+            current.symbol == self.origin_symbol
+            or current.symbol.prototype == self.origin_symbol
+        ):
+            current_lexical = current
+        else:
+            super_index = current.symbol.strict_super_reverse_index.get(
+                self.origin_symbol
             )
-        )
+            if super_index is None:
+                if isinstance(current.symbol.prototype, MixinSymbol):
+                    super_index = (
+                        current.symbol.prototype.strict_super_reverse_index.get(
+                            self.origin_symbol
+                        )
+                    )
+            assert (
+                super_index is not None
+            ), f"origin_symbol {self.origin_symbol.path!r} not found in strict_super_reverse_index of {current.symbol.path!r} or its prototype"
+            current_lexical = current.strict_super_mixins[super_index]
 
         # Traverse de_bruijn_index times
         for _ in range(self.de_bruijn_index):
