@@ -327,7 +327,9 @@ class TestGetSymbolIsomorphicWithGetMixin:
         )
 
         symbol_result = reference.get_symbol(foo_bar_baz_mixin.symbol)
-        mixin_result = reference.get_mixin(foo_bar_baz_mixin)
+        outer_mixin = foo_bar_baz_mixin.outer
+        assert isinstance(outer_mixin, Mixin)
+        mixin_result = reference.get_mixin(outer_mixin)
 
         assert symbol_result is mixin_result.symbol
 
@@ -349,7 +351,9 @@ class TestGetSymbolIsomorphicWithGetMixin:
         )
 
         symbol_result = reference.get_symbol(foo_bar_baz_mixin.symbol)
-        mixin_result = reference.get_mixin(foo_bar_baz_mixin)
+        outer_mixin = foo_bar_baz_mixin.outer
+        assert isinstance(outer_mixin, Mixin)
+        mixin_result = reference.get_mixin(outer_mixin)
 
         assert symbol_result is mixin_result.symbol
 
@@ -371,7 +375,9 @@ class TestGetSymbolIsomorphicWithGetMixin:
         )
 
         symbol_result = reference.get_symbol(qux_bar_baz_mixin.symbol)
-        mixin_result = reference.get_mixin(qux_bar_baz_mixin)
+        outer_mixin = qux_bar_baz_mixin.outer
+        assert isinstance(outer_mixin, Mixin)
+        mixin_result = reference.get_mixin(outer_mixin)
 
         assert symbol_result is mixin_result.symbol
 
@@ -396,6 +402,8 @@ class TestGetSymbolIsomorphicWithGetMixin:
         )
 
         symbol_result = reference.get_symbol(qux_bar_baz_mixin.symbol)
-        mixin_result = reference.get_mixin(qux_bar_baz_mixin)
+        outer_mixin = qux_bar_baz_mixin.outer
+        assert isinstance(outer_mixin, Mixin)
+        mixin_result = reference.get_mixin(outer_mixin)
 
         assert symbol_result is mixin_result.symbol

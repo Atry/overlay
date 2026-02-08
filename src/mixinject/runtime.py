@@ -237,8 +237,10 @@ class Mixin(HasDict):
                 case OwnBaseIndex(index=index):
                     # Resolve using our own base reference
                     resolved_reference = self.symbol.resolved_bases[index]
+                    outer_mixin = self.outer
+                    assert isinstance(outer_mixin, Mixin)
                     direct_mixin = resolved_reference.get_mixin(
-                        outer=self,
+                        outer=outer_mixin,
                     )
 
                 case SymbolIndexSentinel.OWN:
@@ -289,8 +291,10 @@ class Mixin(HasDict):
 
         # Super mixins (lexical_outer != outer) OR parent scope deps:
         # Always resolve via navigation
+        outer_mixin = self.outer
+        assert isinstance(outer_mixin, Mixin)
         return ref.get_mixin(
-            outer=self,
+            outer=outer_mixin,
         )
 
     @cached_property

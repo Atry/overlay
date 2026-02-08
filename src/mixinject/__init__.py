@@ -3040,7 +3040,7 @@ class ResolvedReference:
         2. The **Static Chain** (via ``lexical_outer``): Follows the compile-time scope prototypes.
 
         To resolve a reference with ``de_bruijn_index = n``:
-        1. Start with ``current = outer.outer`` (the runtime parent scope).
+        1. Start with ``current = outer`` (the runtime parent scope, already passed in).
         2. Iterate ``n`` times:
            - Use the static prototype (``current_lexical.outer``) to determine the next
              runtime parent to move to.
@@ -3049,11 +3049,11 @@ class ResolvedReference:
 
         Uses key-based lookup at runtime to support merged scopes correctly.
 
-        :param outer: The Mixin instance from which navigation starts.
+        :param outer: The Mixin instance from which navigation starts (should be the parent).
         :return: The resolved Mixin instance.
         """
-        # Start from outer directly (no initial step)
-        current = outer.outer
+        # Start from outer directly (caller already passed outer.outer)
+        current = outer
 
         current_lexical = current.get_super(
             current.symbol.strict_super_reverse_index.get(
