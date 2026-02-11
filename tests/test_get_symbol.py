@@ -1,8 +1,7 @@
-"""Test ResolvedReference.get_symbol navigates the symbol tree correctly.
+"""Test ResolvedReference.get_symbols navigates the symbol tree correctly.
 
-get_symbol is the compile-time counterpart of get_mixin. It follows two parallel chains:
-- structural (outer): the actual parent in the symbol tree
-- lexical (lexical_outer): the definition origin parent
+get_symbols navigates using strict_super_reverse_index at each de Bruijn level
+to find all symbols whose .outer inherits the definition_site.
 
 For the outer_vs_lexical_outer fixture:
     Foo:
@@ -13,12 +12,12 @@ For the outer_vs_lexical_outer fixture:
 
 Symbol tree:
     root
-    ├── Foo (outer=root, lexical_outer=root)
-    │   └── Bar (outer=Foo, lexical_outer=Foo)
-    │       └── Baz (outer=Foo.Bar, lexical_outer=Foo.Bar)
-    └── Qux (outer=root, lexical_outer=root)
-        └── Bar (outer=Qux, lexical_outer=Foo)  ← inherited
-            └── Baz (outer=Qux.Bar, lexical_outer=Foo.Bar)  ← inherited
+    ├── Foo (outer=root)
+    │   └── Bar (outer=Foo)
+    │       └── Baz (outer=Foo.Bar)
+    └── Qux (outer=root)
+        └── Bar (outer=Qux)  ← inherited from Foo
+            └── Baz (outer=Qux.Bar)  ← inherited from Foo.Bar
 """
 
 from pathlib import Path
@@ -44,15 +43,13 @@ def fixture_symbol() -> MixinSymbol:
 
 
 class TestGetSymbolNonInherited:
-    """Test get_symbol on non-inherited symbols (where outer == lexical_outer)."""
+    """Test get_symbols on non-inherited symbols (no composition)."""
 
     def test_de_bruijn_0_navigate_sibling(self, fixture_symbol: MixinSymbol) -> None:
         """From Foo.Bar.Baz, de_bruijn_index=0 path=("Baz",) → Foo.Bar.Baz."""
         foo_bar = fixture_symbol["Foo"]["Bar"]
         foo_bar_baz = foo_bar["Baz"]
 
-        # origin_symbol is the lexical_outer of where reference is defined
-        # For de_bruijn_index=0, origin_symbol is foo_bar (parent of foo_bar_baz)
         reference = ResolvedReference(
             de_bruijn_index=0,
             path=("Baz",),
@@ -60,17 +57,15 @@ class TestGetSymbolNonInherited:
             origin_symbol=foo_bar,
         )
 
-        result = reference.get_symbol(foo_bar)
+        result, = reference.get_symbols(current=foo_bar)
 
         assert result is foo_bar_baz
 
     def test_de_bruijn_0_navigate_sibling_bar(self, fixture_symbol: MixinSymbol) -> None:
-        """From Foo.Bar.Baz, de_bruijn_index=0 path=("Baz",) → Foo.Bar.Baz (sibling navigation)."""
+        """From Foo.Bar.Baz, de_bruijn_index=0 path=("Baz",) → Foo.Bar.Baz."""
         foo_bar = fixture_symbol["Foo"]["Bar"]
         foo_bar_baz = foo_bar["Baz"]
 
-        # de_bruijn_index=0 from Foo.Bar.Baz means we start at Foo.Bar
-        # Then navigate path ("Baz",) → Foo.Bar.Baz
         reference = ResolvedReference(
             de_bruijn_index=0,
             path=("Baz",),
@@ -78,21 +73,15 @@ class TestGetSymbolNonInherited:
             origin_symbol=foo_bar,
         )
 
-        result = reference.get_symbol(foo_bar)
+        result, = reference.get_symbols(current=foo_bar)
 
         assert result is foo_bar_baz
 
     def test_de_bruijn_1_navigate_to_bar(self, fixture_symbol: MixinSymbol) -> None:
-        """From Foo.Bar.Baz, de_bruijn_index=0 path=("Bar",) → Foo.Bar.
-
-        After refactoring: caller passes foo (already navigated from foo_bar_baz.outer),
-        so de_bruijn_index=0 (no more navigation needed, just lookup path).
-        """
+        """From Foo.Bar, de_bruijn_index=0 path=("Bar",) → Foo.Bar."""
         foo = fixture_symbol["Foo"]
         foo_bar = foo["Bar"]
 
-        # After refactoring: we pass foo (already one level up from foo_bar)
-        # de_bruijn_index is now 0 because we already navigated up
         reference = ResolvedReference(
             de_bruijn_index=0,
             path=("Bar",),
@@ -100,20 +89,27 @@ class TestGetSymbolNonInherited:
             origin_symbol=foo,
         )
 
-        result = reference.get_symbol(foo)
+        result, = reference.get_symbols(current=foo)
 
         assert result is foo_bar
 
-    def test_de_bruijn_2_navigate_to_foo(self, fixture_symbol: MixinSymbol) -> None:
-        """From Foo.Bar.Baz, de_bruijn_index=1 path=("Foo",) → Foo.
+    def test_de_bruijn_1_navigate_up_then_path(self, fixture_symbol: MixinSymbol) -> None:
+        """From Foo, de_bruijn_index=1 path=("Foo",) → Foo.
 
-        After refactoring: caller passes foo (already navigated from foo_bar_baz.outer.outer),
-        so de_bruijn_index=1 (one more step to root, then lookup path).
+        Navigation with get_symbols:
+        - origin_symbol = Foo, current = Foo
+        - definition_site = Foo
+        - Loop (1 iteration): find strict_super of Foo whose .outer == Foo or inherits Foo
+          → Foo itself has .outer = root, root has Foo in strict_super_reverse_index? No.
+          → Actually: (Foo, *Foo.generate_strict_super()) where .outer is root,
+            and definition_site is Foo. root has Foo as child but strict_super_reverse_index
+            checks inheritance. For non-inherited: Foo.outer = root, definition_site = Foo.
+            root inherits nothing, but definition_site == root? No, definition_site = Foo.
+            So check: Foo in root.strict_super_reverse_index → yes if root has Foo as union.
+        - Navigate: root["Foo"] = Foo
         """
         foo = fixture_symbol["Foo"]
 
-        # After refactoring: we pass foo (already two levels up from foo_bar_baz)
-        # de_bruijn_index is now 1 (one more step to reach root)
         reference = ResolvedReference(
             de_bruijn_index=1,
             path=("Foo",),
@@ -121,15 +117,14 @@ class TestGetSymbolNonInherited:
             origin_symbol=foo,
         )
 
-        result = reference.get_symbol(foo)
+        result, = reference.get_symbols(current=foo)
 
         assert result is foo
 
     def test_de_bruijn_0_empty_path(self, fixture_symbol: MixinSymbol) -> None:
-        """From Foo.Bar.Baz, de_bruijn_index=0 path=() → Foo.Bar (outer itself)."""
+        """From Foo.Bar.Baz, de_bruijn_index=0 path=() → Foo.Bar (current itself)."""
         foo_bar = fixture_symbol["Foo"]["Bar"]
 
-        # origin_symbol is foo_bar (lexical_outer of where reference is defined)
         reference = ResolvedReference(
             de_bruijn_index=0,
             path=(),
@@ -137,29 +132,26 @@ class TestGetSymbolNonInherited:
             origin_symbol=foo_bar,
         )
 
-        result = reference.get_symbol(foo_bar)
+        result, = reference.get_symbols(current=foo_bar)
 
         assert result is foo_bar
 
 
 class TestGetSymbolInherited:
-    """Test get_symbol on inherited symbols (where outer != lexical_outer).
+    """Test get_symbols on inherited symbols (Qux extends Foo).
 
-    This is the critical test class. For inherited symbols, the navigation
-    follows lexical_outer (definition origin) instead of outer (structural parent).
+    For inherited symbols, the new algorithm uses strict_super_reverse_index
+    to find composition-site symbols at each de Bruijn level.
     """
 
     def test_de_bruijn_0_from_qux_bar_baz(self, fixture_symbol: MixinSymbol) -> None:
         """From Qux.Bar.Baz, de_bruijn_index=0 path=("Baz",) → Qux.Bar.Baz.
 
-        de_bruijn_index=0 starts from outer (structural parent), so Qux.Bar["Baz"] = Qux.Bar.Baz.
+        de_bruijn_index=0: no loop, just navigate path from current.
         """
+        foo_bar = fixture_symbol["Foo"]["Bar"]
         qux_bar = fixture_symbol["Qux"]["Bar"]
         qux_bar_baz = qux_bar["Baz"]
-
-        # origin_symbol is the lexical_outer of qux_bar_baz
-        # Since Qux.Bar.Baz is inherited, its lexical_outer is Foo.Bar (not Qux.Bar)
-        foo_bar = fixture_symbol["Foo"]["Bar"]
 
         reference = ResolvedReference(
             de_bruijn_index=0,
@@ -168,56 +160,58 @@ class TestGetSymbolInherited:
             origin_symbol=foo_bar,
         )
 
-        result = reference.get_symbol(qux_bar)
+        result, = reference.get_symbols(current=qux_bar)
 
         assert result is qux_bar_baz
 
-    def test_de_bruijn_1_from_qux_bar_baz_navigates_via_lexical(
+    def test_de_bruijn_1_from_qux_bar_baz_navigates_via_strict_super(
         self, fixture_symbol: MixinSymbol
     ) -> None:
-        """From Qux.Bar.Baz, de_bruijn_index=1 path=("Bar",) → Foo.Bar.
+        """From Qux.Bar.Baz, de_bruijn_index=1 path=("Bar",) → {Qux.Bar, Foo.Bar}.
 
-        This is the KEY test. The navigation goes:
-        1. current = Qux.Bar.Baz.outer = Qux.Bar
-        2. current_lexical = origin_symbol = Foo.Bar (lexical_outer of Qux.Bar.Baz)
-        3. Loop (1 iteration):
-           - current = Foo.Bar.outer = Foo  (follows lexical chain)
-           - current_lexical = Foo.Bar.lexical_outer = Foo
-        4. Navigate: Foo["Bar"] = Foo.Bar
-
-        Result is Foo.Bar, NOT Qux.Bar, because lexical scoping traces back
-        to the definition origin.
+        Navigation with get_symbols:
+        1. current = Qux.Bar, origin_symbol = Foo.Bar, definition_site = Foo.Bar
+        2. Loop (1 iteration):
+           - strict_supers of Qux.Bar: (Qux.Bar, Foo.Bar)
+           - Qux.Bar inherits Foo.Bar → candidate_outer = Qux
+           - Foo.Bar == definition_site → candidate_outer = Foo
+           - currents = (Qux, Foo)
+           - definition_site = Foo.Bar.outer = Foo
+        3. Navigate "Bar": (Qux.Bar, Foo.Bar)
         """
         foo_bar = fixture_symbol["Foo"]["Bar"]
         qux_bar = fixture_symbol["Qux"]["Bar"]
 
-        # origin_symbol is foo_bar (the lexical_outer of qux_bar_baz)
         reference = ResolvedReference(
             de_bruijn_index=1,
             path=("Bar",),
-            target_symbol_bound=foo_bar,
+            target_symbol_bound=qux_bar,
             origin_symbol=foo_bar,
         )
 
-        result = reference.get_symbol(qux_bar)
+        results = reference.get_symbols(current=qux_bar)
 
-        assert result is foo_bar
+        assert results == (qux_bar, foo_bar)
 
     def test_de_bruijn_1_from_qux_bar(self, fixture_symbol: MixinSymbol) -> None:
         """From Qux.Bar, de_bruijn_index=1 path=("Foo",) → Foo.
 
-        Navigation:
-        1. current = Qux.Bar.outer = Qux
-        2. current_lexical = origin_symbol = Foo (lexical_outer of Qux.Bar)
-        3. Loop (1 iteration):
-           - current = Foo.outer = root
-           - current_lexical = Foo.lexical_outer = root
-        4. Navigate: root["Foo"] = Foo
+        Navigation with get_symbols:
+        1. current = Qux, origin_symbol = Foo, definition_site = Foo
+        2. Loop (1 iteration):
+           - Qux.outer = root, Foo in root.strict_super_reverse_index? No.
+             But Foo == root? No. definition_site == Qux.outer? Foo == root? No.
+             Check Qux's strict supers: Foo.outer = root, definition_site = Foo,
+             Foo in root.strict_super_reverse_index → need to verify...
+           - Actually: definition_site = Foo, root has Foo as child (union),
+             so Foo in root.strict_super_reverse_index → yes
+           - currents = (root,)
+           - definition_site = Foo.outer = root
+        3. Navigate: root["Foo"] = Foo
         """
         foo = fixture_symbol["Foo"]
         qux = fixture_symbol["Qux"]
 
-        # origin_symbol is foo (the lexical_outer of qux_bar)
         reference = ResolvedReference(
             de_bruijn_index=1,
             path=("Foo",),
@@ -225,29 +219,29 @@ class TestGetSymbolInherited:
             origin_symbol=foo,
         )
 
-        result = reference.get_symbol(qux)
+        result, = reference.get_symbols(current=qux)
 
         assert result is foo
 
     def test_de_bruijn_2_from_qux_bar_baz(self, fixture_symbol: MixinSymbol) -> None:
         """From Qux.Bar.Baz, de_bruijn_index=2 path=("Foo",) → Foo.
 
-        Navigation:
-        1. current = Qux.Bar.Baz.outer = Qux.Bar
-        2. current_lexical = origin_symbol = Foo.Bar (lexical_outer of Qux.Bar.Baz)
-        3. Loop iteration 1:
-           - current = Foo.Bar.outer = Foo
-           - current_lexical = Foo.Bar.lexical_outer = Foo
-        4. Loop iteration 2:
-           - current = Foo.outer = root
-           - current_lexical = Foo.lexical_outer = root
-        5. Navigate: root["Foo"] = Foo
+        Navigation with get_symbols:
+        1. current = Qux.Bar, origin_symbol = Foo.Bar, definition_site = Foo.Bar
+        2. Loop iteration 1:
+           - Qux.Bar.outer = Qux, Foo.Bar in Qux.strict_super_reverse_index → yes
+           - currents = (Qux,)
+           - definition_site = Foo.Bar.outer = Foo
+        3. Loop iteration 2:
+           - Qux.outer = root, Foo in root.strict_super_reverse_index → yes
+           - currents = (root,)
+           - definition_site = Foo.outer = root
+        4. Navigate: root["Foo"] = Foo
         """
         foo = fixture_symbol["Foo"]
         foo_bar = fixture_symbol["Foo"]["Bar"]
         qux_bar = fixture_symbol["Qux"]["Bar"]
 
-        # origin_symbol is foo_bar (the lexical_outer of qux_bar_baz)
         reference = ResolvedReference(
             de_bruijn_index=2,
             path=("Foo",),
@@ -255,7 +249,7 @@ class TestGetSymbolInherited:
             origin_symbol=foo_bar,
         )
 
-        result = reference.get_symbol(qux_bar)
+        result, = reference.get_symbols(current=qux_bar)
 
         assert result is foo
 
@@ -264,13 +258,11 @@ class TestGetSymbolInherited:
     ) -> None:
         """From Qux.Bar.Baz, de_bruijn_index=0 path=() → Qux.Bar.
 
-        Even for inherited symbols, de_bruijn_index=0 with empty path
-        gives the structural parent (outer).
+        de_bruijn_index=0 with empty path gives current itself.
         """
         foo_bar = fixture_symbol["Foo"]["Bar"]
         qux_bar = fixture_symbol["Qux"]["Bar"]
 
-        # origin_symbol is foo_bar (the lexical_outer of qux_bar_baz)
         reference = ResolvedReference(
             de_bruijn_index=0,
             path=(),
@@ -278,16 +270,16 @@ class TestGetSymbolInherited:
             origin_symbol=foo_bar,
         )
 
-        result = reference.get_symbol(qux_bar)
+        result, = reference.get_symbols(current=qux_bar)
 
         assert result is qux_bar
 
 
-class TestGetSymbolIsomorphicWithGetMixin:
-    """Test ref.get_symbol(mixin.symbol) is ref.get_mixin(mixin).symbol.
+class TestGetSymbolIsomorphicWithFindMixin:
+    """Test get_symbols result matches find_mixin result.
 
-    This verifies that compile-time navigation (get_symbol) produces results
-    consistent with runtime navigation (get_mixin).
+    These tests verify compile-time navigation (get_symbols) produces results
+    consistent with runtime navigation (find_mixin).
     """
 
     @pytest.fixture
@@ -314,22 +306,18 @@ class TestGetSymbolIsomorphicWithGetMixin:
         foo_bar_scope = foo_scope.Bar
         assert isinstance(foo_bar_scope, Scope)
         foo_bar_baz_mixin = self._get_child_mixin(foo_bar_scope, "Baz")
-        foo_bar_symbol = fixture_scope.symbol["Foo"]["Bar"]
 
-        # origin_symbol is foo_bar_symbol (the lexical_outer of foo_bar_baz)
+        symbol_outer = foo_bar_baz_mixin.symbol.outer
+        assert isinstance(symbol_outer, MixinSymbol)
+
         reference = ResolvedReference(
             de_bruijn_index=0,
             path=("Baz",),
             target_symbol_bound=foo_bar_baz_mixin.symbol,
-            origin_symbol=foo_bar_symbol,
+            origin_symbol=symbol_outer,
         )
-
-        symbol_outer = foo_bar_baz_mixin.symbol.outer
-        assert isinstance(symbol_outer, MixinSymbol)
-        symbol_result = reference.get_symbol(symbol_outer)
-        outer_mixin = foo_bar_baz_mixin.outer
-        assert isinstance(outer_mixin, Mixin)
-        mixin_result = reference.get_mixin(outer_mixin)
+        symbol_result, = reference.get_symbols(current=symbol_outer)
+        mixin_result = foo_bar_baz_mixin.find_mixin(symbol_result)
 
         assert symbol_result is mixin_result.symbol
 
@@ -340,9 +328,9 @@ class TestGetSymbolIsomorphicWithGetMixin:
         foo_bar_scope = foo_scope.Bar
         assert isinstance(foo_bar_scope, Scope)
         foo_bar_baz_mixin = self._get_child_mixin(foo_bar_scope, "Baz")
+
         foo_bar_symbol = fixture_scope.symbol["Foo"]["Bar"]
 
-        # origin_symbol is foo_bar_symbol (the lexical_outer of foo_bar_baz)
         reference = ResolvedReference(
             de_bruijn_index=1,
             path=("Bar",),
@@ -352,10 +340,8 @@ class TestGetSymbolIsomorphicWithGetMixin:
 
         symbol_outer = foo_bar_baz_mixin.symbol.outer
         assert isinstance(symbol_outer, MixinSymbol)
-        symbol_result = reference.get_symbol(symbol_outer)
-        outer_mixin = foo_bar_baz_mixin.outer
-        assert isinstance(outer_mixin, Mixin)
-        mixin_result = reference.get_mixin(outer_mixin)
+        symbol_result, = reference.get_symbols(current=symbol_outer)
+        mixin_result = foo_bar_baz_mixin.find_mixin(symbol_result)
 
         assert symbol_result is mixin_result.symbol
 
@@ -368,7 +354,6 @@ class TestGetSymbolIsomorphicWithGetMixin:
         qux_bar_baz_mixin = self._get_child_mixin(qux_bar_scope, "Baz")
         foo_bar_symbol = fixture_scope.symbol["Foo"]["Bar"]
 
-        # origin_symbol is foo_bar_symbol (the lexical_outer of qux_bar_baz)
         reference = ResolvedReference(
             de_bruijn_index=0,
             path=("Baz",),
@@ -378,18 +363,17 @@ class TestGetSymbolIsomorphicWithGetMixin:
 
         symbol_outer = qux_bar_baz_mixin.symbol.outer
         assert isinstance(symbol_outer, MixinSymbol)
-        symbol_result = reference.get_symbol(symbol_outer)
-        outer_mixin = qux_bar_baz_mixin.outer
-        assert isinstance(outer_mixin, Mixin)
-        mixin_result = reference.get_mixin(outer_mixin)
+        symbol_result, = reference.get_symbols(current=symbol_outer)
+        mixin_result = qux_bar_baz_mixin.find_mixin(symbol_result)
 
         assert symbol_result is mixin_result.symbol
 
-    @pytest.mark.xfail(
-        reason="Known bug: runtime navigation may fail for inherited symbols"
-    )
     def test_de_bruijn_1_qux_bar_baz(self, fixture_scope: Scope) -> None:
-        """Isomorphism for de_bruijn_index=1 on inherited Qux.Bar.Baz."""
+        """Isomorphism for de_bruijn_index=1 on inherited Qux.Bar.Baz.
+
+        get_symbols returns (Qux.Bar, Foo.Bar) — two results because Qux
+        inherits Foo. get_mixins should return the corresponding mixin pair.
+        """
         qux_scope = fixture_scope.Qux
         assert isinstance(qux_scope, Scope)
         qux_bar_scope = qux_scope.Bar
@@ -397,19 +381,21 @@ class TestGetSymbolIsomorphicWithGetMixin:
         qux_bar_baz_mixin = self._get_child_mixin(qux_bar_scope, "Baz")
         foo_bar_symbol = fixture_scope.symbol["Foo"]["Bar"]
 
-        # origin_symbol is foo_bar_symbol (the lexical_outer of qux_bar_baz)
         reference = ResolvedReference(
             de_bruijn_index=1,
             path=("Bar",),
-            target_symbol_bound=foo_bar_symbol,
+            target_symbol_bound=fixture_scope.symbol["Qux"]["Bar"],
             origin_symbol=foo_bar_symbol,
         )
 
         symbol_outer = qux_bar_baz_mixin.symbol.outer
         assert isinstance(symbol_outer, MixinSymbol)
-        symbol_result = reference.get_symbol(symbol_outer)
-        outer_mixin = qux_bar_baz_mixin.outer
-        assert isinstance(outer_mixin, Mixin)
-        mixin_result = reference.get_mixin(outer_mixin)
+        symbol_results = reference.get_symbols(current=symbol_outer)
+        mixin_results = tuple(
+            qux_bar_baz_mixin.find_mixin(symbol_result)
+            for symbol_result in symbol_results
+        )
 
-        assert symbol_result is mixin_result.symbol
+        assert len(symbol_results) == len(mixin_results)
+        for symbol_result, mixin_result in zip(symbol_results, mixin_results, strict=True):
+            assert symbol_result is mixin_result.symbol

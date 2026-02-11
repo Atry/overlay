@@ -49,9 +49,7 @@ if TYPE_CHECKING:
         FunctionalMergerSymbol,
         MixinSymbol,
         MultiplePatcherSymbol,
-        ResolvedReference,
         SinglePatcherSymbol,
-        SymbolIndexSentinel,
     )
 
 
@@ -60,6 +58,33 @@ TPatch_co = TypeVar("TPatch_co", covariant=True)
 TPatch_contra = TypeVar("TPatch_contra", contravariant=True)
 TResult_co = TypeVar("TResult_co", covariant=True)
 TResult = TypeVar("TResult")
+
+
+def _symbols_identity_match(
+    symbol_a: "MixinSymbol", symbol_b: "MixinSymbol"
+) -> bool:
+    """Check if two symbols refer to the same static symbol.
+
+    Normalizes both to their prototypes before identity comparison.
+    Unlike ``is_super()``, this does NOT check the strict_supers chain —
+    it only checks direct identity after prototype normalization.
+
+    This is needed because instance symbols and their static prototypes
+    are different objects but represent the same logical symbol.
+    """
+    from mixinject import MixinSymbol
+
+    static_a: MixinSymbol = (
+        symbol_a.prototype
+        if isinstance(symbol_a.prototype, MixinSymbol)
+        else symbol_a
+    )
+    static_b: MixinSymbol = (
+        symbol_b.prototype
+        if isinstance(symbol_b.prototype, MixinSymbol)
+        else symbol_b
+    )
+    return static_a is static_b
 
 
 @final
@@ -137,51 +162,6 @@ class Mixin(HasDict):
     - Then access the dependency from that Scope
     """
 
-    @property
-    def lexical_outer(self) -> "Mixin | OuterSentinel":
-        """The lexical outer Mixin, computed from symbol.lexical_outer.
-
-        Looks up the corresponding Mixin in outer's super chain using
-        symbol.strict_super_reverse_index for O(1) lookup.
-
-        Guarantees isomorphism: mixin.lexical_outer.symbol is mixin.symbol.lexical_outer.
-        """
-        target_symbol = self.symbol.lexical_outer
-        logger.debug(
-            "lexical_outer: self.symbol.path=%(path)s target_symbol=%(target)s self.outer=%(outer)s",
-            {"path": self.symbol.path, "target": target_symbol, "outer": self.outer},
-        )
-        match target_symbol:
-            case OuterSentinel.ROOT:
-                return OuterSentinel.ROOT
-            case _:
-                assert isinstance(self.outer, Mixin)
-                logger.debug(
-                    "lexical_outer: self.outer.symbol.path=%(outer_path)s "
-                    "self.outer.symbol.strict_super_reverse_index keys=%(keys)s "
-                    "target_symbol.path=%(target_path)s "
-                    "target_symbol is self.outer.symbol=%(is_same)s",
-                    {
-                        "outer_path": self.outer.symbol.path,
-                        "keys": [
-                            s.path for s in self.outer.symbol.strict_super_reverse_index
-                        ],
-                        "target_path": target_symbol.path,
-                        "is_same": target_symbol is self.outer.symbol,
-                    },
-                )
-                if target_symbol is self.outer.symbol:
-                    return self.outer
-                from mixinject import SymbolIndexSentinel
-
-                index = self.outer.symbol.strict_super_reverse_index.get(
-                    target_symbol, SymbolIndexSentinel.OWN
-                )
-                if index is SymbolIndexSentinel.OWN:
-                    return self.outer
-                else:
-                    return self.outer.strict_super_mixins[index]
-
     kwargs: Final["Mapping[str, object] | KwargsSentinel"]
     """
     Keyword arguments for instance scope support.
@@ -198,108 +178,65 @@ class Mixin(HasDict):
         """
         Get super Mixin instances for multiple inheritance support.
 
-        Similar to V1's Mixin.strict_super_mixins.
-        Returns Mixin instances corresponding to symbol.strict_super_indices.
+        Navigates the mixin tree for each target symbol in
+        ``self.symbol.strict_supers`` using ``find_mixin``.
+        This ensures mixin-symbol isomorphism: ``strict_super_mixins[i].symbol``
+        corresponds to the i-th symbol from ``strict_supers``.
         """
-        return tuple(self._generate_strict_super_mixins())
-
-    def _generate_strict_super_mixins(self) -> Iterator["Mixin"]:
-        """
-        Generate super Mixin instances following V1's algorithm.
-
-        For each nested_index in symbol.strict_super_indices:
-        - OuterBaseIndex(i): Create child of lexical_outer's i-th super
-        - OwnBaseIndex(i): Resolve own base reference
-        - OWN: Return self
-
-        NOTE: Super mixins do NOT use _sibling_dependencies because their
-        lexical_outer is not self.outer. They always resolve dependencies via navigation.
-        This is handled correctly in _evaluate_resource().
-        """
-        # Import here to avoid circular imports
-        from mixinject import OuterBaseIndex, OwnBaseIndex, SymbolIndexSentinel
-
-        for nested_index in self.symbol.strict_super_indices.values():
-            match nested_index.primary_index:
-                case OuterBaseIndex(index=index):
-                    # Get the i-th super mixin from our outer
-                    # (index is relative to outer's strict_super_indices)
-                    assert isinstance(self.outer, Mixin)
-                    base_mixin = self.outer.get_super(index)
-                    # Find our symbol's counterpart in the base mixin's symbol
-                    child_symbol = base_mixin.symbol[self.symbol.key]
-                    direct_mixin = Mixin(
-                        symbol=child_symbol,
-                        outer=self.outer,  # Same outer as us
-                        kwargs=self.kwargs,  # Propagate kwargs from parent
-                    )
-
-                case OwnBaseIndex(index=index):
-                    # Resolve using our own base reference
-                    resolved_reference = self.symbol.resolved_bases[index]
-                    outer_mixin = self.outer
-                    assert isinstance(outer_mixin, Mixin)
-                    direct_mixin = resolved_reference.get_mixin(
-                        outer=outer_mixin,
-                    )
-
-                case SymbolIndexSentinel.OWN:
-                    direct_mixin = self
-
-            # Navigate to the secondary index within the direct mixin
-            yield direct_mixin.get_super(nested_index.secondary_index)
-
-    def get_super(self, super_index: "SymbolIndexSentinel | int") -> "Mixin":
-        """
-        Get a super mixin by index.
-
-        :param super_index: OWN returns self, int returns strict_super_mixins[index]
-        :return: The super Mixin.
-        """
-        from mixinject import SymbolIndexSentinel
-
-        match super_index:
-            case SymbolIndexSentinel.OWN:
-                return self
-            case int() as index:
-                return self.strict_super_mixins[index]
-
-    def resolve_dependency(self, ref: "ResolvedReference") -> "Mixin":
-        """
-        Resolve a dependency reference to a Mixin.
-
-        Returns Mixin, NOT the evaluated value.
-        The caller calls .evaluated when it actually needs the value.
-        This preserves laziness - if the caller doesn't use a dependency,
-        that dependency is never evaluated.
-
-        :param ref: The resolved reference to resolve.
-        :return: The target Mixin (call .evaluated for actual value).
-        """
-        # Only use sibling dependency attributes when BOTH conditions are met:
-        # 1. de_bruijn_index == 0 (same scope dependency)
-        # 2. lexical_outer is self.outer (we are a direct child, not a super mixin)
-        if ref.de_bruijn_index == 0 and self.lexical_outer is self.outer:
-            # Direct child with same-scope dependency: use getattr
-            # Sibling dependencies are stored as attributes on the Mixin instance
-            from mixinject import MixinSymbol
-
-            symbol_outer = self.symbol.outer
-            assert isinstance(symbol_outer, MixinSymbol)
-            attr_name = ref.get_symbol(symbol_outer).attribute_name
-            sibling_mixin = getattr(self, attr_name, None)
-            if sibling_mixin is not None:
-                # Returns Mixin directly (caller will call .evaluated when needed)
-                return sibling_mixin
-            # Fallback to navigation if not found as attribute (lazy scopes)
-
-        # Super mixins (lexical_outer != outer) OR parent scope deps:
-        # Always resolve via navigation
-        outer_mixin = self.outer
-        assert isinstance(outer_mixin, Mixin)
-        return ref.get_mixin(
-            outer=outer_mixin,
+        return tuple(
+            self.find_mixin(target_symbol)
+            for target_symbol in self.symbol.strict_supers
         )
+
+    def find_mixin(self, target_symbol: "MixinSymbol") -> "Mixin":
+        """
+        Navigate the mixin tree to find the mixin for target_symbol.
+
+        Walks up the outer chain from self. At each level, checks if the
+        outer mixin's symbol (or one of its strict_super_mixins' symbols)
+        matches target_symbol.outer via prototype-normalized identity. When
+        found, looks up target_symbol by key in that scope's _children.
+
+        If target_symbol.outer is not found in the ancestor chain (e.g., it
+        is a sibling's child in a path-dependent type scenario), recursively
+        calls ``find_mixin(target_symbol.outer)`` to locate the parent first.
+
+        Uses prototype-normalized identity (not ``is_super``) for comparison
+        to avoid matching union scopes that merely contain the target as a
+        strict super.
+        """
+        from mixinject import MixinSymbol
+
+        target_outer = target_symbol.outer
+        assert isinstance(target_outer, MixinSymbol)
+        target_key = target_symbol.key
+
+        def _lookup_child(scope_mixin: Mixin) -> "Mixin":
+            scope = scope_mixin.evaluated
+            assert isinstance(scope, Scope)
+            child_symbol = scope_mixin.symbol[target_key]
+            return scope._children[child_symbol]
+
+        # Walk up the outer chain looking for target_outer
+        current = self
+        while True:
+            outer_mixin = current.outer
+            if not isinstance(outer_mixin, Mixin):
+                break  # Exhausted outer chain without finding target_outer
+
+            if _symbols_identity_match(outer_mixin.symbol, target_outer):
+                return _lookup_child(outer_mixin)
+
+            for super_mixin in outer_mixin.strict_super_mixins:
+                if _symbols_identity_match(super_mixin.symbol, target_outer):
+                    return _lookup_child(super_mixin)
+
+            current = outer_mixin
+
+        # target_outer not found in ancestor chain — recursively navigate
+        # to target_outer first (e.g., sibling's child in path-dependent types)
+        target_outer_mixin = self.find_mixin(target_outer)
+        return _lookup_child(target_outer_mixin)
 
     @cached_property
     def evaluated(self) -> "object | Scope":
@@ -347,8 +284,7 @@ class Mixin(HasDict):
         }
         for child_symbol, child_mixin in all_mixins.items():
             logger.debug(
-                "_construct_scope child: key=%(key)s child.outer.symbol.path=%(outer_path)s "
-                "child.symbol.lexical_outer=%(lex_outer)s",
+                "_construct_scope child: key=%(key)s child.outer.symbol.path=%(outer_path)s",
                 {
                     "key": child_symbol.key,
                     "outer_path": (
@@ -356,7 +292,6 @@ class Mixin(HasDict):
                         if isinstance(child_mixin.outer, Mixin)
                         else child_mixin.outer
                     ),
-                    "lex_outer": child_symbol.lexical_outer,
                 },
             )
 
@@ -395,23 +330,39 @@ class Mixin(HasDict):
         Evaluate by resolving dependencies from _sibling_dependencies and outer.
 
         IMPORTANT: _sibling_dependencies is ONLY valid for direct children
-        (where lexical_outer is self.outer). Super mixins have a different
-        lexical_outer and their de_bruijn_index=0 dependencies refer to siblings in
-        the BASE scope, not our scope. They must always resolve via navigation.
+        (whose definition-site outer matches self.outer). Super mixins have a
+        different definition-site outer and their de_bruijn_index=0 dependencies
+        refer to siblings in the BASE scope, not our scope. They must always
+        resolve via navigation.
 
         This mirrors V1's Resource.evaluated logic exactly.
         """
         from mixinject import (
             ElectedMerger,
             MergerElectionSentinel,
-            SymbolIndexSentinel,
         )
 
         def build_evaluators_for_mixin(mixin: "Mixin") -> tuple[Evaluator, ...]:
             """Build evaluators for a given Mixin."""
             return tuple(
-                evaluator_symbol.bind(mixin=mixin)
+                evaluator_symbol.bind(mixin=self)
                 for evaluator_symbol in mixin.symbol.evaluator_symbols
+            )
+
+        def find_mixin_by_symbol(target_symbol: "MixinSymbol") -> "Mixin":
+            """Find the mixin (self or a strict super) matching the target symbol.
+
+            Uses prototype-normalized identity comparison — elected symbols come
+            from the definition site (static) while mixin symbols may be instance
+            versions.
+            """
+            if _symbols_identity_match(self.symbol, target_symbol):
+                return self
+            for super_mixin in self.strict_super_mixins:
+                if _symbols_identity_match(super_mixin.symbol, target_symbol):
+                    return super_mixin
+            raise ValueError(
+                f"Elected symbol {target_symbol.path!r} not found in strict super mixins"
             )
 
         # Get elected merger info
@@ -421,12 +372,12 @@ class Mixin(HasDict):
         def generate_patches() -> Iterator[object]:
             match elected:
                 case ElectedMerger(
-                    symbol_index=elected_symbol_index,
+                    symbol=elected_symbol,
                     evaluator_getter_index=elected_getter_index,
                 ):
                     # Collect patches from own evaluators
                     own_evaluators = build_evaluators_for_mixin(self)
-                    if elected_symbol_index is SymbolIndexSentinel.OWN:
+                    if _symbols_identity_match(self.symbol, elected_symbol):
                         # Exclude the elected evaluator from own
                         for evaluator_index, evaluator in enumerate(own_evaluators):
                             if evaluator_index != elected_getter_index and isinstance(
@@ -440,9 +391,9 @@ class Mixin(HasDict):
                                 yield from evaluator
 
                     # Collect patches from super mixins
-                    for index, super_mixin in enumerate(self.strict_super_mixins):
+                    for super_mixin in self.strict_super_mixins:
                         super_evaluators = build_evaluators_for_mixin(super_mixin)
-                        if index != elected_symbol_index:
+                        if not _symbols_identity_match(super_mixin.symbol, elected_symbol):
                             for evaluator in super_evaluators:
                                 if isinstance(evaluator, Patcher):
                                     yield from evaluator
@@ -494,7 +445,7 @@ class Mixin(HasDict):
 
         # Get Merger evaluator from elected position
         assert isinstance(elected, ElectedMerger)
-        elected_mixin = self.get_super(elected.symbol_index)
+        elected_mixin = find_mixin_by_symbol(elected.symbol)
         elected_evaluators = build_evaluators_for_mixin(elected_mixin)
         merger_evaluator = elected_evaluators[elected.evaluator_getter_index]
         assert isinstance(merger_evaluator, Merger)
@@ -637,17 +588,16 @@ class Evaluator(ABC):
     NOTE: Does NOT inherit from Node/Evaluator - completely separate hierarchy.
 
     Each evaluator stores the mixin it belongs to. To resolve dependencies,
-    call self.mixin.resolve_dependency(ref) which returns Mixin.
-    Then call .evaluated on the returned Mixin to get the actual value.
+    use get_symbols + find_mixin to navigate the mixin tree.
     """
 
     mixin: Mixin
     """
     The Mixin that holds this Evaluator.
 
-    To resolve dependencies, call self.mixin.resolve_dependency(ref).
-    This returns Mixin, NOT the evaluated value.
-    The caller calls .evaluated when it actually needs the dependency value.
+    To resolve dependencies, use get_symbols to find the target symbol,
+    then self.mixin.find_mixin(target) to navigate to the target Mixin.
+    Call .evaluated on the returned Mixin to get the actual value.
     """
 
 

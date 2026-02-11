@@ -35,3 +35,97 @@ Module2MultiReference:
 Module3MultiReference:
   - [Module1]
   - [Module2MultiReference]
+
+Module2Diamond:
+  Class1: [Nested1, Class3]
+  Class2: []
+  Nested1:
+    Class3: []
+  Nested2:
+    Class4:
+      - [Class2]
+      - [Nested3, ExtraNested, Class5]
+  Nested3:
+    ExtraNested:
+      Class5: [Class2]
+
+Module3Diamond:
+  - [Module1]
+  - [Module2Diamond]
+
+MyRoot:
+  Target: []
+  Target2: []
+  Nested1:
+    - [Nested2]
+    - [Nested4]
+  Nested2:
+    Nested3:
+      ReferenceToTarget: [Target]
+  Nested4:
+    Nested3:
+      ReferenceToTarget: [Target2]
+  Flatten: [Nested1, Nested3]
+
+Reroot: [MyRoot]
+
+MergedRoot:
+  Foo:
+    Value: []
+    Bar: [Value]
+  Nested:
+    Baz:
+      - [Foo]
+      - Value2: []
+      - Value: [Value2]
+  Qux:
+    - [Foo]
+    - Value3: []
+    - Value: [Value3]
+  Merged:
+    - [Nested, Baz]
+    - [Qux]
+
+LexicalOuterConflict:
+  GrandParent:
+    Parent:
+      Target: []
+      Child:
+        Ref: [Target]
+  WrapperB:
+    - [GrandParent]
+    - Parent:
+        Target2: []
+        Target: [Target2]
+  WrapperC:
+    - [GrandParent]
+    - Parent:
+        Target3: []
+        Target: [Target3]
+  Merged:
+    - [WrapperB]
+    - [WrapperC]
+
+Library:
+  Types:
+    Value: []
+    Container:
+      - Content: [Value]
+        DeBruijnIndex0: [Container, ~]
+        DeBruijnIndex1: [Types, ~]
+        DeBruijnIndex2: [Library, ~]
+        DeBruijnIndex3: [multi_module_composition, ~]
+  Wrapper:
+    AltTypes: [Types]
+    IndirectFlatten:
+      - [AltTypes, Container]
+      - IndirectOnly: []
+  Wrapper2:
+    AltTypes2: [Types]
+    IndirectFlatten2:
+      - [AltTypes2, Container]
+      - IndirectOnly2: []
+Composed:
+  - [Library]
+  - [Library, Wrapper, IndirectFlatten]
+  - [Library, Wrapper2, IndirectFlatten2]
