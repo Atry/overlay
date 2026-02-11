@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "jupyter": {
+      "command": "direnv",
+      "args": [
+        "exec",
+        ".",
+        "jupyter-mcp-server"
+      ],
+      "env": {
+        "ALLOW_IMG_OUTPUT": "true"
+      }
+    }
+  }
+}
