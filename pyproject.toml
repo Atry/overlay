@@ -1,11 +1,29 @@
+[build-system]
+requires = ["uv_build>=0.10.2,<0.11"]
+build-backend = "uv_build"
+
 [project]
 name = "ol"
 version = "0.1.0"
+description = "Overlay Language — a composition-based programming language built on Overlay-Calculus"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.13"
+authors = [
+    {name = "Yang, Bo", email = "yang-bo@yang-bo.com"},
+]
+keywords = ["overlay", "mixin", "composition", "dependency-injection"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.13",
+]
 dependencies = [
     "pyyaml>=6.0.3",
 ]
+
+[project.urls]
+Repository = "https://github.com/Atry/ol"
 
 [dependency-groups]
 dev = [
