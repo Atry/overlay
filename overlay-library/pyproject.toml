@@ -10,6 +10,7 @@ vcs = "git"
 style = "pep440"
 bump = false
 fallback-version = "0.1.0"
+metadata = false
 
 [project]
 name = "overlay.library"
