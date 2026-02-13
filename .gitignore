@@ -210,6 +210,18 @@ __marimo__/
 .devenv/
 result
 
+# LaTeX
+*.pdf
+*.aux
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.bbl
+*.blg
+*.out
+*.dvi
+*.xcp
+
 # Local data
 data/
 trajectory/
@@ -217,3 +229,8 @@ experiment_results.db
 
 .playwright-mcp/
 *.local.*
+.envrc.private
+.pre-commit-config.yaml
+
+# nixago: ignore-linked-files
+/.vscode/extensions.json
