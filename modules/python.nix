@@ -31,6 +31,9 @@
                   meson-python = [ ];
                   pybind11 = [ ];
                 };
+                uv-dynamic-versioning = {
+                  hatchling = [ ];
+                };
               }
             )
             // {

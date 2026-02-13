@@ -1,25 +1,44 @@
 [build-system]
-requires = ["uv_build>=0.10.2,<0.11"]
-build-backend = "uv_build"
+requires = ["hatchling", "uv-dynamic-versioning>=0.7.0", "editables"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+bump = false
+fallback-version = "0.1.0"
 
 [project]
 name = "overlay.library"
-version = "0.1.0"
+dynamic = ["version", "dependencies"]
 description = "Overlay Language standard library — built-in definitions for the Overlay Language"
 license = "MIT"
 requires-python = ">=3.13"
 authors = [
     {name = "Yang, Bo", email = "yang-bo@yang-bo.com"},
 ]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+
+[tool.hatch.metadata.hooks.uv-dynamic-versioning]
 dependencies = [
-    "overlay.language",
+    "overlay.language=={{ version }}",
 ]
 
 [tool.uv]
 sources = {overlay-language = {workspace = true}}
 
-[tool.uv.build-backend]
-module-name = "overlay.library"
+[tool.hatch.build.targets.wheel]
+packages = ["src/overlay"]
+only-include = ["src/overlay/library"]
+sources = ["src"]
 
 [project.urls]
 Repository = "https://github.com/Atry/overlay"

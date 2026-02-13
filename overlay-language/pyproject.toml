@@ -1,22 +1,39 @@
 [build-system]
-requires = ["uv_build>=0.10.2,<0.11"]
-build-backend = "uv_build"
+requires = ["hatchling", "uv-dynamic-versioning>=0.7.0", "editables"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+bump = false
+fallback-version = "0.1.0"
 
 [project]
 name = "overlay.language"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Overlay Language runtime — a composition-based programming language built on Overlay-Calculus"
 license = "MIT"
 requires-python = ">=3.13"
 authors = [
     {name = "Yang, Bo", email = "yang-bo@yang-bo.com"},
 ]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
 dependencies = [
     "pyyaml>=6.0.3",
 ]
 
-[tool.uv.build-backend]
-module-name = "overlay.language"
+[tool.hatch.build.targets.wheel]
+packages = ["src/overlay"]
+only-include = ["src/overlay/language"]
+sources = ["src"]
 
 [project.urls]
 Repository = "https://github.com/Atry/overlay"

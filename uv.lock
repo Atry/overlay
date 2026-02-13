@@ -1700,7 +1700,6 @@ dev = [
 
 [[package]]
 name = "overlay-language"
-version = "0.1.0"
 source = { editable = "overlay-language" }
 dependencies = [
     { name = "pyyaml" },
@@ -1711,7 +1710,6 @@ requires-dist = [{ name = "pyyaml", specifier = ">=6.0.3" }]
 
 [[package]]
 name = "overlay-library"
-version = "0.1.0"
 source = { editable = "overlay-library" }
 dependencies = [
     { name = "overlay-language" },
