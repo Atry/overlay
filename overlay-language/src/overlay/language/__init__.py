@@ -1180,8 +1180,8 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
 
         Corresponds to the ``this`` function in the Overlay-Calculus paper::
 
-            this(p, p_def) = { init(p_super) | p_super in supers(p),
-                                               s.t. p_super = p_def }
+            this(p, p_def) = { p_site | (p_site, p_overlay) in supers(p),
+                                        s.t. p_overlay = p_def }
 
         :return: Mapping from each overlay (definition-site symbol) to the
             set of outer scopes (initialization contexts) through which it
