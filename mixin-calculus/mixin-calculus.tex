@@ -21,13 +21,14 @@
 \DeclareMathOperator{\Path}{Path}
 \DeclareMathOperator{\dom}{dom}
 \DeclareMathOperator{\keys}{properties}
-\DeclareMathOperator{\unions}{unions}
+\DeclareMathOperator{\unions}{overlays}
 \DeclareMathOperator{\supers}{supers}
 \DeclareMathOperator{\references}{references}
 \DeclareMathOperator{\qualifiedthis}{this}
 \DeclareMathOperator{\ownmembers}{own\text{-}properties}
 \DeclareMathOperator{\edges}{edges}
 \DeclareMathOperator{\navigate}{navigate}
+\DeclareMathOperator{\navigateup}{navigate\text{-}up}
 \newcommand{\snoc}{\mathbin{\triangleright}}
 \DeclareMathOperator{\init}{init}
 \DeclareMathOperator{\last}{last}
@@ -452,17 +453,20 @@ The normalized AST provides two primitive functions at each path $p$:
   \item $\ownmembers(p)$: the set of labels
     that have subtrees at $p$.
   \item $\references(p)$: the multiset of resolved reference pairs
-    $(\ell_{\mathrm{up},*},\; \ell_{\mathrm{down},*})$,
-    where each component is a label list.
+    $(n,\; \ell_{\mathrm{down},*})$,
+    where $n$ is a non-negative integer (the de~Bruijn index)
+    and $\ell_{\mathrm{down},*}$ is a label list (downward projections).
 \end{itemize}
 
 During normalization, a syntactic reference
 $\ell_{\mathrm{up}}.\self.\ell_{\mathrm{down},1}\ldots\ell_{\mathrm{down},k}$
 at path $p$ is resolved by finding the last occurrence of
 $\ell_{\mathrm{up}}$ among the labels of $p$.
-The suffix of $p$ from that position onward becomes
-$\ell_{\mathrm{up},*} = (\ell_{\mathrm{up},1}, \ldots, \ell_{\mathrm{up},m})$.
-The projections become
+Let $p_{\mathrm{def}}$ be the prefix of $p$ up to and including
+that occurrence.
+The \emph{de~Bruijn index} $n$ is the number of labels in $p$
+after that occurrence, i.e., $n = |p| - |p_{\mathrm{def}}|$.
+The projections are
 $\ell_{\mathrm{down},*} = (\ell_{\mathrm{down},1}, \ldots, \ell_{\mathrm{down},k})$.
 
 Normalization populates $\ownmembers$ and $\references$ as follows:
@@ -472,10 +476,10 @@ Normalization populates $\ownmembers$ and $\references$ as follows:
     and nothing to $\references(p)$.
   \item A reference $\ell_{\mathrm{up}}.\self.\ell_{\mathrm{down},1}\ldots\ell_{\mathrm{down},k}$
     contributes one pair
-    $(\ell_{\mathrm{up},*},\; \ell_{\mathrm{down},*})$
+    $(n,\; \ell_{\mathrm{down},*})$
     to $\references(p)$
     and nothing to $\ownmembers(p)$.
-  \item A composition $e_1 \sqcup e_2$ takes the union of both
+  \item A composition $e_1 \sqcup e_2$ merges both
     $\ownmembers$ and $\references$ from $e_1$ and $e_2$ at the same path.
 \end{itemize}
 Both $\ownmembers$ and $\references$ are pure data; they are not functions
@@ -497,34 +501,34 @@ The remainder of this section defines $\supers$
 and its dependencies.
 
 \paragraph{Supers.}
-The \emph{supers} of $p$ are the unions of every path in
+The \emph{supers} of $p$ are the overlays of every path in
 the reflexive transitive closure of $\edges$:
 \[
   \supers(p) =
-  \bigl\{\; p_{\mathrm{union}} \;\big|\;
-  p' \in \edges^*(p),\;
-  p_{\mathrm{union}} \in \unions(p')
+  \bigl\{\; p_{\mathrm{overlay}} \;\big|\;
+  p_{\mathrm{edge}} \in \edges^*(p),\;
+  p_{\mathrm{overlay}} \in \unions(p_{\mathrm{edge}})
   \;\bigr\}
 \]
 The $\supers$ formula depends on two functions:
 $\unions$ and $\edges$. We define $\unions$ first.
 
-\paragraph{Unions.}
+\paragraph{Overlays.}
 $\unions(p)$ is the set of paths that share
 the \emph{same identity} as $p$.
 When $p \neq ()$,
-its unions include itself and $p_{\mathrm{init\_super}} \snoc \last(p)$ for every
-super $p_{\mathrm{init\_super}}$ of $\init(p)$ that also defines $\last(p)$:
+its overlays include itself and $p_{\mathrm{branch}} \snoc \last(p)$ for every
+branch $p_{\mathrm{branch}}$ of $\init(p)$ that also defines $\last(p)$:
 \[
   \unions(p) =
   \begin{cases}
     \{p\} & \text{if } p = ()  \\[6pt]
     \{p\}
     \;\cup\;
-    \left\{\; p_{\mathrm{init\_super}} \snoc \last(p) \;\left|\;
+    \left\{\; p_{\mathrm{branch}} \snoc \last(p) \;\left|\;
     \begin{aligned}
-      &p_{\mathrm{init\_super}} \in \supers(\init(p)), \\
-      &\text{s.t.}\; \last(p) \in \ownmembers(p_{\mathrm{init\_super}})
+      &p_{\mathrm{branch}} \in \supers(\init(p)), \\
+      &\text{s.t.}\; \last(p) \in \ownmembers(p_{\mathrm{branch}})
     \end{aligned}
     \right.\right\}
     & \text{if } p \neq ()
@@ -533,55 +537,72 @@ super $p_{\mathrm{init\_super}}$ of $\init(p)$ that also defines $\last(p)$:
 It remains to define $\edges$, the other dependency of $\supers$.
 
 \paragraph{Edges.}
-The \emph{edges} of $p$ in the inheritance DAG are the paths
-reachable by navigating its resolved references one step:
+The \emph{edges} of $p$ are the paths reachable by navigating
+its resolved references one step:
 \[
   \edges(p) =
   \bigl\{\; p_{\mathrm{target}} \;\big|\;
-  p_{\mathrm{union}} \in \unions(p),\;
-  \mathrm{ref} \in \references(p_{\mathrm{union}}),\;
-  p_{\mathrm{target}} \in \navigate(\init(p),\; \mathrm{ref})
+  p_{\mathrm{overlay}} \in \unions(p),\;
+  (n,\; \ell_{\mathrm{down},*}) \in \references(p_{\mathrm{overlay}}),\;
+  p_{\mathrm{target}} \in \navigate(\init(p),\; p_{\mathrm{overlay}},\; n,\; \ell_{\mathrm{down},*})
   \;\bigr\}
 \]
 The $\edges$ formula calls $\navigate$, which we define next.
 
 \paragraph{Navigation.}
-The function $\navigate(p_{\mathrm{site}},\; \mathrm{ref})$
-takes a composition-site path $p_{\mathrm{site}}$
-and a resolved base
-$\mathrm{ref} = (\ell_{\mathrm{up},*},\; \ell_{\mathrm{down},*})$,
-and returns a set of target paths, as follows.
-Since $\ell_{\mathrm{up},*}$ is a suffix of the definition-site path,
-it is also a valid absolute path $p_{\mathrm{def}}$.
+The function $\navigate(p_{\mathrm{site}},\; p_{\mathrm{def}},\; n,\; \ell_{\mathrm{down},*})$
+takes a composition-site path $p_{\mathrm{site}}$,
+a definition-site path $p_{\mathrm{def}}$,
+a de~Bruijn index $n$,
+and downward projections $\ell_{\mathrm{down},*}$,
+and returns a set of target paths.
 
-\begin{enumerate}
-  \item Start with the set
-    $\mathit{current\_set} = \{p_{\mathrm{site}}\}$
-    and $p_{\mathrm{def}} = \ell_{\mathrm{up},*}$.
-  \item While $p_{\mathrm{def}}$ is non-empty:
-    \[
-      \mathit{current\_set} \;\leftarrow\;
-      \bigl\{\; p' \;\big|\;
-      p_{\mathrm{current}} \in \mathit{current\_set},\;
-      p' \in
+Navigation proceeds in two phases: first, $n$ upward steps
+resolve the definition-site path to composition-site paths;
+then the downward projections $\ell_{\mathrm{down},*}$ are appended.
+The auxiliary function $\navigateup$ performs the upward phase,
+using $\qualifiedthis$ (defined below) to resolve each
+definition-site path to its composition-site counterparts:
+\[
+  \navigateup(S,\; p_{\mathrm{def}},\; n) =
+  \begin{cases}
+    S & \text{if } n = 0 \\[6pt]
+    \navigateup\!\left(
+    \left\{\; p_{\mathrm{resolved}} \;\left|\;
+    \begin{aligned}
+      &p_{\mathrm{current}} \in S, \\
+      &p_{\mathrm{resolved}} \in
       \qualifiedthis(p_{\mathrm{current}},\;
       p_{\mathrm{def}})
-      \;\bigr\}
-      \qquad\qquad
-      p_{\mathrm{def}} \;\leftarrow\;
-      \init(p_{\mathrm{def}})
-    \]
-    At each step, $\qualifiedthis$ maps the definition-site path
-    to the corresponding composition-site paths,
-    then $\init$ shortens the path by one label.
-  \item For each $p_{\mathrm{current}} \in \mathit{current\_set}$,
-    append $\ell_{\mathrm{down},*}$:
-    $p_{\mathrm{current}} \snoc \ell_{\mathrm{down},1} \snoc \ell_{\mathrm{down},2} \cdots \snoc \ell_{\mathrm{down},k}$.
-\end{enumerate}
-The result is the set of target paths reached by all routes.
+    \end{aligned}
+    \right.\right\},\;
+    \init(p_{\mathrm{def}}),\;
+    n - 1
+    \right)
+    & \text{if } n > 0
+  \end{cases}
+\]
+At each step, $\qualifiedthis$ maps the definition-site path
+to the corresponding composition-site paths,
+then $\init$ shortens $p_{\mathrm{def}}$ by one label
+and $n$ decreases by one.
+Since $n$ is a non-negative integer, the recursion terminates.
+
+The full navigation function applies $\navigateup$, then appends the
+downward projections:
+\[
+  \navigate(p_{\mathrm{site}},\; p_{\mathrm{def}},\; n,\; \ell_{\mathrm{down},*})
+  =
+  \bigl\{\;
+  p_{\mathrm{current}} \snoc \ell_{\mathrm{down},1} \snoc \cdots \snoc \ell_{\mathrm{down},k}
+  \;\big|\;
+  p_{\mathrm{current}} \in
+  \navigateup(\{p_{\mathrm{site}}\},\; p_{\mathrm{def}},\; n)
+  \;\bigr\}
+\]
 When multiple routes exist (due to multi-path inheritance from $\sqcup$),
 they may yield different target paths; all are collected.
-The navigation loop calls $\qualifiedthis$, which we now define.
+The recursion calls $\qualifiedthis$, which we now define.
 
 \paragraph{Qualified this.}
 $\qualifiedthis(p,\; p_{\mathrm{def}})$ returns,
