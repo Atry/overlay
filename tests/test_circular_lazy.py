@@ -1,6 +1,6 @@
 """Test circular references with lazy evaluation.
 
-This test demonstrates that with lazy evaluation, Overlay Language can support circular
+This test demonstrates that with lazy evaluation, the Overlay language can support circular
 references while remaining total. Each finite access terminates, even though
 the conceptual structure is infinite.
 

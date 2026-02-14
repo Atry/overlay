@@ -1,5 +1,5 @@
 """
-Parser for Overlay Language specification files (YAML/JSON/TOML).
+Parser for the Overlay language specification files (YAML/JSON/TOML).
 
 This module provides parsing of Overlay files into Definition objects that can be
 evaluated by the overlay runtime.
@@ -30,7 +30,7 @@ evaluated by the overlay runtime.
    - **Structural recursion**: Tree structure + naming convention enforce that
      recursive calls are made only on structurally smaller values.
 
-   This combination enables Overlay Language to support both finite structures (via
+   This combination enables the Overlay language to support both finite structures (via
    recursion/termination) and infinite structures (via corecursion/productivity),
    similar to Haskell's lazy evaluation or Coq's coinductive types.
 """
@@ -177,11 +177,11 @@ def _is_reference_array(value: JsonValue) -> bool:
     """
     Check if a value is a reference array (inheritance or qualified this).
 
-    In Overlay Language, arrays are ONLY used for references:
+    In the Overlay language, arrays are ONLY used for references:
     - Inheritance: [str, str, ...] - all strings
     - Qualified this: [str, null, str, ...] - string, null, then strings
 
-    Overlay Language does not have first-class list/array type.
+    the Overlay language does not have first-class list/array type.
     """
     if not isinstance(value, list) or len(value) == 0:
         return False
@@ -232,8 +232,8 @@ def parse_mixin_value(
     """
     Parse an Overlay value into inheritances, properties, and scalar values.
 
-    In Overlay Language, arrays are ONLY used for references (inheritance or qualified this).
-    There is no first-class list type in Overlay Language.
+    In the Overlay language, arrays are ONLY used for references (inheritance or qualified this).
+    There is no first-class list type in the Overlay language.
 
     A mixin value can be:
     - A reference array: [str, str, ...] or [str, null, str, ...] → inheritance

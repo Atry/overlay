@@ -2557,7 +2557,7 @@ class ResolvedReference:
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
 class LexicalReference:
     """
-    A lexical reference following Overlay Language spec resolution algorithm.
+    A lexical reference following the Overlay language spec resolution algorithm.
 
     This reference type implements **lexical scoping with late-binding**.
 
