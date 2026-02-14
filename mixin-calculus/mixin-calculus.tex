@@ -29,7 +29,7 @@
 
 \begin{document}
 
-\title{MixinCalculus}
+\title{Overlay-Calculus}
 
 \author{Bo Yang}
 \affiliation{%
@@ -44,22 +44,22 @@
 \begin{abstract}
   Just as the $\lambda$-calculus uses three primitives (abstraction,
   application, variable) as the foundation of functional programming,
-  MixinCalculus uses three primitives (record, reference, composition)
+  Overlay-Calculus uses three primitives (record, reference, composition)
   as the foundation of declarative programming. Unlike the $\lambda$-calculus,
   which requires first-class functions, or Turing machines, which require
-  mutable state, MixinCalculus is purely declarative and function-free,
+  mutable state, Overlay-Calculus is purely declarative and function-free,
   yet Turing complete. Composition ($\oplus$) is commutative, idempotent,
   and associative---the linearization problem familiar from traditional
   mixin and trait systems simply does not arise. We demonstrate Turing
   completeness by giving a straightforward translation from the
-  $\lambda$-calculus into MixinCalculus, showing that function application
+  $\lambda$-calculus into Overlay-Calculus, showing that function application
   is derivable from symmetric mixin composition.
   Programs are inherently in A-normal form; unlike compiler-internal ANF
-  which targets a fixed monad, MixinCalculus ANF supports dependency
+  which targets a fixed monad, Overlay-Calculus ANF supports dependency
   injection, making programs CPS-agnostic---the same code serves as either
   continuation-passing or direct-style depending on assembly.
-  Records serve as tries, making MixinCalculus an immutable analogue of
-  the RAM machine. These observations suggest MixinCalculus as a computational model
+  Records serve as tries, making Overlay-Calculus an immutable analogue of
+  the RAM machine. These observations suggest Overlay-Calculus as a computational model
   for declarative programming, with applications to configuration languages,
   mixin-based object systems, composable effect systems, and modular software
   architectures.
@@ -177,7 +177,7 @@ packages---is a lazy-evaluated F-coalgebra in practice, allowing any
 single package to be evaluated without materializing the entire set.
 
 This paper provides the missing theoretical foundation. We present
-\textbf{MixinCalculus}, a minimal calculus that distills the essence of
+\textbf{Overlay-Calculus}, a minimal calculus that distills the essence of
 this mechanism into three constructs---record literals, references,
 and composition ($\oplus$)---without functions or let-bindings.
 A key observation is that
@@ -185,28 +185,28 @@ A key observation is that
 a $\lambda$-abstraction corresponds to a record with an
 $\mathrm{argument}$ slot and a $\mathrm{result}$ slot, and function
 application corresponds to composing the function record with a record
-that supplies the argument. This translation demonstrates that MixinCalculus
+that supplies the argument. This translation demonstrates that Overlay-Calculus
 subsumes the $\lambda$-calculus and is therefore Turing complete.
 This translation reveals an \emph{asymmetry}:
-while embedding the $\lambda$-calculus into MixinCalculus is trivial,
-the reverse is non-trivial because MixinCalculus provides primitive
+while embedding the $\lambda$-calculus into Overlay-Calculus is trivial,
+the reverse is non-trivial because Overlay-Calculus provides primitive
 operations---self-referential records, open recursion, symmetric
 composition---that have no direct counterparts in the $\lambda$-calculus.
-Moreover, MixinCalculus naturally encodes random-access memory:
+Moreover, Overlay-Calculus naturally encodes random-access memory:
 records are tries, and composition is trie union, yielding an
 immutable analogue of the RAM machine
 (Section~\ref{sec:trie}).
-This asymmetry suggests that MixinCalculus is not merely a
+This asymmetry suggests that Overlay-Calculus is not merely a
 syntactic variant of the $\lambda$-calculus but captures
 different computational patterns.
 
-A further observation concerns the relationship between MixinCalculus and
+A further observation concerns the relationship between Overlay-Calculus and
 continuation-passing style (CPS). Because every intermediate result in
-MixinCalculus has a name, programs are inherently in A-normal
+Overlay-Calculus has a name, programs are inherently in A-normal
 form~\cite{flanagan1993essence}. However, unlike ANF in functional
 language compilers---which targets a fixed monad (typically the identity
 monad~\cite{moggi1991notions}) and cannot express CPS
-transformations---MixinCalculus ANF supports dependency injection through
+transformations---Overlay-Calculus ANF supports dependency injection through
 empty record slots. This makes programs \emph{CPS-agnostic}: the same
 code can be interpreted as continuation-passing (when slots are filled by
 an external orchestrator) or as direct-style (when slots are composed
@@ -219,8 +219,8 @@ an explicit program transformation~\cite{plotkin1975callbyname,sabry1993reasonin
 As a demonstration of this expressiveness, we port the Expression
 Problem~\cite{wadler1998expression} solution of Wang and
 Oliveira~\cite{wang2016trivially} from Scala (whose type system rests
-on the DOT calculus~\cite{amin2016dot}) to MixinCalculus. The resulting
-solution is even more concise than the original, despite MixinCalculus
+on the DOT calculus~\cite{amin2016dot}) to Overlay-Calculus. The resulting
+solution is even more concise than the original, despite Overlay-Calculus
 having only three primitives whereas DOT is a substantially larger
 system.
 
@@ -228,7 +228,7 @@ Another observation concerns the linearization problem that has long plagued
 mixin-based systems~\cite{bracha1990mixin,c3linearization}. In traditional
 mixin or trait calculi~\cite{scharli2003traits,ducasse2006traits}, composing
 mixins that define the same field raises conflicts that must be resolved by
-a linearization order. In MixinCalculus, because there are no scalar values,
+a linearization order. In Overlay-Calculus, because there are no scalar values,
 the observable behavior at every node is solely \emph{key presence}---a set
 of labels. Composition ($\oplus$) is therefore commutative, idempotent, and
 associative. The linearization problem does not arise---not because it is
@@ -236,11 +236,11 @@ resolved, but because it does not exist.
 
 Just as the $\lambda$-calculus uses three primitives (abstraction,
 application, variable) to serve as the foundation of functional
-programming, MixinCalculus uses three primitives (record, reference,
+programming, Overlay-Calculus uses three primitives (record, reference,
 composition) to serve as the foundation of declarative programming.
 
 All constructions in this paper have been implemented and tested in
-MIXIN, an executable implementation of MixinCalculus using YAML syntax,
+Overlay Language, an executable implementation of Overlay-Calculus using YAML syntax,
 \selfcite{available as open source~\cite{mixin2025}}{included as supplementary material}. The implementation comprises a core
 evaluator, a standard library of Church-encoded data types, and a test
 suite covering every example in this paper: the Expression Problem
@@ -252,7 +252,7 @@ mechanically verified against expected output snapshots.
 
 \paragraph{Contributions.}
 \begin{itemize}
-  \item We present MixinCalculus, a minimal computational model for
+  \item We present Overlay-Calculus, a minimal computational model for
     declarative programming that contains only mixin constructs (record,
     reference, composition) and no functions or scalar types.
   \item We observe that composition ($\oplus$) is commutative, idempotent,
@@ -260,11 +260,11 @@ mechanically verified against expected output snapshots.
     holds. The linearization problem inherent in prior mixin and trait
     calculi simply does not arise.
   \item We give a translation from the $\lambda$-calculus (with
-    De~Bruijn indices) to MixinCalculus, demonstrating that MixinCalculus
+    De~Bruijn indices) to Overlay-Calculus, demonstrating that Overlay-Calculus
     subsumes the $\lambda$-calculus and is Turing complete.
     As a corollary, standard data types (booleans, natural numbers)
     can be Church-encoded without scalars (Appendix~\ref{app:church}).
-  \item We show that MixinCalculus programs are CPS-agnostic: the same code
+  \item We show that Overlay-Calculus programs are CPS-agnostic: the same code
     can be interpreted as either continuation-passing or direct-style depending
     on assembly strategy, in contrast to the $\lambda$-calculus where CPS
     conversion is an explicit program transformation.
@@ -275,7 +275,7 @@ The Expression Problem~\cite{wadler1998expression}
 asks how to extend a data type with both new cases and new operations,
 without modifying existing code.
 In a typed setting this additionally requires static type safety;
-MixinCalculus is untyped, so we focus on the extensibility aspect.
+Overlay-Calculus is untyped, so we focus on the extensibility aspect.
 Suppose a standard library provides a $\mathrm{binnat}$ module for
 binary natural arithmetic (see Appendix).
 We define an expression language with an evaluation operation:
@@ -347,7 +347,7 @@ cases verifying evaluation and display for nested expressions mixing old
 and new cases.
 
 Note that $\mathrm{magnitude} \mapsto \{\}$ in $\mathrm{Constant}$
-resembles a type annotation but is purely structural in MixinCalculus:
+resembles a type annotation but is purely structural in Overlay-Calculus:
 the evaluator works as long as the required fields appear somewhere in
 the composition chain, regardless of any schema declarations.
 
@@ -368,12 +368,12 @@ Let $k$ denote a non-negative integer (path length).
 \end{align*}
 
 The $\mapsto$ in $\{\ell \mapsto e\}$ defines a mixin property, not a let-binding.
-There is no variable binding in MixinCalculus.
-In pursuit of a minimal computational model, MixinCalculus contains no
+There is no variable binding in Overlay-Calculus.
+In pursuit of a minimal computational model, Overlay-Calculus contains no
 scalar types. This does not limit computational power: just as the
 $\lambda$-calculus can encode booleans and natural numbers via Church
-encoding, so can MixinCalculus (Appendix~\ref{app:church}). Practical
-implementations built on MixinCalculus may include scalars and a
+encoding, so can Overlay-Calculus (Appendix~\ref{app:church}). Practical
+implementations built on Overlay-Calculus may include scalars and a
 foreign-function interface; this does not affect the analysis in this
 paper, as scalars can be treated as opaque sets whose composition
 remains commutative and idempotent.
@@ -512,7 +512,7 @@ where $e$ is an expression and $\rho$ is a scope chain.
     then return the $\Class$ at the final node.
     When $k = 0$, the reference inherits the entire enclosing scope's $\Class$,
     which may produce an infinitely deep tree.
-    MixinCalculus does not prohibit infinite trees.
+    Overlay-Calculus does not prohibit infinite trees.
 \end{itemize}
 
 \section{Relationship to Other Computational Models}
@@ -520,9 +520,9 @@ where $e$ is an expression and $\rho$ is a scope chain.
 \subsection{Translation from $\lambda$-Calculus}
 
 The following translation maps $\lambda$-calculus with De Bruijn indices
-to MixinCalculus.
+to Overlay-Calculus.
 Let $\mathcal{T}$ denote the translation function,
-mapping a $\lambda$-term to a MixinCalculus expression $e$.
+mapping a $\lambda$-term to an Overlay-Calculus expression $e$.
 
 \medskip
 \begin{center}
@@ -539,19 +539,19 @@ mapping a $\lambda$-term to a MixinCalculus expression $e$.
 The result of an application is accessed via $.\mathrm{result}$.
 Nested applications require ANF-style naming of intermediate results.
 
-The translation from $\lambda$-calculus to MixinCalculus is straightforward.
+The translation from $\lambda$-calculus to Overlay-Calculus is straightforward.
 The reverse direction is non-trivial, as we discuss next.
 
 \subsection{Expressive Asymmetry}
 
 The translation above consists of three simple rules. This simplicity
 is significant: the full computational power of the $\lambda$-calculus
-embeds into MixinCalculus with minimal overhead.
+embeds into Overlay-Calculus with minimal overhead.
 
-The reverse direction---encoding MixinCalculus in pure
+The reverse direction---encoding Overlay-Calculus in pure
 $\lambda$-calculus---is established by the denotational semantics in Section~4.
 However, this mapping is considerably more complex than its counterpart:
-defining the meaning of MixinCalculus requires the full machinery of
+defining the meaning of Overlay-Calculus requires the full machinery of
 fixed points, higher-order functions, and recursive domains. This sophistication is
 not accidental---it reflects three features that have no direct
 counterpart in the $\lambda$-calculus:
@@ -574,7 +574,7 @@ counterpart in the $\lambda$-calculus:
     functional setting.
 
   \item \textbf{Commutative, idempotent merge.}
-    Composition in MixinCalculus is symmetric:
+    Composition in Overlay-Calculus is symmetric:
     $e_1 \oplus e_2$ and $e_2 \oplus e_1$ produce the same observable
     result. In the $\lambda$-calculus, function composition
     $(f \circ g)$ is neither commutative nor idempotent, and simulating
@@ -582,8 +582,8 @@ counterpart in the $\lambda$-calculus:
 \end{enumerate}
 
 \noindent
-This asymmetry reveals that MixinCalculus is not simply the
-$\lambda$-calculus in disguise. Rather, MixinCalculus provides
+This asymmetry reveals that Overlay-Calculus is not simply the
+$\lambda$-calculus in disguise. Rather, Overlay-Calculus provides
 primitive operations for computational patterns that are
 \emph{derivable but complex} in the $\lambda$-calculus.
 
@@ -593,7 +593,7 @@ In the $\lambda$-calculus, a program is either in continuation-passing
 style (CPS) or direct style. Converting between these representations
 requires explicit transformation---the CPS
 conversion~\cite{plotkin1975callbyname,sabry1993reasoning}.
-MixinCalculus exhibits a different property: the same program text can
+Overlay-Calculus exhibits a different property: the same program text can
 be interpreted as either CPS or direct-style depending on how
 dependencies are assembled.
 
@@ -647,25 +647,25 @@ once; users choose the control flow style at assembly time.
 
 The $\lambda$-calculus lacks this flexibility. A function written in
 direct style must be explicitly transformed (CPS conversion) before it
-can be used continuation-style. MixinCalculus programs are inherently in
+can be used continuation-style. Overlay-Calculus programs are inherently in
 A-normal form~\cite{flanagan1993essence}, where every intermediate result
 has a name.
 
-However, MixinCalculus ANF differs critically from ANF in functional
+However, Overlay-Calculus ANF differs critically from ANF in functional
 programming. In functional language compilers, ANF conversion requires
 specifying a target monad---either a concrete monad or an abstract
 one~\cite{moggi1991notions}. Compiler-internal ANF transformations (the
 ANF form used in intermediate representations) typically target the
 identity monad, which cannot express CPS transformations. This is
 analogous to how imperative compilers use SSA (Static Single Assignment)
-form, which similarly lacks control flow flexibility. MixinCalculus ANF,
+form, which similarly lacks control flow flexibility. Overlay-Calculus ANF,
 by contrast, has built-in dependency injection: empty API slots can be
 filled by external orchestrators. This capability enables the same ANF
 program to serve both CPS and direct-style interpretations without monad
 specification or transformation.
 
 \paragraph{Multiple symmetric continuations.}
-When interpreted continuation-style, MixinCalculus naturally supports
+When interpreted continuation-style, Overlay-Calculus naturally supports
 multiple exit points:
 \begin{align*}
   \mathrm{Choice} \mapsto \{
@@ -679,12 +679,12 @@ multiple exit points:
 All continuation slots are symmetric under $\oplus$. Traditional CPS in
 the $\lambda$-calculus distinguishes a single continuation parameter;
 additional continuations must be encoded (e.g., as pairs or disjoint
-sums). MixinCalculus treats all continuation slots uniformly, eliminating
+sums). Overlay-Calculus treats all continuation slots uniformly, eliminating
 the need for specialized encodings.
 
 \paragraph{Abstract and concrete are syntactically identical.}
 From a category-theoretic perspective, abstract algebra and concrete
-implementation have the same syntactic structure in MixinCalculus:
+implementation have the same syntactic structure in Overlay-Calculus:
 \begin{align*}
   \text{Abstract:} \quad & \mathrm{API} \mapsto \{\} \\
   \text{Concrete:} \quad & \mathrm{API} \mapsto \{\text{implementation}\}
@@ -693,7 +693,7 @@ implementation have the same syntactic structure in MixinCalculus:
 This is the abstract/concrete correspondence: the same functor applies to
 both. In traditional languages, abstract interfaces (e.g., Java
 interfaces, Haskell type classes) have different syntax from concrete
-implementations. In MixinCalculus, they are syntactically
+implementations. In Overlay-Calculus, they are syntactically
 identical---only the interpretation differs. An empty API is
 simultaneously an abstract requirement (when viewed as a dependency) and
 a concrete extension point (when viewed as an injection site).
@@ -737,7 +737,7 @@ recursively. This observation yields an immutable analogue of
 random-access memory.
 
 The fundamental operations on random-access memory correspond directly
-to MixinCalculus primitives:
+to Overlay-Calculus primitives:
 \begin{itemize}
   \item \textbf{Write}: composing a singleton trie ($\oplus$).
   \item \textbf{Read (static)}: reference-path navigation
@@ -752,7 +752,7 @@ to MixinCalculus primitives:
 \noindent
 In the $\lambda$-calculus, implementing a persistent trie with
 efficient union requires explicit data structure encodings
-(e.g., hash array mapped tries or finger trees). In MixinCalculus,
+(e.g., hash array mapped tries or finger trees). In Overlay-Calculus,
 records \emph{are} tries and composition \emph{is} trie union---no
 additional data structure is needed.
 The full constructions (Selector, Rebuilder, Lookup, Delete, Update)
@@ -763,11 +763,11 @@ union---with test cases covering keys of varying bit structure.
 
 \subsection{Contrast with SKI Combinator Calculus}
 
-A natural question arises: is MixinCalculus merely another function-free
+A natural question arises: is Overlay-Calculus merely another function-free
 reformulation of the $\lambda$-calculus, analogous to the SKI combinator
 calculus~\cite{schonfinkel1924,curry1958combinatory}?
 
-Like MixinCalculus, the SKI combinator calculus is function-free at the
+Like Overlay-Calculus, the SKI combinator calculus is function-free at the
 object level (no $\lambda$-abstractions), Turing complete, and minimal
 (three combinators). However, SKI is \emph{isomorphic} to the
 $\lambda$-calculus in terms of problem difficulty: the bracket
@@ -777,42 +777,42 @@ $\lambda$-calculus---such as the Expression
 Problem~(Section~\ref{sec:expression-problem})---remain equally hard
 in SKI.
 
-MixinCalculus, by contrast, exhibits a genuine shift in problem
+Overlay-Calculus, by contrast, exhibits a genuine shift in problem
 difficulty. The Expression Problem, which requires sophisticated
 encodings in $\lambda$-calculus-based systems---object
 algebras~\cite{oliveira2012extensibility}, finally tagless
 interpreters~\cite{carette2009finally}, or multi-parameter type
-classes---becomes direct and natural in MixinCalculus via $\oplus$.
+classes---becomes direct and natural in Overlay-Calculus via $\oplus$.
 Similarly, random-access memory via immutable tries, which requires
 explicit data structure engineering in the $\lambda$-calculus, is
-simply the native record structure of MixinCalculus
+simply the native record structure of Overlay-Calculus
 (Section~\ref{sec:trie}). This difference in problem difficulty
-demonstrates that MixinCalculus captures computational patterns that
+demonstrates that Overlay-Calculus captures computational patterns that
 are \emph{different} from those of the $\lambda$-calculus,
 not merely syntactic variants.
 
 \section{Discussion}
 
-\subsection{Is MixinCalculus Just Functions in Disguise?}
+\subsection{Is Overlay-Calculus Just Functions in Disguise?}
 
 A skeptical reader might observe that the semantic domain uses
 $\Constructor = \Object \to \Class$, which is literally a function
-type in the metalanguage. Does this mean MixinCalculus is simply
+type in the metalanguage. Does this mean Overlay-Calculus is simply
 the $\lambda$-calculus with different syntax?
 
 This objection confuses the object language with the metalanguage.
 The semantic domain uses functions as a \emph{mathematical tool} to
-define the meaning of MixinCalculus expressions, just as set theory is
+define the meaning of Overlay-Calculus expressions, just as set theory is
 used to define natural numbers without making arithmetic ``just set
 theory in disguise.'' The crucial question is not what appears in the
 denotational semantics, but what computational patterns are
 \emph{primitive} in the language itself.
 
-In MixinCalculus, the primitive operations are record construction,
+In Overlay-Calculus, the primitive operations are record construction,
 reference, and composition. Function application is \emph{derived}
 from these primitives (Section~5.1), not primitive itself.
 Indeed, the asymmetry demonstrated in Section~5.2 makes this concrete:
-embedding the $\lambda$-calculus into MixinCalculus requires only three
+embedding the $\lambda$-calculus into Overlay-Calculus requires only three
 simple rules, while the reverse direction requires the sophisticated
 machinery of Section~4. The real test of whether two computational
 models are ``the same'' is whether they make the same problems easy
@@ -829,22 +829,22 @@ and the same problems hard. As shown in Section~5, they do not:
     SKI combinators
     & Same difficulty as $\lambda$
     & Same difficulty as $\lambda$ \\
-    MixinCalculus
+    Overlay-Calculus
     & Direct composition ($\oplus$)
     & Records \emph{are} tries \\
   \end{tabular}
 \end{center}
 
 \noindent
-The fact that MixinCalculus requires no additional machinery for either
+The fact that Overlay-Calculus requires no additional machinery for either
 problem class---while the $\lambda$-calculus requires elaborate
-encodings for both---demonstrates that MixinCalculus captures
+encodings for both---demonstrates that Overlay-Calculus captures
 different computational primitives, not merely a
 syntactic reshuffling.
 
 \subsection{Properties of Composition}
 
-Commutativity and idempotence of $\oplus$ make MixinCalculus
+Commutativity and idempotence of $\oplus$ make Overlay-Calculus
 transparent to linearization order.
 Deduplication of inherited mixins is purely an optimization.
 
@@ -859,13 +859,13 @@ where the name is resolved by walking up the scope chain.
 
 \subsection{Relationship to Practical Systems}
 
-MixinCalculus provides a theoretical foundation for understanding several
+Overlay-Calculus provides a theoretical foundation for understanding several
 classes of declarative systems that have emerged independently in practice.
 
 \paragraph{Configuration languages.}
 The NixOS module system~\cite{dolstra2008nixos,nixosmodules}---whose
 recursive attribute merging motivated this work---can be understood as an
-implementation of MixinCalculus with additional features (type checking,
+implementation of Overlay-Calculus with additional features (type checking,
 error reporting, FFI to the Nix language). The module system's
 expressiveness stems from the properties described in Section~4: composition
 is commutative, idempotent, and associative, so the linearization
@@ -873,7 +873,7 @@ problem does not arise. Other configuration languages exhibit similar patterns:
 Jsonnet~\cite{jsonnet} provides inheritance-based composition over JSON;
 CUE~\cite{cue2019} unifies types and values through lattice-based merging;
 Dhall~\cite{dhall2017} combines functional programming with configuration.
-All share MixinCalculus's core pattern: composition over recursive
+All share Overlay-Calculus's core pattern: composition over recursive
 structures without explicit functions.
 
 \paragraph{Mixin-based object systems.}
@@ -881,19 +881,19 @@ Scala traits~\cite{odersky2004overview}, Ruby mixins~\cite{flanagan2008ruby},
 and similar object-oriented mechanisms use symmetric composition to extend
 classes. Traditional mixin calculi~\cite{bracha1990mixin,scharli2003traits}
 face the linearization problem when composing mixins with conflicting
-fields. In MixinCalculus, this problem does not arise (Section~4) because eliminating
+fields. In Overlay-Calculus, this problem does not arise (Section~4) because eliminating
 scalar values: only key presence is observable, making composition
 naturally commutative. This explains why trait systems with
 conflict-resolution strategies (e.g., Scala's linearization) require
-additional machinery that MixinCalculus does not.
+additional machinery that Overlay-Calculus does not.
 
 \paragraph{Effect systems.}
 Algebraic effects with handlers~\cite{plotkin2003algebraic,pretnar2015introduction}
 and monad transformers structure computational effects through composition.
-The CPS-agnostic property (Section~5.3) shows how MixinCalculus naturally
+The CPS-agnostic property (Section~5.3) shows how Overlay-Calculus naturally
 supports effect handler composition: empty API slots can be filled with
 effect handlers (CPS interpretation) or direct implementations (direct-style
-interpretation). This correspondence suggests that MixinCalculus may provide
+interpretation). This correspondence suggests that Overlay-Calculus may provide
 a foundation for understanding effect systems without requiring explicit
 monad machinery.
 
@@ -902,47 +902,47 @@ Plugin systems, component frameworks, and dependency injection frameworks
 enable software extensibility through declarative composition. The
 symmetric, associative nature of $\oplus$ (Section~4) explains why such
 systems work: components can be composed in any order without changing
-behavior. MixinCalculus formalizes the composition patterns that these
+behavior. Overlay-Calculus formalizes the composition patterns that these
 systems implement ad hoc.
 
 \paragraph{Union file systems.}
 Union file systems (UnionFS, OverlayFS, AUFS) layer multiple directory
 hierarchies to present a unified view. The composition semantics directly
-mirror MixinCalculus: later layers override earlier layers (asymmetric
+mirror Overlay-Calculus: later layers override earlier layers (asymmetric
 composition), files from all layers remain accessible (non-destructive
 merging), and composition order affects conflict resolution (non-commutative
 when scalar files conflict). A proof-of-concept
 \selfcite{implementation~\cite{ratarmount2025} (included as supplementary material)}{implementation (included as supplementary material)}
-demonstrates that MixinCalculus
+demonstrates that Overlay-Calculus
 patterns emerge naturally in union mount composition through late-binding
 semantics and dynamic dispatch for file lookups across layers.
 
 \section{Future Work}
 
-\paragraph{Typed Mixin Calculus.}
-MixinCalculus as presented here is untyped. A natural next step is to
-develop a \emph{Typed Mixin Calculus} (TMC) that adds a type system
+\paragraph{Typed Overlay Calculus.}
+Overlay-Calculus as presented here is untyped. A natural next step is to
+develop a \emph{Typed Overlay Calculus} (TOC) that adds a type system
 while preserving the declarative character of the calculus.
 The key observation is that type systems are themselves a form of
 declarative programming: one declares types to guide meta-computation
 (type checking, type inference) without specifying operational steps.
-Since MixinCalculus demonstrates that declarative programming can be
+Since Overlay-Calculus demonstrates that declarative programming can be
 Turing complete, applying this insight to the type level yields a type
 system built from the same mixin primitives.
-TMC would relate to the DOT calculus~\cite{amin2016dot} in a manner
-analogous to how MixinCalculus relates to the $\lambda$-calculus:
-TMC can be viewed as DOT without $\lambda$, retaining
+TOC would relate to the DOT calculus~\cite{amin2016dot} in a manner
+analogous to how Overlay-Calculus relates to the $\lambda$-calculus:
+TOC can be viewed as DOT without $\lambda$, retaining
 path-dependent types while replacing functions with inheritance-based
 composition.
 
 A key difference concerns the interpretation of structural annotations.
-In untyped MixinCalculus, writing $\mathrm{magnitude} \mapsto \{\}$ in
+In untyped Overlay-Calculus, writing $\mathrm{magnitude} \mapsto \{\}$ in
 a schema (as in the informal example of Section~1) is purely
 documentary---it defines a structural slot but imposes no constraint.
 The expression $\mathrm{outcome} \mapsto \up^0.\mathrm{magnitude}$
 succeeds as long as $\mathrm{magnitude}$ exists somewhere in the
 composition chain, regardless of any schema declaration.
-TMC would enforce such annotations statically, rejecting programs at
+TOC would enforce such annotations statically, rejecting programs at
 compile time where the declared structure does not match the actual
 composition.
 Such a typed system would be amenable to mechanization in proof
@@ -1144,9 +1144,9 @@ prevents Update from being a single symmetric composition.
 \label{app:church}
 
 This appendix demonstrates that standard data types can be encoded in
-MixinCalculus without scalar types, using Church encoding. These
+Overlay-Calculus without scalar types, using Church encoding. These
 encodings serve as a proof of concept that a standard library can be
-built entirely within MixinCalculus. Each encoding is presented as a
+built entirely within Overlay-Calculus. Each encoding is presented as a
 module mixin. In practical implementations, more efficient
 representations (e.g., binary naturals) or FFI to host language
 primitives would typically be used.
