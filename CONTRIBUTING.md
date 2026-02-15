@@ -695,6 +695,8 @@ def fetch(url: str, policy: CachePolicy) -> Response:
 
 ## Overlay Language Coding Conventions
 
+**Terminology note:** This project previously used the terms "mixin" and "union". These have been renamed to **overlay**. Legacy references to "mixin" or "union" in code, comments, or documentation should be read as "overlay".
+
 The Overlay language adopts C#-like naming conventions. The UpperCamelCase/lowerCamelCase distinction is not merely stylistic — it carries semantic meaning for the compiler's totality checker: UpperCamelCase symbols are **scopes** (can be instantiated at runtime), while lowerCamelCase symbols are **resources** (lazily evaluated). This naming convention enables automatic totality verification without manual proofs (see `mixin_totality.tex`).
 
 ### Naming Convention Summary
