@@ -1,0 +1,2015 @@
+NatArithmetic:
+  - [Builtin, NatPlus]
+  - [Builtin, NatToPython]
+  - [Builtin, BooleanToPython]
+
+_NumberA_pred1:
+  - [NatArithmetic, Zero]
+
+_NumberA_pred2:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred1]
+
+_NumberA_pred3:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred2]
+
+_NumberA_pred4:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred3]
+
+_NumberA_pred5:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred4]
+
+_NumberA_pred6:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred5]
+
+_NumberA_pred7:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred6]
+
+_NumberA_pred8:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred7]
+
+_NumberA_pred9:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred8]
+
+_NumberA_pred10:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred9]
+
+_NumberA_pred11:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred10]
+
+_NumberA_pred12:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred11]
+
+_NumberA_pred13:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred12]
+
+_NumberA_pred14:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred13]
+
+_NumberA_pred15:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred14]
+
+_NumberA_pred16:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred15]
+
+_NumberA_pred17:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred16]
+
+_NumberA_pred18:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred17]
+
+_NumberA_pred19:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred18]
+
+_NumberA_pred20:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred19]
+
+_NumberA_pred21:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred20]
+
+_NumberA_pred22:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred21]
+
+_NumberA_pred23:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred22]
+
+_NumberA_pred24:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred23]
+
+_NumberA_pred25:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred24]
+
+_NumberA_pred26:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred25]
+
+_NumberA_pred27:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred26]
+
+_NumberA_pred28:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred27]
+
+_NumberA_pred29:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred28]
+
+_NumberA_pred30:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred29]
+
+_NumberA_pred31:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred30]
+
+_NumberA_pred32:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred31]
+
+_NumberA_pred33:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred32]
+
+_NumberA_pred34:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred33]
+
+_NumberA_pred35:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred34]
+
+_NumberA_pred36:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred35]
+
+_NumberA_pred37:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred36]
+
+_NumberA_pred38:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred37]
+
+_NumberA_pred39:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred38]
+
+_NumberA_pred40:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred39]
+
+_NumberA_pred41:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred40]
+
+_NumberA_pred42:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred41]
+
+_NumberA_pred43:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred42]
+
+_NumberA_pred44:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred43]
+
+_NumberA_pred45:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred44]
+
+_NumberA_pred46:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred45]
+
+_NumberA_pred47:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred46]
+
+_NumberA_pred48:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred47]
+
+_NumberA_pred49:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred48]
+
+_NumberA_pred50:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred49]
+
+_NumberA_pred51:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred50]
+
+_NumberA_pred52:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred51]
+
+_NumberA_pred53:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred52]
+
+_NumberA_pred54:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred53]
+
+_NumberA_pred55:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred54]
+
+_NumberA_pred56:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred55]
+
+_NumberA_pred57:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred56]
+
+_NumberA_pred58:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred57]
+
+_NumberA_pred59:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred58]
+
+_NumberA_pred60:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred59]
+
+_NumberA_pred61:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred60]
+
+_NumberA_pred62:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred61]
+
+_NumberA_pred63:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred62]
+
+_NumberA_pred64:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred63]
+
+_NumberA_pred65:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred64]
+
+_NumberA_pred66:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred65]
+
+_NumberA_pred67:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred66]
+
+_NumberA_pred68:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred67]
+
+_NumberA_pred69:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred68]
+
+_NumberA_pred70:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred69]
+
+_NumberA_pred71:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred70]
+
+_NumberA_pred72:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred71]
+
+_NumberA_pred73:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred72]
+
+_NumberA_pred74:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred73]
+
+_NumberA_pred75:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred74]
+
+_NumberA_pred76:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred75]
+
+_NumberA_pred77:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred76]
+
+_NumberA_pred78:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred77]
+
+_NumberA_pred79:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred78]
+
+_NumberA_pred80:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred79]
+
+_NumberA_pred81:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred80]
+
+_NumberA_pred82:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred81]
+
+_NumberA_pred83:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred82]
+
+_NumberA_pred84:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred83]
+
+_NumberA_pred85:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred84]
+
+_NumberA_pred86:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred85]
+
+_NumberA_pred87:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred86]
+
+_NumberA_pred88:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred87]
+
+_NumberA_pred89:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred88]
+
+_NumberA_pred90:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred89]
+
+_NumberA_pred91:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred90]
+
+_NumberA_pred92:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred91]
+
+_NumberA_pred93:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred92]
+
+_NumberA_pred94:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred93]
+
+_NumberA_pred95:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred94]
+
+_NumberA_pred96:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred95]
+
+_NumberA_pred97:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred96]
+
+_NumberA_pred98:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred97]
+
+_NumberA_pred99:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred98]
+
+_NumberA_pred100:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred99]
+
+_NumberA_pred101:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred100]
+
+_NumberA_pred102:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred101]
+
+_NumberA_pred103:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred102]
+
+_NumberA_pred104:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred103]
+
+_NumberA_pred105:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred104]
+
+_NumberA_pred106:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred105]
+
+_NumberA_pred107:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred106]
+
+_NumberA_pred108:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred107]
+
+_NumberA_pred109:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred108]
+
+_NumberA_pred110:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred109]
+
+_NumberA_pred111:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred110]
+
+_NumberA_pred112:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred111]
+
+_NumberA_pred113:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred112]
+
+_NumberA_pred114:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred113]
+
+_NumberA_pred115:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred114]
+
+_NumberA_pred116:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred115]
+
+_NumberA_pred117:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred116]
+
+_NumberA_pred118:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred117]
+
+_NumberA_pred119:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred118]
+
+_NumberA_pred120:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred119]
+
+_NumberA_pred121:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred120]
+
+_NumberA_pred122:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred121]
+
+_NumberA_pred123:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred122]
+
+_NumberA_pred124:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred123]
+
+_NumberA_pred125:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred124]
+
+_NumberA_pred126:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred125]
+
+_NumberA_pred127:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred126]
+
+_NumberA_pred128:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred127]
+
+_NumberA_pred129:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred128]
+
+_NumberA_pred130:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred129]
+
+_NumberA_pred131:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred130]
+
+_NumberA_pred132:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred131]
+
+_NumberA_pred133:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred132]
+
+_NumberA_pred134:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred133]
+
+_NumberA_pred135:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred134]
+
+_NumberA_pred136:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred135]
+
+_NumberA_pred137:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred136]
+
+_NumberA_pred138:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred137]
+
+_NumberA_pred139:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred138]
+
+_NumberA_pred140:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred139]
+
+_NumberA_pred141:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred140]
+
+_NumberA_pred142:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred141]
+
+_NumberA_pred143:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred142]
+
+_NumberA_pred144:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred143]
+
+_NumberA_pred145:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred144]
+
+_NumberA_pred146:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred145]
+
+_NumberA_pred147:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred146]
+
+_NumberA_pred148:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred147]
+
+_NumberA_pred149:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred148]
+
+_NumberA_pred150:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred149]
+
+_NumberA_pred151:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred150]
+
+_NumberA_pred152:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred151]
+
+_NumberA_pred153:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred152]
+
+_NumberA_pred154:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred153]
+
+_NumberA_pred155:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred154]
+
+_NumberA_pred156:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred155]
+
+_NumberA_pred157:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred156]
+
+_NumberA_pred158:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred157]
+
+_NumberA_pred159:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred158]
+
+_NumberA_pred160:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred159]
+
+_NumberA_pred161:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred160]
+
+_NumberA_pred162:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred161]
+
+_NumberA_pred163:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred162]
+
+_NumberA_pred164:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred163]
+
+_NumberA_pred165:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred164]
+
+_NumberA_pred166:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred165]
+
+_NumberA_pred167:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred166]
+
+_NumberA_pred168:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred167]
+
+_NumberA_pred169:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred168]
+
+_NumberA_pred170:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred169]
+
+_NumberA_pred171:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred170]
+
+_NumberA_pred172:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred171]
+
+_NumberA_pred173:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred172]
+
+_NumberA_pred174:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred173]
+
+_NumberA_pred175:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred174]
+
+_NumberA_pred176:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred175]
+
+_NumberA_pred177:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred176]
+
+_NumberA_pred178:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred177]
+
+_NumberA_pred179:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred178]
+
+_NumberA_pred180:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred179]
+
+_NumberA_pred181:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred180]
+
+_NumberA_pred182:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred181]
+
+_NumberA_pred183:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred182]
+
+_NumberA_pred184:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred183]
+
+_NumberA_pred185:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred184]
+
+_NumberA_pred186:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred185]
+
+_NumberA_pred187:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred186]
+
+_NumberA_pred188:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred187]
+
+_NumberA_pred189:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred188]
+
+_NumberA_pred190:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred189]
+
+_NumberA_pred191:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred190]
+
+_NumberA_pred192:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred191]
+
+_NumberA_pred193:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred192]
+
+_NumberA_pred194:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred193]
+
+_NumberA_pred195:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred194]
+
+_NumberA_pred196:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred195]
+
+_NumberA_pred197:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred196]
+
+_NumberA_pred198:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred197]
+
+_NumberA_pred199:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred198]
+
+_NumberA_pred200:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred199]
+
+NumberA:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberA_pred200]
+
+_NumberB_pred1:
+  - [NatArithmetic, Zero]
+
+_NumberB_pred2:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred1]
+
+_NumberB_pred3:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred2]
+
+_NumberB_pred4:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred3]
+
+_NumberB_pred5:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred4]
+
+_NumberB_pred6:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred5]
+
+_NumberB_pred7:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred6]
+
+_NumberB_pred8:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred7]
+
+_NumberB_pred9:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred8]
+
+_NumberB_pred10:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred9]
+
+_NumberB_pred11:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred10]
+
+_NumberB_pred12:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred11]
+
+_NumberB_pred13:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred12]
+
+_NumberB_pred14:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred13]
+
+_NumberB_pred15:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred14]
+
+_NumberB_pred16:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred15]
+
+_NumberB_pred17:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred16]
+
+_NumberB_pred18:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred17]
+
+_NumberB_pred19:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred18]
+
+_NumberB_pred20:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred19]
+
+_NumberB_pred21:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred20]
+
+_NumberB_pred22:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred21]
+
+_NumberB_pred23:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred22]
+
+_NumberB_pred24:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred23]
+
+_NumberB_pred25:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred24]
+
+_NumberB_pred26:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred25]
+
+_NumberB_pred27:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred26]
+
+_NumberB_pred28:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred27]
+
+_NumberB_pred29:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred28]
+
+_NumberB_pred30:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred29]
+
+_NumberB_pred31:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred30]
+
+_NumberB_pred32:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred31]
+
+_NumberB_pred33:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred32]
+
+_NumberB_pred34:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred33]
+
+_NumberB_pred35:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred34]
+
+_NumberB_pred36:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred35]
+
+_NumberB_pred37:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred36]
+
+_NumberB_pred38:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred37]
+
+_NumberB_pred39:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred38]
+
+_NumberB_pred40:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred39]
+
+_NumberB_pred41:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred40]
+
+_NumberB_pred42:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred41]
+
+_NumberB_pred43:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred42]
+
+_NumberB_pred44:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred43]
+
+_NumberB_pred45:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred44]
+
+_NumberB_pred46:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred45]
+
+_NumberB_pred47:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred46]
+
+_NumberB_pred48:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred47]
+
+_NumberB_pred49:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred48]
+
+_NumberB_pred50:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred49]
+
+_NumberB_pred51:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred50]
+
+_NumberB_pred52:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred51]
+
+_NumberB_pred53:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred52]
+
+_NumberB_pred54:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred53]
+
+_NumberB_pred55:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred54]
+
+_NumberB_pred56:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred55]
+
+_NumberB_pred57:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred56]
+
+_NumberB_pred58:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred57]
+
+_NumberB_pred59:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred58]
+
+_NumberB_pred60:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred59]
+
+_NumberB_pred61:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred60]
+
+_NumberB_pred62:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred61]
+
+_NumberB_pred63:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred62]
+
+_NumberB_pred64:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred63]
+
+_NumberB_pred65:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred64]
+
+_NumberB_pred66:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred65]
+
+_NumberB_pred67:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred66]
+
+_NumberB_pred68:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred67]
+
+_NumberB_pred69:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred68]
+
+_NumberB_pred70:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred69]
+
+_NumberB_pred71:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred70]
+
+_NumberB_pred72:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred71]
+
+_NumberB_pred73:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred72]
+
+_NumberB_pred74:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred73]
+
+_NumberB_pred75:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred74]
+
+_NumberB_pred76:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred75]
+
+_NumberB_pred77:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred76]
+
+_NumberB_pred78:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred77]
+
+_NumberB_pred79:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred78]
+
+_NumberB_pred80:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred79]
+
+_NumberB_pred81:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred80]
+
+_NumberB_pred82:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred81]
+
+_NumberB_pred83:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred82]
+
+_NumberB_pred84:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred83]
+
+_NumberB_pred85:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred84]
+
+_NumberB_pred86:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred85]
+
+_NumberB_pred87:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred86]
+
+_NumberB_pred88:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred87]
+
+_NumberB_pred89:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred88]
+
+_NumberB_pred90:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred89]
+
+_NumberB_pred91:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred90]
+
+_NumberB_pred92:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred91]
+
+_NumberB_pred93:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred92]
+
+_NumberB_pred94:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred93]
+
+_NumberB_pred95:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred94]
+
+_NumberB_pred96:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred95]
+
+_NumberB_pred97:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred96]
+
+_NumberB_pred98:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred97]
+
+_NumberB_pred99:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred98]
+
+_NumberB_pred100:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred99]
+
+_NumberB_pred101:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred100]
+
+_NumberB_pred102:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred101]
+
+_NumberB_pred103:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred102]
+
+_NumberB_pred104:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred103]
+
+_NumberB_pred105:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred104]
+
+_NumberB_pred106:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred105]
+
+_NumberB_pred107:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred106]
+
+_NumberB_pred108:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred107]
+
+_NumberB_pred109:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred108]
+
+_NumberB_pred110:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred109]
+
+_NumberB_pred111:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred110]
+
+_NumberB_pred112:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred111]
+
+_NumberB_pred113:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred112]
+
+_NumberB_pred114:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred113]
+
+_NumberB_pred115:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred114]
+
+_NumberB_pred116:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred115]
+
+_NumberB_pred117:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred116]
+
+_NumberB_pred118:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred117]
+
+_NumberB_pred119:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred118]
+
+_NumberB_pred120:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred119]
+
+_NumberB_pred121:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred120]
+
+_NumberB_pred122:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred121]
+
+_NumberB_pred123:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred122]
+
+_NumberB_pred124:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred123]
+
+_NumberB_pred125:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred124]
+
+_NumberB_pred126:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred125]
+
+_NumberB_pred127:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred126]
+
+_NumberB_pred128:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred127]
+
+_NumberB_pred129:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred128]
+
+_NumberB_pred130:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred129]
+
+_NumberB_pred131:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred130]
+
+_NumberB_pred132:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred131]
+
+_NumberB_pred133:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred132]
+
+_NumberB_pred134:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred133]
+
+_NumberB_pred135:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred134]
+
+_NumberB_pred136:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred135]
+
+_NumberB_pred137:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred136]
+
+_NumberB_pred138:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred137]
+
+_NumberB_pred139:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred138]
+
+_NumberB_pred140:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred139]
+
+_NumberB_pred141:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred140]
+
+_NumberB_pred142:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred141]
+
+_NumberB_pred143:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred142]
+
+_NumberB_pred144:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred143]
+
+_NumberB_pred145:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred144]
+
+_NumberB_pred146:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred145]
+
+_NumberB_pred147:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred146]
+
+_NumberB_pred148:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred147]
+
+_NumberB_pred149:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred148]
+
+_NumberB_pred150:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred149]
+
+_NumberB_pred151:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred150]
+
+_NumberB_pred152:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred151]
+
+_NumberB_pred153:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred152]
+
+_NumberB_pred154:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred153]
+
+_NumberB_pred155:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred154]
+
+_NumberB_pred156:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred155]
+
+_NumberB_pred157:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred156]
+
+_NumberB_pred158:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred157]
+
+_NumberB_pred159:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred158]
+
+_NumberB_pred160:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred159]
+
+_NumberB_pred161:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred160]
+
+_NumberB_pred162:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred161]
+
+_NumberB_pred163:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred162]
+
+_NumberB_pred164:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred163]
+
+_NumberB_pred165:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred164]
+
+_NumberB_pred166:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred165]
+
+_NumberB_pred167:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred166]
+
+_NumberB_pred168:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred167]
+
+_NumberB_pred169:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred168]
+
+_NumberB_pred170:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred169]
+
+_NumberB_pred171:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred170]
+
+_NumberB_pred172:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred171]
+
+_NumberB_pred173:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred172]
+
+_NumberB_pred174:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred173]
+
+_NumberB_pred175:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred174]
+
+_NumberB_pred176:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred175]
+
+_NumberB_pred177:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred176]
+
+_NumberB_pred178:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred177]
+
+_NumberB_pred179:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred178]
+
+_NumberB_pred180:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred179]
+
+_NumberB_pred181:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred180]
+
+_NumberB_pred182:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred181]
+
+_NumberB_pred183:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred182]
+
+_NumberB_pred184:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred183]
+
+_NumberB_pred185:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred184]
+
+_NumberB_pred186:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred185]
+
+_NumberB_pred187:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred186]
+
+_NumberB_pred188:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred187]
+
+_NumberB_pred189:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred188]
+
+_NumberB_pred190:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred189]
+
+_NumberB_pred191:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred190]
+
+_NumberB_pred192:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred191]
+
+_NumberB_pred193:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred192]
+
+_NumberB_pred194:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred193]
+
+_NumberB_pred195:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred194]
+
+_NumberB_pred196:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred195]
+
+_NumberB_pred197:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred196]
+
+_NumberB_pred198:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred197]
+
+_NumberB_pred199:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred198]
+
+_NumberB_pred200:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred199]
+
+NumberB:
+  - [NatArithmetic, Successor]
+  - predecessor:
+      - [_NumberB_pred200]
+
+additionResult:
+  - [NumberA, Plus]
+  - addend:
+      - [NumberB]

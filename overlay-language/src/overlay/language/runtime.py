@@ -16,6 +16,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import cached_property, reduce
+
 from typing import (
     TYPE_CHECKING,
     Callable,

@@ -50,6 +50,58 @@ class NatToPython:
                 return predecessor.ToPython.pythonValue + 1
 
 
+@public
+@extend(LexicalReference(path=("BinNat",)))
+@scope
+class BinNatToPython:
+    @public
+    @scope
+    class BinNat:
+        @public
+        @scope
+        class ToPython:
+            @public
+            @extern
+            @staticmethod
+            def pythonValue() -> int: ...
+
+    @public
+    @scope
+    class Zero:
+        @public
+        @scope
+        class ToPython:
+            @public
+            @resource
+            @staticmethod
+            def pythonValue() -> int:
+                return 0
+
+    @public
+    @scope
+    class Even:
+        @public
+        @scope
+        class ToPython:
+            @public
+            @resource
+            @staticmethod
+            def pythonValue(half: Scope) -> int:
+                return half.ToPython.pythonValue * 2
+
+    @public
+    @scope
+    class Odd:
+        @public
+        @scope
+        class ToPython:
+            @public
+            @resource
+            @staticmethod
+            def pythonValue(half: Scope) -> int:
+                return half.ToPython.pythonValue * 2 + 1
+
+
 @scope
 class _BooleanApi:
     @public
