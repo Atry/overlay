@@ -118,15 +118,19 @@ class _DirectoryMixinFileScopeDefinition(ScopeDefinition):
 
     underlying: Path
 
+    @cached_property
+    def _parsed(self) -> Mapping[str, Sequence[Definition]]:
+        return parse_mixin_file(self.underlying)
+
     def __iter__(self) -> Iterator[Hashable]:
-        yield from parse_mixin_file(self.underlying).keys()
+        yield from self._parsed.keys()
 
     def __len__(self) -> int:
-        return len(parse_mixin_file(self.underlying))
+        return len(self._parsed)
 
     def __getitem__(self, key: Hashable) -> Sequence[Definition]:
         assert isinstance(key, str)
-        parsed = parse_mixin_file(self.underlying)
+        parsed = self._parsed
         if key not in parsed:
             raise KeyError(key)
         return parsed[key]
