@@ -6,11 +6,9 @@ from overlay.language import (
     MixinSymbol,
     ObjectScopeDefinition,
     LexicalReference,
-    FixtureReference,
 )
 
 L = LexicalReference
-F = FixtureReference
 
 
 def _make_scope_symbol(
@@ -91,18 +89,18 @@ class TestLexicalReference:
             _ = inner_symbol.normalized_references
 
 
-class TestFixtureReference:
-    """Test FixtureReference with pytest fixture-style same-name skip semantics."""
+class TestLexicalReferenceSameNameSkip:
+    """Test LexicalReference with pytest fixture-style same-name skip semantics."""
 
-    def test_fixture_reference_not_found_raises_lookup_error(self) -> None:
-        """FixtureReference raises LookupError when name not found."""
+    def test_lexical_reference_not_found_raises_lookup_error(self) -> None:
+        """LexicalReference raises LookupError when name not found."""
         inner_def = ObjectScopeDefinition(
-            bases=(F(name="nonexistent"),),
+            bases=(L(path=("nonexistent",)),),
             is_public=False,
             underlying=object(),
         )
         root_def = _make_scope_symbol({"inner": inner_def})
         root_symbol = MixinSymbol(origin=(root_def,))
         inner_symbol = root_symbol["inner"]
-        with pytest.raises(LookupError, match="FixtureReference.*nonexistent.*not found"):
+        with pytest.raises(LookupError, match="LexicalReference.*nonexistent.*not found"):
             _ = inner_symbol.normalized_references

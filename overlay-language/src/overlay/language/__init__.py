@@ -2757,122 +2757,6 @@ class LexicalReference:
 
 @final
 @dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class FixtureReference:
-    """
-    A pytest-fixture-style reference with same-name skip semantics.
-
-    Resolution searches through self.outer, self.outer.outer, etc. for a symbol
-    containing a property with this name.
-
-    Same-name skip semantics: When resolved from a symbol whose key matches this
-    name, the first match is skipped. This allows a symbol to reference an outer
-    symbol with the same name, similar to pytest fixtures shadowing outer fixtures.
-
-    The returned RelativeReference has:
-
-    - de_bruijn_index: 1 means found in self.outer, 2 means self.outer.outer, etc.
-      Note: de_bruijn_index starts at 1 (not 0) because we count iterations.
-    - path: Always (name,) - a single-element tuple.
-
-    Examples:
-        From symbol "foo" in scope A where A contains "bar"::
-
-            FixtureReference(name="bar"):
-            - Level 1 (A = self.outer): "bar" in A? YES
-            - → RelativeReference(de_bruijn_index=1, path=("bar",))
-
-        From symbol "foo" in scope A where A["foo"] exists (same-name skip)::
-
-            FixtureReference(name="foo"):
-            - Level 1 (A = self.outer): "foo" in A? YES, but self.key == "foo", skip
-            - Level 2 (A.outer): "foo" in A.outer? YES (if found)
-            - → RelativeReference(de_bruijn_index=2, path=("foo",))
-    """
-
-    name: str
-
-    def resolve(self, symbol: MixinSymbol) -> ResolvedReference:
-        """Resolve this fixture reference from the given symbol.
-
-        Pytest fixture style: single name, same-name skips first match.
-        """
-        skip_first = self.name == symbol.key
-        de_bruijn_index = 0
-        # Start from symbol.outer (same off-by-one fix as LexicalReference)
-        current: MixinSymbol = symbol
-        match current.outer:
-            case OuterSentinel.ROOT:
-                raise LookupError(f"FixtureReference '{self.name}' not found")
-            case MixinSymbol() as first_outer:
-                current = first_outer
-
-        while True:
-            # Check if name exists in current
-            if self.name in current:
-                # Error on is_public=False resources when de_bruijn_index >= 1
-                # Private resources are only visible within their own scope
-                # Silently skipping would be surprising behavior for users
-                child_symbol = current.get(self.name)
-                is_private = child_symbol is not None and not child_symbol.is_public
-                if is_private and de_bruijn_index >= 1:
-                    raise LookupError(
-                        f"Cannot resolve '{self.name}': resource is not marked "
-                        f"as @public and is not accessible from nested scopes"
-                    )
-
-                if skip_first:
-                    skip_first = False
-                else:
-                    hashable_path: tuple[Hashable, ...] = (self.name,)
-                    break
-            # Recurse to outer
-            match current.outer:
-                case OuterSentinel.ROOT:
-                    raise LookupError(f"FixtureReference '{self.name}' not found")
-                case MixinSymbol() as outer_symbol:
-                    de_bruijn_index += 1
-                    current = outer_symbol
-
-        # Compute origin_symbol: start from symbol.outer
-        start_symbol: MixinSymbol = symbol
-        match start_symbol.outer:
-            case OuterSentinel.ROOT:
-                pass
-            case MixinSymbol() as outer_symbol:
-                start_symbol = outer_symbol
-        origin_symbol: MixinSymbol = start_symbol
-
-        # Navigate up de_bruijn_index levels
-        for _ in range(de_bruijn_index):
-            match start_symbol.outer:
-                case OuterSentinel.ROOT:
-                    raise ValueError(
-                        f"Cannot navigate up {de_bruijn_index} levels: reached root"
-                    )
-                case MixinSymbol() as outer_symbol:
-                    start_symbol = outer_symbol
-
-        # Resolve path to find target_symbol
-        current_symbol: MixinSymbol = start_symbol
-        for part in hashable_path:
-            child_symbol = current_symbol.get(part)
-            if child_symbol is None:
-                raise ValueError(
-                    f"Cannot navigate path {hashable_path!r}: "
-                    f"'{current_symbol.key}' has no child '{part}'"
-                )
-            current_symbol = child_symbol
-
-        return ResolvedReference(
-            de_bruijn_index=de_bruijn_index,
-            path=hashable_path,
-            target_symbol_bound=current_symbol,
-            origin_symbol=origin_symbol,
-        )
-
-
-@final
-@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
 class QualifiedThisReference:
     """
     A qualified this reference: [SelfName, ~, property, path].
@@ -2965,13 +2849,12 @@ ResourceReference: TypeAlias = (
     AbsoluteReference
     | RelativeReference
     | LexicalReference
-    | FixtureReference
     | QualifiedThisReference
 )
 """
 A reference to a resource in the lexical scope.
 
-This is a union type of AbsoluteReference, RelativeReference, LexicalReference, and FixtureReference.
+This is a union type of AbsoluteReference, RelativeReference, LexicalReference, and QualifiedThisReference.
 """
 
 
