@@ -1187,20 +1187,24 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
             set of outer scopes (initialization contexts) through which it
             is reached.
         """
-        visited: defaultdict[MixinSymbol, set[MixinSymbol]] = defaultdict(set)
-        pending: deque[MixinSymbol] = deque((self,))
-        while pending:
-            current = pending.popleft()
-            for union in current.overlays:
-                outers = visited[union]
-                if current.outer is OuterSentinel.ROOT:
-                    continue
-                if current.outer in outers:
-                    continue
-                outers.add(current.outer)
-                for resolved_reference in union.normalized_references:
-                    pending.extend(resolved_reference.get_symbols(current.outer))
-        return visited
+        try:
+            visited: defaultdict[MixinSymbol, set[MixinSymbol]] = defaultdict(set)
+            pending: deque[MixinSymbol] = deque((self,))
+            while pending:
+                current = pending.popleft()
+                for union in current.overlays:
+                    outers = visited[union]
+                    if current.outer is OuterSentinel.ROOT:
+                        continue
+                    if current.outer in outers:
+                        continue
+                    outers.add(current.outer)
+                    for resolved_reference in union.normalized_references:
+                        pending.extend(resolved_reference.get_symbols(current.outer))
+            return visited
+        except BaseException as e:
+            e.add_note(f"While evaluating {self.path}...")
+            raise
 
     def _generate_overlays(self) -> Iterator["MixinSymbol"]:
         yield self
@@ -1744,14 +1748,10 @@ class PackageScopeDefinition(ObjectScopeDefinition):
                             bases=parsed.inheritances if index == 0 else (),
                             is_public=self.is_public,
                             underlying=properties,
-                            scalar_values=(
-                                parsed.scalar_values if index == 0 else ()
-                            ),
+                            scalar_values=(parsed.scalar_values if index == 0 else ()),
                             source_file=mixin_file,
                         )
-                        for index, properties in enumerate(
-                            parsed.property_definitions
-                        )
+                        for index, properties in enumerate(parsed.property_definitions)
                     )
                 else:
                     definitions.append(
