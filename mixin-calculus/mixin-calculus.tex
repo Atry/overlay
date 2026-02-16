@@ -1099,35 +1099,104 @@ semantics and dynamic dispatch for file lookups across layers.
 
 \section{Future Work}
 
-\paragraph{Typed Overlay-Calculus.}
-Overlay-Calculus as presented here is untyped. A natural next step is to
-develop a \emph{Typed Overlay-Calculus} (TOC) that adds a type system
-while preserving the declarative character of the calculus.
-The key observation is that type systems are themselves a form of
-declarative programming: one declares types to guide meta-computation
-(type checking, type inference) without specifying operational steps.
-Since Overlay-Calculus demonstrates that declarative programming can be
-Turing complete, applying this insight to the type level yields a type
-system built from the same overlay primitives.
-TOC would relate to the DOT calculus~\cite{amin2016dot} in a manner
-analogous to how Overlay-Calculus relates to the $\lambda$-calculus:
-TOC can be viewed as DOT without $\lambda$, retaining
-path-dependent types while replacing functions with inheritance-based
-composition.
+\selfcite{The Overlay language~\cite{mixin2025}}{The supplementary
+implementation} is an executable implementation of Overlay-Calculus
+that already goes beyond the untyped calculus presented here:
+it includes compile-time checking that all references resolve to
+valid paths in the composition, and a foreign-function interface (FFI)
+that introduces scalar values from the host language.
+The future work described below concerns the distance between this
+implementation and a fully practical language---spanning both
+theoretical foundations and library-level encodings.
 
-A key difference concerns the interpretation of structural annotations.
-In untyped Overlay-Calculus, writing $\mathrm{magnitude} \mapsto \{\}$ in
-a schema (as in the informal example of Section~1) is purely
-documentary---it defines a structural slot but imposes no constraint.
-The expression $\mathrm{outcome} \mapsto \mathrm{Foo}.\self.\mathrm{magnitude}$
-succeeds as long as $\mathrm{magnitude}$ exists somewhere in the
-composition chain, regardless of any schema declaration.
-TOC would enforce such annotations statically, rejecting programs at
-compile time where the declared structure does not match the actual
-composition.
-Such a typed system would be amenable to mechanization in proof
+\paragraph{Type system.}
+The Overlay language's existing compile-time checks verify that every
+reference path resolves to a property that exists in the composed
+result. Formalizing the soundness of these checks---proving that
+well-typed programs do not produce dangling references at
+runtime---is one direction of future work.
+Such a formalization would relate to the DOT
+calculus~\cite{amin2016dot} in a manner analogous to how
+Overlay-Calculus relates to the $\lambda$-calculus: a Typed
+Overlay-Calculus can be viewed as DOT without $\lambda$, retaining
+path-dependent types while replacing functions with
+inheritance-based composition.
+A formal type system would be amenable to mechanization in proof
 assistants (Coq, Agda) for verifying type safety, progress, and
 preservation properties.
+
+Beyond soundness of the existing checks, additional type system
+features would strengthen the language.
+A key example is \emph{totality checking}: verifying that a
+composition provides implementations for all required slots, not
+merely that references resolve.
+In untyped Overlay-Calculus, writing $\mathrm{magnitude} \mapsto \{\}$
+is purely documentary---it defines a structural slot but imposes no
+constraint on what must fill it.
+Totality checking would enforce such declarations statically,
+rejecting compositions that leave required slots unfilled.
+
+\paragraph{Standard library.}
+The remaining items concern the \emph{standard library}: they require
+no extensions to the calculus or type system, but involve nontrivial
+encodings within the existing framework.
+
+Overlay-Calculus is \emph{open by default}: composition ($\sqcup$)
+can freely merge any two overlays, and a value may simultaneously
+inhabit multiple constructors (e.g.,
+$\mathrm{Zero} \sqcup \mathrm{Odd}(\mathrm{Zero})$).
+This is not a defect---it is the natural trie semantics of the
+calculus, and the basis for solving the expression problem
+(Section~5.2).
+However, many operations (e.g., equality testing) assume that values
+are \emph{linear}---inhabiting exactly one constructor.
+The observer pattern (Appendix~\ref{app:church}) does not enforce
+this: applied to a multi-constructor value, all callbacks fire and
+their results are composed.
+
+\emph{Schema validation} can be implemented at the library level
+using existing primitives.
+An observer can test whether a particular constructor is present,
+returning a Boolean; a second Boolean dispatch then branches on the
+result.
+By chaining such tests, a factory can validate that a value matches
+exactly one constructor and carries the required fields.
+This does not restrict $\sqcup$ itself---composition remains
+unconstrained---but provides a way to detect invariant violations
+before they propagate.
+
+The same technique---observer returning Boolean, followed by Boolean
+dispatch---yields \emph{closed pattern matching}.
+The observer pattern of Appendix~\ref{app:church} is inherently
+\emph{open}: new constructor cases can be added through composition.
+Closed matching, where exactly one branch is taken, can be encoded as
+a \emph{visitor chain}: a linked list of if-then-else nodes, each
+testing one constructor and falling through on mismatch.
+This is analogous to GHC.Generics' $\mathrm{(:+:)}$ sum
+representation~\cite{magalhaes2010generic}, where each link
+corresponds to one summand.
+An important consequence is that such chains do \emph{not}
+commute---they have a fixed order---and therefore cannot be extended
+through open composition, which is the correct semantics for closed
+dispatch.
+
+The trie operations in Appendix~\ref{app:trie} are hardcoded for
+binary natural number keys.
+Since every overlay \emph{is} a trie (Section~5.4) and insertion is
+simply $\sqcup$, only operations that cannot be expressed as
+composition need explicit implementation: \emph{deletion},
+\emph{dynamic lookup}, and \emph{prefix lookup}.
+Generalizing to arbitrary key types requires each key factory to
+provide two interfaces---\emph{SelectTrieChild} (select a subtrie by
+constructor) and \emph{ReplaceTrieChild} (replace a subtrie by
+constructor while preserving the rest)---corresponding to the getter
+and setter of a lens~\cite{foster2007combinators} focused on the
+constructor-determined child.
+Prefix lookup is structurally analogous to equality testing: both
+synchronously traverse a key (a single-path trie) alongside another
+structure, dispatching at each level.
+The difference is the return type---a Boolean for equality, a subtrie
+for prefix lookup.
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{mixin-calculus}
