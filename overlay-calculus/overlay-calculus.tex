@@ -13,9 +13,9 @@
 %% expanded---preventing \cite from writing to the .aux file.
 \makeatletter
 \if@ACM@anonymous
-  \newcommand{\selfcite}[2]{#2}%
+\newcommand{\selfcite}[2]{#2}%
 \else
-  \newcommand{\selfcite}[2]{#1}%
+\newcommand{\selfcite}[2]{#1}%
 \fi
 \makeatother
 
@@ -37,7 +37,7 @@
 
 \begin{document}
 
-\title{Overlay-Calculus}
+\title{A Calculus of Overlays}
 
 \author{Bo Yang}
 \affiliation{%
@@ -126,7 +126,7 @@
 \keywords{declarative programming, inheritance, denotational semantics,
   self-referential records, expression problem,
   \texorpdfstring{$\lambda$-calculus}{lambda-calculus},
-  \texorpdfstring{B\"ohm trees}{Bohm trees}, configuration languages}
+\texorpdfstring{B\"ohm trees}{Bohm trees}, configuration languages}
 
 \maketitle
 
@@ -648,7 +648,7 @@ $p_{\mathrm{def}}$, and collects the corresponding
 inheritance-site paths as the new frontier.
 After $n$ steps the frontier contains the answer:
 \begin{equation}\label{eq:this}
-\small
+  \small
   \this(S,\; p_{\mathrm{def}},\; n) =
   \begin{cases}
     S & \text{if } n = 0 \\[6pt]
@@ -1668,9 +1668,9 @@ subtries but omits the value:
     \mathrm{Rebuilder},\;
     \mathrm{result} \mapsto \{ \\
       &\quad \mathrm{at\_odd} \mapsto
-        \qualifiedthis{\mathrm{delete\_on\_zero}}.\mathrm{trie}.\mathrm{at\_odd},\; \\
+      \qualifiedthis{\mathrm{delete\_on\_zero}}.\mathrm{trie}.\mathrm{at\_odd},\; \\
       &\quad \mathrm{at\_even} \mapsto
-        \qualifiedthis{\mathrm{delete\_on\_zero}}.\mathrm{trie}.\mathrm{at\_even}\}\}\}
+\qualifiedthis{\mathrm{delete\_on\_zero}}.\mathrm{trie}.\mathrm{at\_even}\}\}\}
 \end{align*}
 The $\mathrm{result}.\mathrm{value}$ slot inherits only the empty
 declaration from $\mathrm{Rebuilder}$, effectively deleting the entry.
@@ -1720,7 +1720,7 @@ callbacks to obtain a Rebuilder, then applies it to the trie:
     \mathrm{applied\_key}.\mathrm{result},\; \\
     &\qquad\quad
   \mathrm{trie} \mapsto \mathrm{trie\_input}\},\\
-  &\quad \mathrm{result} \mapsto \mathrm{applied\_rebuilder}.\mathrm{result}\}
+&\quad \mathrm{result} \mapsto \mathrm{applied\_rebuilder}.\mathrm{result}\}
 \end{align*}
 Since inheritance is idempotent, the empty scaffolding left by the
 Rebuilder schema merges harmlessly with any subsequent insertions.
@@ -2195,11 +2195,11 @@ result.
 \paragraph{Equation~(\ref{eq:overlays}): $\overlays$}
 For $p \neq ()$:
 \[
-\overlays(p) = \{p\} \cup
-\bigl\{\, p_{\mathrm{branch}} \snoc \last(p) \bigm|
-  (\_, p_{\mathrm{branch}}) \in \supers(\init(p)),\;
-  \last(p) \in \defines(p_{\mathrm{branch}})
-\,\bigr\}.
+  \overlays(p) = \{p\} \cup
+  \bigl\{\, p_{\mathrm{branch}} \snoc \last(p) \bigm|
+    (\_, p_{\mathrm{branch}}) \in \supers(\init(p)),\;
+    \last(p) \in \defines(p_{\mathrm{branch}})
+  \,\bigr\}.
 \]
 The function $\supers$ appears as the set being iterated over.
 The filtering condition $\last(p) \in \defines(\cdot)$
@@ -2210,12 +2210,12 @@ to the result.
 
 \paragraph{Equation~(\ref{eq:bases}): $\bases$}
 \[
-\bases(p) =
-\bigl\{\, p_{\mathrm{target}} \bigm|
-  p_{\mathrm{overlay}} \in \overlays(p),\;
-  (n, \ell_{\mathrm{down},*}) \in \inherits(p_{\mathrm{overlay}}),\;
-  p_{\mathrm{target}} \in \resolve(\ldots)
-\,\bigr\}.
+  \bases(p) =
+  \bigl\{\, p_{\mathrm{target}} \bigm|
+    p_{\mathrm{overlay}} \in \overlays(p),\;
+    (n, \ell_{\mathrm{down},*}) \in \inherits(p_{\mathrm{overlay}}),\;
+    p_{\mathrm{target}} \in \resolve(\ldots)
+  \,\bigr\}.
 \]
 Both $\overlays$ and $\resolve$ appear as sets being iterated
 over.
@@ -2226,13 +2226,13 @@ the result.
 
 \paragraph{Equation~(\ref{eq:resolve}): $\resolve$}
 \[
-\resolve(\ldots) =
-\bigl\{\,
-  p_{\mathrm{current}} \snoc \ell_{\mathrm{down},1} \snoc \cdots
-  \bigm|
-  p_{\mathrm{current}} \in
-  \this(\{p_{\mathrm{site}}\}, \init(p_{\mathrm{def}}), n)
-\,\bigr\}.
+  \resolve(\ldots) =
+  \bigl\{\,
+    p_{\mathrm{current}} \snoc \ell_{\mathrm{down},1} \snoc \cdots
+    \bigm|
+    p_{\mathrm{current}} \in
+    \this(\{p_{\mathrm{site}}\}, \init(p_{\mathrm{def}}), n)
+  \,\bigr\}.
 \]
 The function $\this$ appears as the set being iterated over.
 Enlarging $\this$ can only add paths to the result.
@@ -2541,7 +2541,7 @@ $(\lambda y.\, M')[V/x] = \lambda y.\, (M'[V/x])$
 (assuming $y$ is fresh), the result follows.
 
 \paragraph{Inductive case:
-$M = \mathbf{let}\; z = V_1\; V_2$
+  $M = \mathbf{let}\; z = V_1\; V_2$
 $\mathbf{in}\; M'$}
 Then $\mathcal{T}(M) =
 \{z \mapsto \{\mathcal{T}(V_1),\;
