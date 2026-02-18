@@ -8,10 +8,16 @@
 
 \usepackage{mathtools}
 
-%% Conditional citation: hide self-citations under anonymous review
-\newcommand{\selfcite}[2]{%
-  \if@ACM@anonymous{#2}\else{#1}\fi
-}
+%% Conditional citation: hide self-citations under anonymous review.
+%% Use \@firstoftwo / \@secondoftwo so the unchosen branch is never
+%% expanded---preventing \cite from writing to the .aux file.
+\makeatletter
+\if@ACM@anonymous
+  \newcommand{\selfcite}[2]{#2}%
+\else
+  \newcommand{\selfcite}[2]{#1}%
+\fi
+\makeatother
 
 \newcommand{\Path}{\mathtt{Path}}
 \newcommand{\dom}{\mathtt{dom}}
