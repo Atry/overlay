@@ -574,7 +574,6 @@ from typing import (
 
 if TYPE_CHECKING:
     from overlay.language import runtime
-    from overlay.language.mixin_parser import FileMixinDefinition
 
 
 import weakref
@@ -890,7 +889,7 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
         return tuple(
             reference.resolve(self)
             for definition in self.definitions
-            for reference in definition.bases
+            for reference in definition.inherits
         )
 
     @final
@@ -1509,10 +1508,18 @@ class SemigroupSymbol(MergerSymbol[T, T], PatcherSymbol[T], Generic[T]):
 
 @dataclass(kw_only=True, frozen=True, eq=False)
 class Definition(ABC):
-    """Base class for all definitions."""
+    """Base class for all definitions.
 
-    bases: tuple["ResourceReference", ...]
+    Subclasses must provide ``bases`` either via the ``_bases`` dataclass
+    field (which is exposed through a ``@property``) or as a
+    ``@cached_property`` for lazy computation.
+    """
+
     is_public: bool
+
+    @property
+    @abstractmethod
+    def inherits(self) -> tuple["ResourceReference", ...]: ...
 
 
 @dataclass(kw_only=True, frozen=True, eq=False)
@@ -1522,6 +1529,12 @@ class EvaluatorDefinition(Definition, ABC):
 
     All concrete subclasses must have a ``function`` field of type ``Callable[..., T]``.
     """
+
+    bases: tuple["ResourceReference", ...]
+
+    @property
+    def inherits(self) -> tuple["ResourceReference", ...]:
+        return self.bases
 
     @abstractmethod
     def compile(self, symbol: "MixinSymbol", /) -> "EvaluatorSymbol":
@@ -1614,6 +1627,12 @@ class ScopeDefinition(
     returns one definition per key. Future versions may expose APIs for defining
     multiple same-name definitions within a single scope.
     """
+
+    bases: tuple["ResourceReference", ...]
+
+    @property
+    def inherits(self) -> tuple["ResourceReference", ...]:
+        return self.bases
 
     def __len__(self) -> int:
         return sum(1 for _ in self)
@@ -1754,75 +1773,20 @@ class PackageScopeDefinition(ObjectScopeDefinition):
         mixin_file = self._mixin_files.get(key)
         if mixin_file is not None:
             from overlay.language.mixin_parser import (
-                FileMixinDefinition,
-                load_overlay_file,
-                parse_mixin_value,
+                OverlayFileScopeDefinition,
             )
 
-            data = load_overlay_file(mixin_file)
-            if isinstance(data, dict):
-                definitions.append(
-                    _MixinFileScopeDefinition(
-                        bases=(),
-                        is_public=self.is_public,
-                        underlying=mixin_file,
-                    )
+            definitions.append(
+                OverlayFileScopeDefinition(
+                    is_public=self.is_public,
+                    source_file=mixin_file,
                 )
-            else:
-                parsed = parse_mixin_value(data, source_file=mixin_file)
-                if parsed.property_definitions:
-                    definitions.extend(
-                        FileMixinDefinition(
-                            bases=parsed.inheritances if index == 0 else (),
-                            is_public=self.is_public,
-                            underlying=properties,
-                            scalar_values=(parsed.scalar_values if index == 0 else ()),
-                            source_file=mixin_file,
-                        )
-                        for index, properties in enumerate(parsed.property_definitions)
-                    )
-                else:
-                    definitions.append(
-                        FileMixinDefinition(
-                            bases=parsed.inheritances,
-                            is_public=self.is_public,
-                            underlying={},
-                            scalar_values=parsed.scalar_values,
-                            source_file=mixin_file,
-                        )
-                    )
+            )
 
         if not definitions:
             raise KeyError(key)
 
         return tuple(definitions)
-
-
-@final
-@dataclass(frozen=True, kw_only=True, slots=True, weakref_slot=True)
-class _MixinFileScopeDefinition(ScopeDefinition):
-    """Internal scope definition for a parsed mixin file."""
-
-    underlying: Path
-
-    def __iter__(self) -> Iterator[Hashable]:
-        yield from self._parsed.keys()
-
-    def __len__(self) -> int:
-        return len(self._parsed)
-
-    def __getitem__(self, key: Hashable) -> Sequence[Definition]:
-        assert isinstance(key, str)
-        parsed = self._parsed
-        if key not in parsed:
-            raise KeyError(key)
-        return parsed[key]
-
-    @cached_property
-    def _parsed(self) -> Mapping[str, Sequence["FileMixinDefinition"]]:
-        from overlay.language.mixin_parser import parse_mixin_file
-
-        return parse_mixin_file(self.underlying)
 
 
 def scope(c: object) -> ObjectScopeDefinition:
@@ -1883,16 +1847,16 @@ TDefinition = TypeVar("TDefinition", bound=Definition)
 
 
 def extend(
-    *bases: "ResourceReference",
+    *inherits: "ResourceReference",
 ) -> Callable[[TDefinition], TDefinition]:
     """
-    Decorator that adds base references to a Definition.
+    Decorator that adds inheritance references to a Definition.
 
     Use this decorator to specify that a scope extends other scopes,
     inheriting their mixins.
 
-    :param bases: ResourceReferences to other scopes whose mixins should be included.
-                  This allows composing scopes without explicit merge operations.
+    :param inherits: ResourceReferences to other scopes whose mixins should be included.
+                     This allows composing scopes without explicit merge operations.
 
     Example - Extending a sibling scope::
 
@@ -1953,7 +1917,7 @@ def extend(
     """
 
     def decorator(definition: TDefinition) -> TDefinition:
-        return replace(definition, bases=bases)
+        return replace(definition, bases=inherits)
 
     return decorator
 

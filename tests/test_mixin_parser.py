@@ -184,11 +184,11 @@ MultiOriginMixin:
         assert len(origins) == 2  # Two property definitions = two origins
 
         # First origin has inheritance and first properties
-        assert len(origins[0].bases) == 1
+        assert len(origins[0].inherits) == 1
         assert "field1" in origins[0].underlying
 
         # Second origin has no inheritance, just properties
-        assert len(origins[1].bases) == 0
+        assert len(origins[1].inherits) == 0
         assert "field2" in origins[1].underlying
 
 

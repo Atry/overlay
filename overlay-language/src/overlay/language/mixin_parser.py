@@ -41,6 +41,8 @@ import json
 import tomllib
 from collections.abc import Hashable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
+from dataclasses import field
+from functools import cached_property
 from pathlib import Path
 from typing import TypeAlias, final
 
@@ -325,7 +327,7 @@ def load_overlay_file(file_path: Path) -> JsonValue:
 
     name = file_path.name.lower()
     if name.endswith(".oyaml") or name.endswith(".oyml"):
-        return yaml.safe_load(content)
+        return yaml.load(content, Loader=yaml.CSafeLoader)  # noqa: S506
     elif name.endswith(".ojson"):
         return json.loads(content)
     elif name.endswith(".otoml"):
@@ -360,3 +362,109 @@ def parse_mixin_file(file_path: Path) -> Mapping[str, Sequence[FileMixinDefiniti
         _parse_top_level_mixin(mixin_name, mixin_value, file_path)
         for mixin_name, mixin_value in data.items()
     )
+
+
+@final
+class OverlayFileScopeDefinition(ScopeDefinition):
+    """
+    Lazy definition for an overlay file.
+
+    Handles both mapping-at-top-level (dict) and value-at-top-level (non-dict)
+    files. All parsing is deferred to ``@cached_property`` accessors.
+
+    Not a ``@dataclass`` because ``inherits`` must be lazily computed from file
+    content via ``@cached_property``, which conflicts with the inherited
+    ``bases`` dataclass field from ``ScopeDefinition``.
+    """
+
+    __slots__ = ("source_file",)
+
+    source_file: Path
+    """Path to the overlay file."""
+
+    def __init__(self, *, is_public: bool, source_file: Path) -> None:
+        object.__setattr__(self, "is_public", is_public)
+        object.__setattr__(self, "source_file", source_file)
+
+    @cached_property
+    def _loaded_data(self) -> JsonValue:
+        return load_overlay_file(self.source_file)
+
+    @cached_property
+    def _non_dict_parsed(self) -> ParsedMixinValue:
+        data = self._loaded_data
+        assert not isinstance(data, dict)
+        return parse_mixin_value(data, source_file=self.source_file)
+
+    @cached_property
+    def inherits(self) -> tuple[ResourceReference, ...]:
+        data = self._loaded_data
+        if isinstance(data, dict):
+            return ()
+        return self._non_dict_parsed.inheritances
+
+    @cached_property
+    def _dict_parsed(self) -> Mapping[str, Sequence[Definition]]:
+        data = self._loaded_data
+        assert isinstance(data, dict)
+        return dict(
+            _parse_top_level_mixin(name, value, self.source_file)
+            for name, value in data.items()
+        )
+
+    def __iter__(self) -> Iterator[Hashable]:
+        if isinstance(self._loaded_data, dict):
+            yield from self._dict_parsed.keys()
+        else:
+            seen: set[str] = set()
+            for properties in self._non_dict_parsed.property_definitions:
+                for key in properties:
+                    if key not in seen:
+                        seen.add(key)
+                        yield key
+
+    def __getitem__(self, key: Hashable) -> Sequence[Definition]:
+        assert isinstance(key, str)
+
+        if isinstance(self._loaded_data, dict):
+            parsed = self._dict_parsed
+            if key not in parsed:
+                raise KeyError(key)
+            return parsed[key]
+
+        # Non-dict file: collect definitions from all property_definitions
+        definitions: list[Definition] = []
+        for properties in self._non_dict_parsed.property_definitions:
+            if key not in properties:
+                continue
+            value = properties[key]
+            child_parsed = parse_mixin_value(value, source_file=self.source_file)
+            if child_parsed.property_definitions:
+                definitions.extend(
+                    FileMixinDefinition(
+                        bases=child_parsed.inheritances if index == 0 else (),
+                        is_public=True,
+                        underlying=child_properties,
+                        scalar_values=(
+                            child_parsed.scalar_values if index == 0 else ()
+                        ),
+                        source_file=self.source_file,
+                    )
+                    for index, child_properties in enumerate(
+                        child_parsed.property_definitions
+                    )
+                )
+            else:
+                definitions.append(
+                    FileMixinDefinition(
+                        bases=child_parsed.inheritances,
+                        is_public=True,
+                        underlying={},
+                        scalar_values=child_parsed.scalar_values,
+                        source_file=self.source_file,
+                    )
+                )
+
+        if not definitions:
+            raise KeyError(key)
+        return tuple(definitions)
