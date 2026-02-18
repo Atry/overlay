@@ -7,7 +7,7 @@
         runtimeInputs = [ pkgs.gnutar ];
         text = ''
           tar -czvf arxiv-submission.tar.gz \
-            -C mixin-calculus \
+            -C overlay-calculus \
             *.tex \
             *.bib \
             *.bst \
