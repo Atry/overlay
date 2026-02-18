@@ -326,7 +326,8 @@ Let $k$ denote a non-negative integer (path length).
   c \quad ::= \quad & \ell \mapsto e
   && \text{(definition)} \\
   \mid\quad & [\qualifiedthis{\ell_{\mathrm{up}}}. \mid \dbi{n}.]\;\ell_{\mathrm{down},1}.\ell_{\mathrm{down},2}\ldots\ell_{\mathrm{down},k}
-  && \text{(inheritance, } k \ge 0 \text{ with qualifier, } k \ge 1 \text{ without)}
+  && \text{(inheritance, } k \ge 0 \text{ with qualifier,} \\
+  &&& k \ge 1 \text{ without)}
 \end{align*}
 
 An expression is a \emph{set} of elements enclosed in braces.
@@ -590,16 +591,16 @@ Resolution proceeds in two phases: first, the qualified this resolution function
 starting from the enclosing scope $\init(p_{\mathrm{def}})$,
 mapping the definition-site path to inheritance-site paths;
 then the downward projections $\ell_{\mathrm{down},*}$ are appended:
-\begin{equation}\label{eq:resolve}
+\begin{multline}\label{eq:resolve}
   \resolve(p_{\mathrm{site}},\; p_{\mathrm{def}},\; n,\; \ell_{\mathrm{down},*})
-  =
+  = \\
   \bigl\{\;
     p_{\mathrm{current}} \snoc \ell_{\mathrm{down},1} \snoc \cdots \snoc \ell_{\mathrm{down},k}
     \;\big|\;
     p_{\mathrm{current}} \in
     \this(\{p_{\mathrm{site}}\},\; \init(p_{\mathrm{def}}),\; n)
   \;\bigr\}
-\end{equation}
+\end{multline}
 When multiple routes exist (due to multi-path inheritance),
 they may yield different target paths; all are collected.
 We now define $\this$.
@@ -647,6 +648,7 @@ $p_{\mathrm{def}}$, and collects the corresponding
 inheritance-site paths as the new frontier.
 After $n$ steps the frontier contains the answer:
 \begin{equation}\label{eq:this}
+\small
   \this(S,\; p_{\mathrm{def}},\; n) =
   \begin{cases}
     S & \text{if } n = 0 \\[6pt]
@@ -1050,7 +1052,8 @@ We define an expression language with an evaluation operation:
     \mathrm{outcome} \mapsto \mathrm{sum}.\mathrm{outcome}\}\},\\[4pt]
     \mathrm{binnat} &\mapsto \{
       \mathrm{Addition} \mapsto
-      \{\mathrm{augend} \mapsto \{\},\;
+      \{\mathrm{augend} \mapsto \{\},\; \\
+        &\qquad\qquad
         \mathrm{addend} \mapsto \{\},\;
     \mathrm{outcome} \mapsto \{\}\}\}
   \quad \}
@@ -1064,10 +1067,13 @@ module that inherits from the same $\mathrm{expression}$ schemas:
       \mathrm{representation} \mapsto
     \qualifiedthis{\mathrm{Constant}}.\mathrm{magnitude}\},\\
     \mathrm{Addition} &\mapsto \{
-      \mathrm{expression}.\mathrm{Addition},\;
-      \mathrm{representation} \mapsto \{
+      \mathrm{expression}.\mathrm{Addition},\; \\
+      &\qquad
+      \mathrm{representation} \mapsto \{ \\
+        &\qquad\qquad
         \mathrm{left} \mapsto
-        \qualifiedthis{\mathrm{Addition}}.\mathrm{left}.\mathrm{representation},\;
+        \qualifiedthis{\mathrm{Addition}}.\mathrm{left}.\mathrm{representation},\; \\
+        &\qquad\qquad
         \mathrm{right} \mapsto
   \qualifiedthis{\mathrm{Addition}}.\mathrm{right}.\mathrm{representation}\}\}\}
 \end{align*}
@@ -1616,12 +1622,16 @@ callbacks to obtain a Selector, then applies it to the trie:
     &\quad \mathrm{key} \mapsto \qualifiedthis{\mathrm{trie\_module}}.\mathrm{BinNat},\\
     &\quad \mathrm{trie\_input} \mapsto \{\},\\
     &\quad \mathrm{applied\_key} \mapsto \{
-      \mathrm{key},\;
-      \mathrm{on\_zero} \mapsto \mathrm{lookup\_on\_zero},\;
-      \mathrm{on\_odd} \mapsto \mathrm{lookup\_on\_odd},\;
+      \mathrm{key},\; \\
+      &\qquad\quad
+      \mathrm{on\_zero} \mapsto \mathrm{lookup\_on\_zero},\; \\
+      &\qquad\quad
+      \mathrm{on\_odd} \mapsto \mathrm{lookup\_on\_odd},\; \\
+      &\qquad\quad
     \mathrm{on\_even} \mapsto \mathrm{lookup\_on\_even}\},\\
     &\quad \mathrm{applied\_selector} \mapsto \{
-      \mathrm{applied\_key}.\mathrm{result},\;
+      \mathrm{applied\_key}.\mathrm{result},\; \\
+      &\qquad\quad
     \mathrm{trie} \mapsto \mathrm{trie\_input}\},\\
   &\quad \mathrm{result} \mapsto \mathrm{applied\_selector}.\mathrm{result}\}
 \end{align*}
@@ -1641,21 +1651,27 @@ except at the targeted key.
 We fold the BinNat key into a \emph{Rebuilder}---an overlay that, given
 an input trie, produces a new trie as its result.
 A Rebuilder declares the trie shape on both its input and output:
-\[
-  \mathrm{Rebuilder} \mapsto \{
-    \mathrm{trie} \mapsto \{\mathrm{value} \mapsto \{\},\; \mathrm{at\_odd} \mapsto \{\},\; \mathrm{at\_even} \mapsto \{\}\},\;
-  \mathrm{result} \mapsto \{\mathrm{value} \mapsto \{\},\; \mathrm{at\_odd} \mapsto \{\},\; \mathrm{at\_even} \mapsto \{\}\}\}
-\]
+\begin{align*}
+  \mathrm{Rebuilder} \mapsto \{&
+    \mathrm{trie} \mapsto \{\mathrm{value} \mapsto \{\},\;
+      \mathrm{at\_odd} \mapsto \{\},\;
+    \mathrm{at\_even} \mapsto \{\}\},\; \\
+    &\mathrm{result} \mapsto \{\mathrm{value} \mapsto \{\},\;
+      \mathrm{at\_odd} \mapsto \{\},\;
+  \mathrm{at\_even} \mapsto \{\}\}\}
+\end{align*}
 Three observer callbacks build Rebuilders bottom-up.
 The $\mathrm{on\_zero}$ callback returns a Rebuilder that copies the
 subtries but omits the value:
-\[
-  \mathrm{delete\_on\_zero} \mapsto \{
+\begin{align*}
+  \mathrm{delete\_on\_zero} \mapsto \{&
     \mathrm{Rebuilder},\;
-    \mathrm{result} \mapsto \{
-      \mathrm{at\_odd} \mapsto \qualifiedthis{\mathrm{delete\_on\_zero}}.\mathrm{trie}.\mathrm{at\_odd},\;
-\mathrm{at\_even} \mapsto \qualifiedthis{\mathrm{delete\_on\_zero}}.\mathrm{trie}.\mathrm{at\_even}\}\}\}
-\]
+    \mathrm{result} \mapsto \{ \\
+      &\quad \mathrm{at\_odd} \mapsto
+        \qualifiedthis{\mathrm{delete\_on\_zero}}.\mathrm{trie}.\mathrm{at\_odd},\; \\
+      &\quad \mathrm{at\_even} \mapsto
+        \qualifiedthis{\mathrm{delete\_on\_zero}}.\mathrm{trie}.\mathrm{at\_even}\}\}\}
+\end{align*}
 The $\mathrm{result}.\mathrm{value}$ slot inherits only the empty
 declaration from $\mathrm{Rebuilder}$, effectively deleting the entry.
 
@@ -1665,17 +1681,22 @@ $\mathrm{value}$ and $\mathrm{at\_even}$, but replaces
 $\mathrm{at\_odd}$ with the recursively rebuilt subtrie:
 \begin{align*}
 \mathrm{delete\_on\_odd} &\mapsto \{
-  \mathrm{argument} \mapsto \mathrm{Rebuilder},\;
+  \mathrm{argument} \mapsto \mathrm{Rebuilder},\; \\
+  &\quad
   \mathrm{result} \mapsto \{
     \mathrm{Rebuilder},\;\\
     &\qquad
     \mathrm{applied} \mapsto \{
-      \mathrm{argument},\;
+      \mathrm{argument},\; \\
+      &\qquad\quad
     \mathrm{trie} \mapsto \qualifiedthis{\mathrm{delete\_on\_odd}}.\mathrm{trie}.\mathrm{at\_odd}\},\\
     &\qquad
-    \mathrm{result} \mapsto \{
-      \mathrm{value} \mapsto \qualifiedthis{\mathrm{delete\_on\_odd}}.\mathrm{trie}.\mathrm{value},\;
-      \mathrm{at\_odd} \mapsto \mathrm{applied}.\mathrm{result},\;
+    \mathrm{result} \mapsto \{ \\
+      &\qquad\quad
+      \mathrm{value} \mapsto \qualifiedthis{\mathrm{delete\_on\_odd}}.\mathrm{trie}.\mathrm{value},\; \\
+      &\qquad\quad
+      \mathrm{at\_odd} \mapsto \mathrm{applied}.\mathrm{result},\; \\
+      &\qquad\quad
       \mathrm{at\_even} \mapsto \qualifiedthis{\mathrm{delete\_on\_odd}}.\mathrm{trie}.\mathrm{at\_even}
 \}\}\}
 \end{align*}
@@ -1688,14 +1709,18 @@ callbacks to obtain a Rebuilder, then applies it to the trie:
   &\quad \mathrm{key} \mapsto \qualifiedthis{\mathrm{trie\_module}}.\mathrm{BinNat},\\
   &\quad \mathrm{trie\_input} \mapsto \{\},\\
   &\quad \mathrm{applied\_key} \mapsto \{
-    \mathrm{key},\;
-    \mathrm{on\_zero} \mapsto \mathrm{delete\_on\_zero},\;
-    \mathrm{on\_odd} \mapsto \mathrm{delete\_on\_odd},\;
+    \mathrm{key},\; \\
+    &\qquad\quad
+    \mathrm{on\_zero} \mapsto \mathrm{delete\_on\_zero},\; \\
+    &\qquad\quad
+    \mathrm{on\_odd} \mapsto \mathrm{delete\_on\_odd},\; \\
+    &\qquad\quad
   \mathrm{on\_even} \mapsto \mathrm{delete\_on\_even}\},\\
   &\quad \mathrm{applied\_rebuilder} \mapsto \{
-    \mathrm{applied\_key}.\mathrm{result},\;
+    \mathrm{applied\_key}.\mathrm{result},\; \\
+    &\qquad\quad
   \mathrm{trie} \mapsto \mathrm{trie\_input}\},\\
-&\quad \mathrm{result} \mapsto \mathrm{applied\_rebuilder}.\mathrm{result}\}
+  &\quad \mathrm{result} \mapsto \mathrm{applied\_rebuilder}.\mathrm{result}\}
 \end{align*}
 Since inheritance is idempotent, the empty scaffolding left by the
 Rebuilder schema merges harmlessly with any subsequent insertions.
@@ -1858,7 +1883,9 @@ constructors ($\mathrm{Zero}$, $\mathrm{Succ}$), and an operation
 
 \paragraph{Concrete example}
 At the root scope level,
-$\mathrm{one} \mapsto \{\mathrm{natural}.\mathrm{Succ},\; \mathrm{predecessor} \mapsto \mathrm{natural}.\mathrm{Zero}\}$.
+\[
+\mathrm{one} \mapsto \{\mathrm{natural}.\mathrm{Succ},\; \mathrm{predecessor} \mapsto \mathrm{natural}.\mathrm{Zero}\}.
+\]
 Applying this with a Peano-style successor and zero:
 $\{\mathrm{one},\; \mathrm{successor} \mapsto S,\; \mathrm{zero} \mapsto Z\}$
 produces an object whose $\mathrm{result}$ label contains the same observable tree as
@@ -2022,8 +2049,9 @@ in
 The NixOS module system rejects this with:
 
 \begin{verbatim}
-error: The option `MyObjectA.outer' in
-  `<unknown-file>' is already declared
+error: The option `MyObjectA.outer'
+  in `<unknown-file>'
+  is already declared
   in `<unknown-file>'.
 \end{verbatim}
 
@@ -2132,8 +2160,8 @@ argument, i.e., that enlarging any of the input interpretations
 (in the $\subseteq$ ordering) can only enlarge the output.
 We verify this by inspecting the right-hand side of each equation
 and confirming that every occurrence of a mutually defined function
-appears in a \emph{positive} position---as the domain of an
-existential quantifier in a set
+appears in a \emph{positive} position---%
+as the domain of an existential quantifier in a set
 comprehension~\cite{aczel1977inductive}.
 
 \paragraph{Equation~(\ref{eq:properties}): $\properties$}
@@ -2166,11 +2194,13 @@ result.
 
 \paragraph{Equation~(\ref{eq:overlays}): $\overlays$}
 For $p \neq ()$:
-$\overlays(p) = \{p\} \cup
+\[
+\overlays(p) = \{p\} \cup
 \bigl\{\, p_{\mathrm{branch}} \snoc \last(p) \bigm|
   (\_, p_{\mathrm{branch}}) \in \supers(\init(p)),\;
   \last(p) \in \defines(p_{\mathrm{branch}})
-\,\bigr\}$.
+\,\bigr\}.
+\]
 The function $\supers$ appears as the set being iterated over.
 The filtering condition $\last(p) \in \defines(\cdot)$
 involves only the AST primitive.
@@ -2179,12 +2209,14 @@ to the result.
 \emph{Positive in $\supers$.}
 
 \paragraph{Equation~(\ref{eq:bases}): $\bases$}
-$\bases(p) =
+\[
+\bases(p) =
 \bigl\{\, p_{\mathrm{target}} \bigm|
   p_{\mathrm{overlay}} \in \overlays(p),\;
   (n, \ell_{\mathrm{down},*}) \in \inherits(p_{\mathrm{overlay}}),\;
   p_{\mathrm{target}} \in \resolve(\ldots)
-\,\bigr\}$.
+\,\bigr\}.
+\]
 Both $\overlays$ and $\resolve$ appear as sets being iterated
 over.
 The function $\inherits$ is an AST primitive.
@@ -2193,13 +2225,15 @@ the result.
 \emph{Positive in $\overlays$ and $\resolve$.}
 
 \paragraph{Equation~(\ref{eq:resolve}): $\resolve$}
-$\resolve(\ldots) =
+\[
+\resolve(\ldots) =
 \bigl\{\,
   p_{\mathrm{current}} \snoc \ell_{\mathrm{down},1} \snoc \cdots
   \bigm|
   p_{\mathrm{current}} \in
   \this(\{p_{\mathrm{site}}\}, \init(p_{\mathrm{def}}), n)
-\,\bigr\}$.
+\,\bigr\}.
+\]
 The function $\this$ appears as the set being iterated over.
 Enlarging $\this$ can only add paths to the result.
 \emph{Positive in $\this$.}
@@ -2502,11 +2536,13 @@ properties under
 $C \snoc \mathrm{result} \snoc \mathrm{result}$
 coincide with those of
 $\mathcal{T}(M'[V/x])$.
-Since $(\lambda y.\, M')[V/x] = \lambda y.\, (M'[V/x])$
+Since
+$(\lambda y.\, M')[V/x] = \lambda y.\, (M'[V/x])$
 (assuming $y$ is fresh), the result follows.
 
 \paragraph{Inductive case:
-$M = \mathbf{let}\; z = V_1\; V_2 \;\mathbf{in}\; M'$}
+$M = \mathbf{let}\; z = V_1\; V_2$
+$\mathbf{in}\; M'$}
 Then $\mathcal{T}(M) =
 \{z \mapsto \{\mathcal{T}(V_1),\;
   \mathrm{argument} \mapsto \mathcal{T}(V_2)\},\;
