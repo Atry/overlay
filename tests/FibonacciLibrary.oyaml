@@ -1,77 +1,72 @@
 - [Builtin, BooleanVisitor]
 - FibonacciFactory:
+    Zero: [Product]
+    One: [Product]
     Product:
-      IsZero:
-        isZero: [FibonacciLibrary, ~, Boolean]
-      Decrement:
-        decreased: [Product]
+      Visitor:
+        VisitZero: []
+        VisitOne: []
+        VisitMoreThanOne:
+          decrementedOnce: [Product]
+          decrementedTwice: [Product]
+        Visit:
+          decrementedOnce: [Product]
+          decrementedTwice: [Product]
       Plus:
         addend: [Product]
         sum: [Product]
-      IsOne:
-        isOne: [Decrement, decreased, IsZero, isZero]
-    Zero: [Product]
-    One: [Product]
 
     Fibonacci:
       n:
         - [Product]
-        - Decrement:
-            decreased:
-              - [Product]
-              - Decrement:
-                  decreased: [Product]
-      _IsZeroVisitor:
-        - [n, IsZero, isZero, Visitor]
-        - VisitTrue:
+        - Visitor: []
+      _NVisitor:
+        - [n, Visitor]
+        - VisitZero:
             fibonacci: [Zero]
-          VisitFalse:
-            _IsOneVisitor:
-              - [n, IsOne, isOne, Visitor]
-              - VisitTrue:
-                  fibonacci: [One]
-                VisitFalse:
-                  _fibonacciDecreasedOnce:
-                    - [Fibonacci]
-                    - n: [Fibonacci, ~, n, Decrement, decreased]
-                  _fibonacciDecreasedTwice:
-                    - [Fibonacci]
-                    - n: [Fibonacci, ~, n, Decrement, decreased, Decrement, decreased]
-                  _addition:
-                    - [_fibonacciDecreasedOnce, fibonacci, Plus]
-                    - addend: [_fibonacciDecreasedTwice, fibonacci]
-                  fibonacci: [_addition, sum]
-                Visit:
-                  fibonacci: [Product]
-            fibonacci: [_IsOneVisitor, Visit, fibonacci]
+          VisitOne:
+            fibonacci: [One]
+          VisitMoreThanOne:
+            _fibonacciDecrementedOnce:
+              - [Fibonacci]
+              - n: [_NVisitor, ~, Visit, decrementedOnce]
+            _fibonacciDecrementedTwice:
+              - [Fibonacci]
+              - n: [_NVisitor, ~, Visit, decrementedTwice]
+            _addition:
+              - [_fibonacciDecrementedOnce, fibonacci, Plus]
+              - addend: [_fibonacciDecrementedTwice, fibonacci]
+            fibonacci: [_addition, sum]
           Visit:
             fibonacci: [Product]
-      fibonacci: [_IsZeroVisitor, Visit, fibonacci]
+      fibonacci: [_NVisitor, Visit, fibonacci]
 
     FibonacciAccumulator:
       n:
         - [Product]
-        - Decrement:
-            decreased: [Product]
-      _IsZeroVisitor:
-        - [n, IsZero, isZero, Visitor]
-        - VisitTrue:
+        - Visitor: []
+      _NVisitor:
+        - [n, Visitor]
+        - VisitZero:
             _current: [Zero]
             _next: [One]
-          VisitFalse:
+          VisitOne:
+            _current: [One]
+            _next: [One]
+          VisitMoreThanOne:
             _previousAccumulator:
               - [FibonacciAccumulator]
-              - n: [FibonacciAccumulator, ~, n, Decrement, decreased]
+              - n: [_NVisitor, ~, Visit, decrementedOnce]
             _current: [_previousAccumulator, _next]
             _addition:
               - [_previousAccumulator, _next, Plus]
               - addend: [_previousAccumulator, _current]
             _next: [_addition, sum]
           Visit:
-              _current: [Product]
-              _next: [Product]
-      _current: [_IsZeroVisitor, Visit, _current]
-      _next: [_IsZeroVisitor, Visit, _next]
+            _current: [Product]
+            _next: [Product]
+      _current: [_NVisitor, Visit, _current]
+      _next: [_NVisitor, Visit, _next]
       fibonacci: [_current]
 
 - [Builtin, BooleanData]

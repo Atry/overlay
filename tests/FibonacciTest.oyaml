@@ -17,6 +17,42 @@
         - [FibonacciTest, ~, NatFactory, Successor]
         - predecessor:
             - [FibonacciTest, ~, NatFactory, Zero]
+      Product:
+        Visitor:
+          VisitZero: []
+          VisitOne: []
+          VisitMoreThanOne:
+            decrementedOnce: [Product]
+            decrementedTwice: [Product]
+          Visit: []
+      Zero:
+        Visitor:
+          - VisitZero: []
+            VisitOne: []
+            VisitMoreThanOne:
+              decrementedOnce: [Product]
+              decrementedTwice: [Product]
+            Visit: [VisitZero]
+      Successor:
+        Visitor:
+          _PredVisitor:
+            - [Successor, ~, predecessor, Visitor]
+            - VisitZero:
+                _case:
+                  - [VisitOne]
+              VisitSuccessor:
+                _case:
+                  - [VisitMoreThanOne]
+                  - decrementedOnce: [Successor, ~, predecessor]
+                    decrementedTwice: [Successor, ~, predecessor, Decrement, decreased]
+              Visit:
+                _case: [Product]
+          VisitZero: []
+          VisitOne: []
+          VisitMoreThanOne:
+            decrementedOnce: [Product]
+            decrementedTwice: [Product]
+          Visit: [_PredVisitor, Visit, _case]
 
   BinNatFactory:
     - [FibonacciTest, ~, FibonacciFactory]
@@ -24,6 +60,55 @@
         - [FibonacciTest, ~, BinNatFactory, Odd]
         - halfOfPredecessor:
             - [FibonacciTest, ~, BinNatFactory, Zero]
+      Product:
+        Visitor:
+          VisitZero: []
+          VisitOne: []
+          VisitMoreThanOne:
+            decrementedOnce: [Product]
+            decrementedTwice: [Product]
+          Visit: []
+      Zero:
+        Visitor:
+          - VisitZero: []
+            VisitOne: []
+            VisitMoreThanOne:
+              decrementedOnce: [Product]
+              decrementedTwice: [Product]
+            Visit: [VisitZero]
+      Even:
+        Visitor:
+          - VisitZero: []
+            VisitOne: []
+            VisitMoreThanOne:
+              decrementedOnce: [Even, ~, Decrement, decreased]
+              decrementedTwice: [Even, ~, Decrement, decreased, Decrement, decreased]
+            Visit: [VisitMoreThanOne]
+      Odd:
+        Visitor:
+          _HalfVisitor:
+            - [Odd, ~, halfOfPredecessor, Visitor]
+            - VisitZero:
+                _case:
+                  - [VisitOne]
+              VisitEven:
+                _case:
+                  - [VisitMoreThanOne]
+                  - decrementedOnce: [Odd, ~, Decrement, decreased]
+                    decrementedTwice: [Odd, ~, Decrement, decreased, Decrement, decreased]
+              VisitOdd:
+                _case:
+                  - [VisitMoreThanOne]
+                  - decrementedOnce: [Odd, ~, Decrement, decreased]
+                    decrementedTwice: [Odd, ~, Decrement, decreased, Decrement, decreased]
+              Visit:
+                _case: [Product]
+          VisitZero: []
+          VisitOne: []
+          VisitMoreThanOne:
+            decrementedOnce: [Product]
+            decrementedTwice: [Product]
+          Visit: [_HalfVisitor, Visit, _case]
 
   # ===========================================================================
   # Nat Fibonacci tests
@@ -155,6 +240,78 @@
   binNatFibSix:
     - [FibonacciTest, ~, BinNatFactory, Fibonacci]
     - n: [binNatSix]
+
+  # ===========================================================================
+  # Nat trie Fibonacci tests
+  # ===========================================================================
+
+  # Two ∪ Three: {fib(2), fib(3)} = {1, 2}
+  natTwoOrThree:
+    - [FibonacciTest, ~, NatFactory, Successor]
+    - predecessor:
+        - [natOne]
+    - [FibonacciTest, ~, NatFactory, Successor]
+    - predecessor:
+        - [natTwo]
+
+  # Four ∪ Five: {fib(4), fib(5)} = {3, 5}
+  natFourOrFive:
+    - [FibonacciTest, ~, NatFactory, Successor]
+    - predecessor:
+        - [natThree]
+    - [FibonacciTest, ~, NatFactory, Successor]
+    - predecessor:
+        - [natFour]
+
+  natFibTwoOrThree:
+    - [FibonacciTest, ~, NatFactory, Fibonacci]
+    - n: [natTwoOrThree]
+
+  natFibFourOrFive:
+    - [FibonacciTest, ~, NatFactory, Fibonacci]
+    - n: [natFourOrFive]
+
+  natFibAccTwoOrThree:
+    - [FibonacciTest, ~, NatFactory, FibonacciAccumulator]
+    - n: [natTwoOrThree]
+
+  natFibAccFourOrFive:
+    - [FibonacciTest, ~, NatFactory, FibonacciAccumulator]
+    - n: [natFourOrFive]
+
+  # ===========================================================================
+  # BinNat trie Fibonacci tests
+  # ===========================================================================
+
+  # Two ∪ Three: Even(One) ∪ Odd(One)  →  {fib(2), fib(3)} = {1, 2}
+  binNatTwoOrThree:
+    - [FibonacciTest, ~, BinNatFactory, Even]
+    - [FibonacciTest, ~, BinNatFactory, Odd]
+    - half: [binNatOne]
+    - halfOfPredecessor: [binNatOne]
+
+  # Four ∪ Five: Even(Two) ∪ Odd(Two)  →  {fib(4), fib(5)} = {3, 5}
+  binNatFourOrFive:
+    - [FibonacciTest, ~, BinNatFactory, Even]
+    - [FibonacciTest, ~, BinNatFactory, Odd]
+    - half: [binNatTwo]
+    - halfOfPredecessor: [binNatTwo]
+
+  binNatFibTwoOrThree:
+    - [FibonacciTest, ~, BinNatFactory, Fibonacci]
+    - n: [binNatTwoOrThree]
+
+  binNatFibFourOrFive:
+    - [FibonacciTest, ~, BinNatFactory, Fibonacci]
+    - n: [binNatFourOrFive]
+
+  binNatFibAccTwoOrThree:
+    - [FibonacciTest, ~, BinNatFactory, FibonacciAccumulator]
+    - n: [binNatTwoOrThree]
+
+  binNatFibAccFourOrFive:
+    - [FibonacciTest, ~, BinNatFactory, FibonacciAccumulator]
+    - n: [binNatFourOrFive]
 
   # Accumulator Fibonacci (linear recursion) on BinNat
   binNatFibAccZero:
