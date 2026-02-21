@@ -27,9 +27,9 @@ import tests.fixtures.app_di.pragmas.wal_mode as wal_mode
 import tests.fixtures.app_oyaml as app_oyaml
 
 from overlay.language import extern, public, resource, scope
-from overlay.language.mixin_directory import DirectoryMixinDefinition
-from overlay.language.mixin_parser import OverlayFileScopeDefinition
-from overlay.language.runtime import evaluate
+from overlay.language._mixin_directory import DirectoryMixinDefinition
+from overlay.language._mixin_parser import OverlayFileScopeDefinition
+from overlay.language._runtime import evaluate
 
 
 # ---------------------------------------------------------------------------

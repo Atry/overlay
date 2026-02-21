@@ -7,21 +7,23 @@ from typing import Callable
 import pytest
 
 from overlay.language import (
-    resource,
-    scope,
+    RelativeReference,
     eager,
-    public,
     extend,
     extern,
     merge,
     patch,
     patch_many,
-    RelativeReference,
-    _parse_package,
+    public,
+    resource,
+    scope,
+)
+from overlay.language._core import (
     PackageScopeDefinition,
     ScopeDefinition,
+    _parse_package,
 )
-from overlay.language.runtime import (
+from overlay.language._runtime import (
     Mixin,
     Scope,
     evaluate,
@@ -1216,7 +1218,7 @@ class TestInstanceScopeImplementation:
 
         When providing a value via __call__, endofunction patches should be applied.
         """
-        from overlay.language import Endofunction
+        from overlay.language._core import Endofunction
 
         @scope
         class Config:

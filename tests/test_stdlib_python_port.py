@@ -8,15 +8,15 @@ Convention tested:
 import pytest
 
 from overlay.language import (
-    public,
-    resource,
-    scope,
     RelativeReference as R,
     extend,
     extern,
-    MixinSymbol,
+    public,
+    resource,
+    scope,
 )
-from overlay.language.runtime import Scope, evaluate
+from overlay.language._core import MixinSymbol
+from overlay.language._runtime import Scope, evaluate
 
 
 # =============================================================================

@@ -20,7 +20,7 @@ from types import ModuleType
 
 from overlay.language import RelativeReference as R
 from overlay.language import eager, extend, extern, merge, patch, public, resource, scope
-from overlay.language.runtime import evaluate
+from overlay.language._runtime import evaluate
 
 
 # ---------------------------------------------------------------------------

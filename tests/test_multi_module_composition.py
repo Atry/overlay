@@ -18,9 +18,9 @@ import pytest
 
 from syrupy.assertion import SnapshotAssertion
 
-from overlay.language import MixinSymbol, SymbolKind
-from overlay.language.mixin_directory import DirectoryMixinDefinition
-from overlay.language.runtime import Scope, evaluate
+from overlay.language._core import MixinSymbol, SymbolKind
+from overlay.language._mixin_directory import DirectoryMixinDefinition
+from overlay.language._runtime import Scope, evaluate
 
 
 FIXTURES_PATH = Path(__file__).parent / "fixtures"

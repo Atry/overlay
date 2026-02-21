@@ -30,8 +30,8 @@ from pathlib import Path
 import pytest
 
 import overlay.library
-from overlay.language.mixin_directory import DirectoryMixinDefinition
-from overlay.language.runtime import Scope, evaluate
+from overlay.language._mixin_directory import DirectoryMixinDefinition
+from overlay.language._runtime import Scope, evaluate
 
 
 TESTS_PATH = Path(__file__).parent

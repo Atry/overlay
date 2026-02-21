@@ -5,11 +5,11 @@ from pathlib import Path
 import pytest
 
 from overlay.language import LexicalReference, QualifiedThisReference
-from overlay.language.mixin_directory import (
+from overlay.language._mixin_directory import (
     DirectoryMixinDefinition,
     evaluate_mixin_directory,
 )
-from overlay.language.mixin_parser import (
+from overlay.language._mixin_parser import (
     FileMixinDefinition,
     parse_mixin_file,
     parse_mixin_value,

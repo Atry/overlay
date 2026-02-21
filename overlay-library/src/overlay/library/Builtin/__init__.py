@@ -2,7 +2,6 @@ from typing import Protocol
 
 from overlay.language import (
     LexicalReference,
-    MappingScopeDefinition,
     extend,
     merge,
     patch,
@@ -10,6 +9,7 @@ from overlay.language import (
     public,
     scope,
 )
+from overlay.language._core import MappingScopeDefinition
 
 
 class _NatScope(Protocol):

@@ -2,7 +2,8 @@ from pathlib import PurePath
 
 import pytest
 
-from overlay.language import AbsoluteReference, RelativeReference, resource_reference_from_pure_path
+from overlay.language import AbsoluteReference, RelativeReference
+from overlay.language._core import resource_reference_from_pure_path
 
 
 class TestResourceReferenceFromPurePath:

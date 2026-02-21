@@ -30,7 +30,7 @@ values are passed as kwargs when calling the evaluated scope.
 ```python
 import sqlite3
 from overlay.language import extern, public, resource, scope
-from overlay.language.runtime import evaluate
+from overlay.language import evaluate
 
 @scope
 class SQLiteDatabase:
@@ -817,7 +817,7 @@ are only needed during request handling.
 
 ```python
 import tests.fixtures.app_oyaml as app_oyaml
-from overlay.language.runtime import evaluate
+from overlay.language import evaluate
 
 # evaluate() auto-discovers stdlib_ffi/, Library.oyaml, and Apps.oyaml.
 root = evaluate(app_oyaml, modules_public=True)
