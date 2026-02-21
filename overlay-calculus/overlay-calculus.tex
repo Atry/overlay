@@ -66,7 +66,8 @@
   Overlay-Calculus is distilled from the Overlay language, a
   practical implementation in which we observed further emergent
   phenomena: the Expression Problem dissolves, programs are
-  CPS-agnostic, records natively encode random-access memory,
+  function color blind~\cite{nystrom2015color}, ordinary arithmetic
+  yields the relational semantics of logic programming,
   and self-reference resolves to multiple targets.
   These properties suggest applications to configuration languages,
   dependency injection, object-oriented programming, composable
@@ -199,7 +200,7 @@ functions or let-bindings.
 
 In developing real programs in the Overlay language---boolean logic and
 natural number arithmetic (Section~\ref{sec:case-study}) and a web application
-(Appendix~\ref{app:function-color-blind})---we found that the
+(Section~\ref{sec:practical-function-color})---we found that the
 linearization problem of mixin-based
 systems~\cite{bracha1990mixin,c3linearization} is structurally absent:
 because records are sets, inheritance is inherently commutative,
@@ -221,7 +222,7 @@ is the relational semantics of logic programming
 application overlay file runs under both Python asyncio and synchronous
 execution without modification---an instance of function color
 blindness~\cite{nystrom2015color}, equivalently CPS-agnostic behavior
-(Appendix~\ref{app:function-color-blind}).
+(Section~\ref{sec:practical-function-color}).
 
 This paper distills these observations into \textbf{Overlay-Calculus},
 a minimal computational model for declarative programming.
@@ -294,7 +295,7 @@ All tests are mechanically verified against expected output snapshots.
     programming from ordinary arithmetic
     (Section~\ref{sec:case-study}), and function color
     blindness~\cite{nystrom2015color}
-    (Appendix~\ref{app:function-color-blind}).
+    (Section~\ref{sec:practical-function-color}).
 \end{itemize}
 
 Section~\ref{sec:case-study} demonstrates these properties
@@ -1423,7 +1424,8 @@ none of them.
 Several classes of declarative systems that have emerged independently
 in practice turn out to be instances of Overlay-Calculus.
 
-\paragraph{Configuration and object-oriented languages}
+\subsubsection{Configuration and Object-Oriented Languages}
+\label{sec:practical-config}
 The NixOS module system~\cite{dolstra2008nixos,nixosmodules}---whose
 recursive attribute merging motivated this work---can be understood as an
 implementation of Overlay-Calculus with additional features (type checking,
@@ -1433,23 +1435,38 @@ trait calculi, and with the NixOS module system's lazy evaluation
 limitations under multiple inheritance routes are given in
 Section~\ref{sec:related-work}.
 
-\paragraph{Effect systems}
-Algebraic effects with handlers~\cite{plotkin2003algebraic,pretnar2015introduction}
-and monad transformers structure computational effects through composition.
-The function color blindness property (Appendix~\ref{app:function-color-blind}) shows how Overlay-Calculus naturally
-supports effect handler composition: empty API slots can be filled with
-effect handlers (CPS interpretation) or direct implementations (direct-style
-interpretation). The same pattern appears in algebraic effect systems, without
-explicit monad machinery.
+\subsubsection{Function Color Blindness}
+\label{sec:practical-function-color}
+We implemented a web application as overlay
+files\selfcite{~\cite{mixin2025}}{~(supplementary material)},
+initially targeting Python's synchronous \texttt{sqlite3} and
+\texttt{http.server} modules.
+The business logic overlay file contained no async-specific code.
+Later, we replaced the FFI layer with one built on
+\texttt{aiosqlite} and \texttt{starlette}; the business logic
+overlay file did not change.
+This is an instance of function color
+blindness~\cite{nystrom2015color}: async and sync functions are
+distinct types in the host language, yet the overlay file is
+agnostic to the distinction because its empty property slots
+are filled at assembly time---with coroutine handlers under
+\texttt{asyncio}, or with direct implementations under
+synchronous execution.
+More generally, empty slots can be filled with effect
+handlers~\cite{plotkin2003algebraic,pretnar2015introduction}
+(CPS interpretation) or direct implementations (direct-style
+interpretation), without explicit monad machinery.
 
-\paragraph{Modular software architectures}
+\subsubsection{Modular Software Architectures}
+\label{sec:practical-modular}
 Plugin systems, component frameworks, and dependency injection frameworks
 enable software extensibility through declarative inheritance. The
 symmetric, associative nature of inheritance (Section~\ref{sec:overlay-trees}) explains why such
 systems work: components can be inherited in any order without changing
 behavior. These systems implement Overlay-Calculus patterns ad hoc.
 
-\paragraph{Union file systems}
+\subsubsection{Union File Systems}
+\label{sec:practical-union-fs}
 Union file systems (UnionFS, OverlayFS, AUFS) layer multiple directory
 hierarchies to present a unified view. Their semantics resembles
 Overlay-Calculus---later layers override earlier layers, files from all
@@ -2669,174 +2686,5 @@ $\lambda$-calculus~\cite{barendregt1984lambda,hyland2000full}.
 The overlay tree semantics inherits full abstraction from the
 $\lambda$-calculus without needing to define or compare
 absolute paths inside overlay trees.
-
-\section{Function Color Blindness}
-\label{app:function-color-blind}
-
-% Previously titled "CPS-Agnostic Programs". Overlay-Calculus pseudocode preserved
-% below (commented out) for future porting to .oyaml.
-
-We implemented a web application as overlay files\selfcite{~\cite{mixin2025}}{~(supplementary material)}.
-The same overlay file runs under both Python \texttt{asyncio} and
-synchronous execution without modification---an instance of function color
-blindness~\cite{nystrom2015color}, equivalently CPS-agnostic behavior.
-We did not design for this.
-
-In Bob Nystrom's framing~\cite{nystrom2015color}, a language suffers from
-``function color'' when async functions and sync functions are distinct
-types and cannot be used interchangeably.
-In our web application, the same overlay file works in both execution
-contexts because empty property slots are structurally identical to filled
-ones: a slot left empty is an abstract dependency that an external
-orchestrator can fill at assembly time.
-Under \texttt{asyncio}, the orchestrator fills slots with coroutine
-handlers; under synchronous execution, it fills the same slots with
-direct implementations.
-The overlay file itself sees no difference.
-
-% --- Overlay-Calculus pseudocode (commented out; port to .oyaml before restoring) ---
-%
-% In the $\lambda$-calculus, a program is either in continuation-passing
-% style (CPS) or direct style. Converting between these representations
-% requires explicit transformation---the CPS
-% conversion~\cite{plotkin1975callbyname,sabry1993reasoning}.
-% In Overlay-Calculus, the distinction does not exist: the same program text
-% is CPS or direct-style depending on how dependencies are assembled.
-%
-% Consider a generic computation step:
-% \begin{align*}
-% \mathrm{Step} \mapsto \{
-%   \mathrm{input} \mapsto \{\},\;
-%   \mathrm{process} \mapsto \{\},\;
-%   \mathrm{result} \mapsto \{\}
-% \}
-% \end{align*}
-%
-% The empty $\mathrm{process}$ slot is an \emph{interpretation point}. If
-% filled externally by an orchestrator, it acts as a continuation parameter
-% (CPS interpretation). If inherited locally with an implementation, it acts
-% as a direct dependency (direct-style interpretation). The
-% $\mathrm{Step}$ code remains unchanged.
-%
-% \paragraph{CPS interpretation via external orchestration}
-% When $\mathrm{process}$ is injected from outside, the computation passes
-% its intermediate result to an external handler:
-% \begin{align*}
-% &\{\qualifiedthis{\mathrm{Step}},\; \\
-%   &\quad \mathrm{input} \mapsto \{\mathrm{data} \mapsto \{\}\},\; \\
-%   &\quad \mathrm{process} \mapsto \{ \\
-%     &\qquad \mathrm{result} \mapsto \{\mathrm{handled} \mapsto \{\}\} \\
-%   &\quad \} \\
-% &\}
-% \end{align*}
-% The $\mathrm{process}$ slot acts as a continuation: it receives the
-% result and determines what happens next. This is CPS-style programming.
-%
-% \paragraph{Direct-style interpretation via local inheritance}
-% Alternatively, $\mathrm{process}$ can be filled by local inheritance:
-% \begin{align*}
-% &\{\qualifiedthis{\mathrm{Step}},\; \\
-%   &\quad \mathrm{input} \mapsto \{\mathrm{data} \mapsto \{\}\},\; \\
-%   &\quad \mathrm{process.result} \mapsto \{\mathrm{computed} \mapsto \{\}\} \\
-% &\}
-% \end{align*}
-% Here $\mathrm{process}$ is implemented directly within the inheritance.
-% This is direct-style programming. The $\mathrm{Step}$ code is identical
-% in both cases---only the assembly strategy differs.
-%
-% \paragraph{Representation independence}
-% This property is a form of representation
-% independence~\cite{reynolds1983types} applied to control flow: client
-% code using $\mathrm{Step}$ need not know whether $\mathrm{process}$ will
-% be filled continuation-style or directly. Library authors write code
-% once; users choose the control flow style at assembly time.
-%
-% The $\lambda$-calculus lacks this flexibility. A function written in
-% direct style must be explicitly transformed (CPS conversion) before it
-% can be used continuation-style. Overlay-Calculus programs are inherently in
-% A-normal form~\cite{flanagan1993essence}, where every intermediate result
-% has a name.
-%
-% However, Overlay-Calculus ANF differs critically from ANF in functional
-% programming. In functional language compilers, ANF conversion requires
-% specifying a target monad---either a concrete monad or an abstract
-% one~\cite{moggi1991notions}. Compiler-internal ANF transformations (the
-% ANF form used in intermediate representations) typically target the
-% identity monad, which cannot express CPS transformations. This is
-% analogous to how imperative compilers use SSA (Static Single Assignment)
-% form, which similarly lacks control flow flexibility. Overlay-Calculus ANF,
-% by contrast, has built-in dependency injection: empty API slots can be
-% filled by external orchestrators. This capability enables the same ANF
-% program to serve both CPS and direct-style interpretations without monad
-% specification or transformation.
-%
-% \paragraph{Multiple symmetric continuations}
-% When interpreted continuation-style, Overlay-Calculus naturally supports
-% multiple exit points:
-% \begin{align*}
-% \mathrm{Choice} \mapsto \{
-%   \mathrm{on\_success} &\mapsto \{\},\; \\
-%   \mathrm{on\_failure} &\mapsto \{\},\; \\
-%   \mathrm{on\_timeout} &\mapsto \{\},\; \\
-%   \mathrm{result} &\mapsto \{\}
-% \}
-% \end{align*}
-%
-% All continuation slots are symmetric elements of the same record. Traditional CPS in
-% the $\lambda$-calculus distinguishes a single continuation parameter;
-% additional continuations must be encoded (e.g., as pairs or disjoint
-% sums). Overlay-Calculus treats all continuation slots uniformly, eliminating
-% the need for specialized encodings.
-%
-% \paragraph{Abstract and concrete are syntactically identical}
-% From a category-theoretic perspective, abstract algebra and concrete
-% implementation have the same syntactic structure in Overlay-Calculus:
-% \begin{align*}
-% \text{Abstract:} \quad & \mathrm{API} \mapsto \{\} \\
-% \text{Concrete:} \quad & \mathrm{API} \mapsto \{\text{implementation}\}
-% \end{align*}
-%
-% This is the abstract/concrete correspondence: the same functor applies to
-% both. In traditional languages, abstract interfaces (e.g., Java
-% interfaces, Haskell type classes) have different syntax from concrete
-% implementations. In Overlay-Calculus, they are syntactically
-% identical---only the interpretation differs. An empty API is
-% simultaneously an abstract requirement (when viewed as a dependency) and
-% a concrete extension point (when viewed as an injection site).
-%
-% The Selector and Rebuilder combinators (Appendix~\ref{app:trie})
-% demonstrate this flexibility: their callback slots
-% ($\mathrm{on\_zero}$, $\mathrm{on\_odd}$, $\mathrm{on\_even}$) can be
-% filled externally (CPS interpretation) or inherited locally (direct
-% interpretation).
-%
-% \paragraph{Practical implications}
-% A library component with empty API slots can be used in multiple
-% contexts without modification:
-% \begin{itemize}
-% \item In synchronous code, fill slots with direct implementations
-% \item In asynchronous code, fill slots with continuation handlers
-% \item In effect systems, compose with algebraic effect handlers~\cite{plotkin2003algebraic}
-% \item In test code, fill slots with mock implementations
-% \end{itemize}
-%
-% No dual APIs are needed. The same component serves all use cases. This
-% eliminates a common source of code duplication in traditional languages,
-% where async and sync versions of the same functionality must be
-% maintained separately.
-%
-% \selfcite{The implementation~\cite{mixin2025} includes}{The supplementary material includes} executable examples of all three
-% patterns described above: escape continuations analogous to
-% \texttt{call/cc}, success/failure continuations analogous to exception
-% handling, and protected computations with multiple symmetric exit points.
-% Each example includes test cases verifying that the correct continuation
-% path is taken.
-%
-% CPS-agnosticism is not a designed feature of Overlay-Calculus; it is
-% an emergent property of records and inheritance. The calculus
-% defines no notion of continuation---the three syntax constructs and
-% six semantic functions of Section~\ref{sec:overlay-trees} are the
-% entire language.
-% --- End of commented-out pseudocode ---
 
 \end{document}

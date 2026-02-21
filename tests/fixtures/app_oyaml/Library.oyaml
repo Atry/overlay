@@ -1,8 +1,58 @@
+# Library.oyaml — business logic, decoupled from any specific FFI implementation.
+# All FFI references use [FFI, Xxx] which resolves to abstract declarations below.
+# Concrete FFI implementations are provided at composition time (e.g. stdlib_ffi/FFI.py).
+
+FFI:
+  SqliteConnectAndExecuteScript:
+    database_path: []
+    setup_sql: []
+    connection: []
+  SqliteScalarQuery:
+    connection: []
+    sql: []
+    scalar: []
+  SqliteRowQuery:
+    connection: []
+    sql: []
+    parameters: []
+    row: []
+  TupleWrap:
+    element: []
+    wrapped: []
+  GetItem:
+    sequence: []
+    index: []
+    element: []
+  HttpRequestExtern:
+    request: []
+  ExtractUserId:
+    request: []
+    path_separator: []
+    user_id: []
+  FormatResponse:
+    response_template: []
+    user_count: []
+    current_user_name: []
+    response_body: []
+  HttpSendResponse:
+    request: []
+    status_code: []
+    body: []
+    written: []
+  HttpHandlerClass:
+    RequestScope: []
+    handler_class: []
+  HttpServerCreate:
+    host: []
+    port: []
+    handler_class: []
+    server: []
+
 SQLiteDatabase:
   database_path: []
   setup_sql: []
   _db:
-    - [ffi, SqliteConnectAndExecuteScript]
+    - [FFI, SqliteConnectAndExecuteScript]
     - database_path: [database_path]
       setup_sql: [setup_sql]
   connection: [_db, connection]
@@ -14,7 +64,7 @@ UserRepository:
     user_id: []
     name: []
   _count:
-    - [ffi, SqliteScalarQuery]
+    - [FFI, SqliteScalarQuery]
     - connection: [connection]
       sql: [user_count_sql]
   user_count: [_count, scalar]
@@ -22,19 +72,19 @@ UserRepository:
     user_id: []
     user_query_sql: []
     _params:
-      - [ffi, TupleWrap]
+      - [FFI, TupleWrap]
       - element: [user_id]
     _row:
-      - [ffi, SqliteRowQuery]
+      - [FFI, SqliteRowQuery]
       - connection: [connection]
         sql: [user_query_sql]
         parameters: [_params, wrapped]
     _identifier:
-      - [ffi, GetItem]
+      - [FFI, GetItem]
       - sequence: [_row, row]
         index: 0
     _name:
-      - [ffi, GetItem]
+      - [FFI, GetItem]
       - sequence: [_row, row]
         index: 1
     current_user:
@@ -45,16 +95,16 @@ UserRepository:
 HttpHandlers:
   user_count: []
   RequestScope:
-    - [ffi, HttpRequestExtern]
-    - [ffi, ExtractUserId]
-    - [ffi, HttpSendResponse]
+    - [FFI, HttpRequestExtern]
+    - [FFI, ExtractUserId]
+    - [FFI, HttpSendResponse]
     - request: []
       path_separator: []
       response_template: []
       status_code: 200
       current_user_name: []
       _format:
-        - [ffi, FormatResponse]
+        - [FFI, FormatResponse]
         - response_template: [response_template]
           user_count: [user_count]
           current_user_name: [current_user_name]
@@ -65,29 +115,11 @@ HttpHandlers:
       response: [RequestScope, ~, written]
 
 NetworkServer:
-  - [ffi, HttpServerCreate]
+  - [FFI, HttpServerCreate]
   - host: []
     port: []
     RequestScope: []
     _handler:
-      - [ffi, HttpHandlerClass]
+      - [FFI, HttpHandlerClass]
       - RequestScope: [RequestScope]
     handler_class: [_handler, handler_class]
-
-app:
-  - [SQLiteDatabase]
-  - [UserRepository]
-  - [HttpHandlers]
-  - [NetworkServer]
-  - database_path: ":memory:"
-    setup_sql: |
-      CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
-      INSERT INTO users VALUES (1, 'alice');
-      INSERT INTO users VALUES (2, 'bob');
-    user_count_sql: "SELECT COUNT(*) FROM users"
-    host: "127.0.0.1"
-    port: 0
-    RequestScope:
-      user_query_sql: "SELECT id, name FROM users WHERE id = ?"
-      path_separator: "/"
-      response_template: "total={total} current={current}"

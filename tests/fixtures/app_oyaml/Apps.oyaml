@@ -1,0 +1,21 @@
+# Apps.oyaml — integration entry points: Library + real FFI + configuration values.
+# Named "Apps" (plural) because multiple entry points can coexist here.
+- [stdlib_ffi]
+- [Library]
+- memory_app:
+    - [Apps, ~, SQLiteDatabase]
+    - [Apps, ~, UserRepository]
+    - [Apps, ~, HttpHandlers]
+    - [Apps, ~, NetworkServer]
+    - database_path: ":memory:"
+      setup_sql: |
+        CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
+        INSERT INTO users VALUES (1, 'alice');
+        INSERT INTO users VALUES (2, 'bob');
+      user_count_sql: "SELECT COUNT(*) FROM users"
+      host: "127.0.0.1"
+      port: 0
+      RequestScope:
+        user_query_sql: "SELECT id, name FROM users WHERE id = ?"
+        path_separator: "/"
+        response_template: "total={total} current={current}"

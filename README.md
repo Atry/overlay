@@ -468,11 +468,11 @@ Below is the same Step 4 web application rewritten in this style.
 
 Each `@scope` class wraps exactly one stdlib operation. Below are three
 representative adapters; the full module
-([tests/fixtures/app_oyaml/ffi.py](tests/fixtures/app_oyaml/ffi.py)) contains
-10 more following the same pattern.
+([tests/fixtures/app_oyaml/stdlib_ffi/FFI.py](tests/fixtures/app_oyaml/stdlib_ffi/FFI.py))
+contains 10 more following the same pattern.
 
 ```python
-# ffi.py — each @scope wraps ONE stdlib call
+# stdlib_ffi/FFI.py — each @scope wraps ONE stdlib call
 import sqlite3
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from overlay.language import extern, public, resource, scope
@@ -543,8 +543,14 @@ An `.oyaml` file describes a **dependency graph**, not an execution sequence.
 There is no top-to-bottom control flow — the runtime evaluates resources lazily,
 on demand. Think spreadsheet cells, not shell scripts.
 
-The following sections walk through the same Step 4 application one scope at a
-time, introducing new language concepts as they appear.
+The business logic lives in `Library.oyaml`, which references FFI adapters
+through abstract declarations (`FFI:` scope with `[]` slots). A concrete FFI
+module (`stdlib_ffi/FFI.py`) overrides these slots at composition time. This
+separation means the business logic is portable — swap `stdlib_ffi` for a
+different FFI implementation and the `.oyaml` files need no changes.
+
+The following sections walk through `Library.oyaml` one scope at a time,
+introducing new language concepts as they appear.
 
 #### `SQLiteDatabase` — extern, inheritance, wiring, projection
 
@@ -553,7 +559,7 @@ SQLiteDatabase:
   database_path: []                         # extern: caller must provide this
   setup_sql: []                             # extern: caller must provide this
   _db:
-    - [ffi, SqliteConnectAndExecuteScript]  # inherit the FFI adapter
+    - [FFI, SqliteConnectAndExecuteScript]  # inherit the FFI adapter
     - database_path: [database_path]        # wire extern → adapter input
       setup_sql: [setup_sql]
   connection: [_db, connection]             # projection: expose _db.connection
@@ -563,7 +569,7 @@ Four new concepts:
 
 - **`field: []`** — an **extern declaration**, the `.oyaml` equivalent of
   `@extern`. The value must come from a parent scope or the caller.
-- **`- [ffi, SqliteConnectAndExecuteScript]`** — **inheritance**. `_db` inherits
+- **`- [FFI, SqliteConnectAndExecuteScript]`** — **inheritance**. `_db` inherits
   the FFI adapter, gaining all of its resources (`connection`).
 - **`database_path: [database_path]`** — **wiring**. The reference `[database_path]`
   is a lexical lookup: search outward through enclosing scopes until a field
@@ -584,7 +590,7 @@ UserRepository:
     name: []
 
   _count:
-    - [ffi, SqliteScalarQuery]
+    - [FFI, SqliteScalarQuery]
     - connection: [connection]
       sql: [user_count_sql]
   user_count: [_count, scalar]
@@ -607,21 +613,21 @@ UserRepository:
     user_query_sql: []                      # extern: from app.RequestScope
 
     _params:
-      - [ffi, TupleWrap]
+      - [FFI, TupleWrap]
       - element: [user_id]
 
     _row:
-      - [ffi, SqliteRowQuery]
+      - [FFI, SqliteRowQuery]
       - connection: [connection]            # lexical: finds UserRepository.connection
         sql: [user_query_sql]
         parameters: [_params, wrapped]
 
     _identifier:
-      - [ffi, GetItem]
+      - [FFI, GetItem]
       - sequence: [_row, row]
         index: 0
     _name:
-      - [ffi, GetItem]
+      - [FFI, GetItem]
       - sequence: [_row, row]
         index: 1
 
@@ -656,9 +662,9 @@ HttpHandlers:
   user_count: []                            # extern: from UserRepository
 
   RequestScope:
-    - [ffi, HttpRequestExtern]              # provides: request (extern)
-    - [ffi, ExtractUserId]                  # provides: user_id
-    - [ffi, HttpSendResponse]              # provides: written
+    - [FFI, HttpRequestExtern]              # provides: request (extern)
+    - [FFI, ExtractUserId]                  # provides: user_id
+    - [FFI, HttpSendResponse]              # provides: written
     - request: []                           # extern: injected per-request
       path_separator: []                    # extern: from app.RequestScope
       response_template: []                 # extern: from app.RequestScope
@@ -666,7 +672,7 @@ HttpHandlers:
       current_user_name: []                 # extern: from UserRepository.RequestScope
 
       _format:
-        - [ffi, FormatResponse]
+        - [FFI, FormatResponse]
         - response_template: [response_template]
           user_count: [user_count]
           current_user_name: [current_user_name]
@@ -677,8 +683,8 @@ HttpHandlers:
 ```
 
 **Flat inheritance:** `RequestScope` inherits *three* FFI adapters in its
-inheritance list (`- [ffi, HttpRequestExtern]`, `- [ffi, ExtractUserId]`,
-`- [ffi, HttpSendResponse]`). Their `@extern` and `@resource` fields all merge
+inheritance list (`- [FFI, HttpRequestExtern]`, `- [FFI, ExtractUserId]`,
+`- [FFI, HttpSendResponse]`). Their `@extern` and `@resource` fields all merge
 into `RequestScope`'s own field namespace. The last list item (the mapping
 starting with `request: []`) defines `RequestScope`'s own fields.
 
@@ -693,45 +699,80 @@ composition graph to access the `written` property inherited from
 `HttpSendResponse`. The advantage: if `HttpSendResponse` is accidentally not
 composed, this fails with an error instead of silently creating an empty scope.
 
-#### `NetworkServer` + `app` — composition, deep merge, config scoping
+#### `NetworkServer` — deep merge, config scoping
 
 ```yaml
 NetworkServer:
-  - [ffi, HttpServerCreate]
+  - [FFI, HttpServerCreate]
   - host: []
     port: []
     RequestScope: []
     _handler:
-      - [ffi, HttpHandlerClass]
+      - [FFI, HttpHandlerClass]
       - RequestScope: [RequestScope]
     handler_class: [_handler, handler_class]
-
-app:
-  - [SQLiteDatabase]
-  - [UserRepository]
-  - [HttpHandlers]
-  - [NetworkServer]
-  - database_path: ":memory:"
-    setup_sql: |
-      CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
-      INSERT INTO users VALUES (1, 'alice');
-      INSERT INTO users VALUES (2, 'bob');
-    user_count_sql: "SELECT COUNT(*) FROM users"
-    host: "127.0.0.1"
-    port: 0
-    RequestScope:
-      user_query_sql: "SELECT id, name FROM users WHERE id = ?"
-      path_separator: "/"
-      response_template: "total={total} current={current}"
 ```
 
-**Composition via inheritance:** `app` inherits four scopes. This is not four
+All the scopes above live in `Library.oyaml`. They reference `[FFI, Xxx]` which
+resolves to abstract declarations at the top of the file — no concrete Python
+code is involved yet.
+
+#### `Apps.oyaml` — integration entry point
+
+`Apps.oyaml` is a separate file that inherits the real FFI implementation and
+the Library, then defines concrete application entries:
+
+```yaml
+# Apps.oyaml
+- [stdlib_ffi]                          # inherit real Python FFI adapters
+- [Library]                             # inherit business logic
+- memory_app:
+    - [Apps, ~, SQLiteDatabase]         # qualified this: inherited from Library
+    - [Apps, ~, UserRepository]
+    - [Apps, ~, HttpHandlers]
+    - [Apps, ~, NetworkServer]
+    - database_path: ":memory:"
+      setup_sql: |
+        CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
+        INSERT INTO users VALUES (1, 'alice');
+        INSERT INTO users VALUES (2, 'bob');
+      user_count_sql: "SELECT COUNT(*) FROM users"
+      host: "127.0.0.1"
+      port: 0
+      RequestScope:
+        user_query_sql: "SELECT id, name FROM users WHERE id = ?"
+        path_separator: "/"
+        response_template: "total={total} current={current}"
+```
+
+**Library/FFI separation:** `- [stdlib_ffi]` makes the real `FFI` module
+(Python `@scope` classes) visible. `- [Library]` makes the business logic
+visible. When composed, `stdlib_ffi.FFI` (real implementations) deep-merges
+with `Library.FFI` (abstract declarations), and the real `@resource` methods
+override the `[]` slots. The business logic never imports Python directly.
+
+**Portability:** To run the same business logic on a different runtime, replace
+`- [stdlib_ffi]` with a different FFI package — the `Library.oyaml` file needs
+no changes. To test with mocks, provide a mock FFI module instead of
+`stdlib_ffi`.
+
+**["What Color Is Your Function?"](https://journal.stuffwithstuff.com/2015/02/01/what-color-is-your-function/):**
+The same `Library.oyaml` runs unchanged on both synchronous and asynchronous
+runtimes. Replacing `- [stdlib_ffi]` with `- [async_ffi]` swaps the FFI layer
+to one built on `aiosqlite` + `starlette`
+([implementation](tests/fixtures/app_oyaml/async_ffi/FFI/)) — the business
+logic never knows whether it is sync or async. Function colour is confined
+entirely to the FFI boundary; `Library.oyaml` itself is *colourless*.
+
+**Composition via inheritance:** `memory_app` inherits four scopes via
+qualified this (`[Apps, ~, SQLiteDatabase]` etc.) because these scopes are
+inherited properties, not own properties of `Apps.oyaml`. This is not four
 separate instances — it is a single scope with all four merged together. The
 last list item supplies concrete values for every `[]` extern.
 
 **Deep merge:** Both `UserRepository` and `HttpHandlers` define a
-`RequestScope`. When composed inside `app`, these merge by name into a single
-`RequestScope`. After merging:
+`RequestScope`. When composed inside `memory_app`, these merge by name into a
+single `RequestScope`. After merging:
 
 - `user_id` (from `HttpHandlers.RequestScope` via `ExtractUserId`) becomes
   visible to `UserRepository.RequestScope`, which uses it to look up
@@ -744,9 +785,9 @@ mutual siblings automatically. This is the most powerful feature of the Overlay
 language: cross-cutting concerns compose without glue code.
 
 **Config value scoping:** App-lifetime values (`database_path`, `host`, `port`)
-live directly in `app`. Request-lifetime values (`user_query_sql`,
-`path_separator`, `response_template`) live in `app.RequestScope` — they are
-only needed during request handling.
+live directly in `memory_app`. Request-lifetime values (`user_query_sql`,
+`path_separator`, `response_template`) live in `memory_app.RequestScope` — they
+are only needed during request handling.
 
 #### Syntax quick reference
 
@@ -771,7 +812,7 @@ only needed during request handling.
 | Cross-cutting concerns | Explicit adapter / glue code | Deep merge: same-named scopes auto-merge |
 | Accessing inherited members | `self.xxx` / parameter injection | Qualified this: `[Scope, ~, symbol]` |
 | Business logic location | Mixed with I/O in Python | Separate `.oyaml` file, portable across FFI |
-| Configuration | Kwargs at call site | Scalar values in `app:` scope |
+| Configuration | Kwargs at call site | Scalar values in `memory_app:` scope |
 
 ### Evaluation
 
@@ -779,11 +820,11 @@ only needed during request handling.
 import tests.fixtures.app_oyaml as app_oyaml
 from overlay.language.runtime import evaluate
 
-# evaluate() auto-discovers ffi.py and App.oyaml within the package.
+# evaluate() auto-discovers stdlib_ffi/, Library.oyaml, and Apps.oyaml.
 root = evaluate(app_oyaml, modules_public=True)
 
-# Access the composed app — App is the .oyaml file name.
-composed_app = root.App.app
+# Access the composed app — Apps is the .oyaml file name.
+composed_app = root.Apps.memory_app
 
 composed_app.server               # HTTPServer on 127.0.0.1:<assigned port>
 composed_app.connection           # sqlite3.Connection to :memory:
@@ -795,9 +836,9 @@ scope.current_user.name           # "alice"
 scope.response                    # sends HTTP response as side effect
 ```
 
-Swapping configuration is just a different `.oyaml` — the Python FFI adapters
-never change. Swapping the FFI layer is just different `@scope` classes — the
-`.oyaml` business logic never changes.
+Swapping configuration is just a different entry in `Apps.oyaml` — the Python
+FFI adapters and `Library.oyaml` never change. Swapping the FFI layer is just a
+different `@scope` module — the `.oyaml` business logic never changes.
 
 Runnable tests for this example are in
 [tests/test_readme_package_examples.py](tests/test_readme_package_examples.py),

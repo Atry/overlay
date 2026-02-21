@@ -194,15 +194,14 @@ class TestOyamlScopeClassComposition:
 class TestOyamlHttpApp:
     """Oyaml equivalents of README Step 4 examples.
 
-    App.oyaml composes SQLiteDatabase + UserRepository + HttpHandlers +
-    NetworkServer using inheritance lists.  The FFI layer lives in
-    tests/fixtures/app_oyaml/__init__.py.
+    Apps.oyaml inherits stdlib_ffi (real FFI) + Library.oyaml (business logic)
+    and defines memory_app as the integration entry point.
     """
 
     def test_oyaml_app_http_request(self) -> None:
-        """app scope in App.oyaml serves correct response for GET /users/1."""
+        """memory_app in Apps.oyaml serves correct response for GET /users/1."""
         root = evaluate(app_oyaml, modules_public=True)
-        composed_app = root.App.app  # type: ignore[union-attr]
+        composed_app = root.Apps.memory_app  # type: ignore[union-attr]
 
         server = composed_app.server
         server_thread = threading.Thread(target=server.handle_request, daemon=True)
@@ -221,7 +220,7 @@ class TestOyamlHttpApp:
     def test_oyaml_app_request_scope_created_fresh_per_request(self) -> None:
         """Each call to request_scope(...) produces an independent scope instance."""
         root = evaluate(app_oyaml, modules_public=True)
-        composed_app = root.App.app  # type: ignore[union-attr]
+        composed_app = root.Apps.memory_app  # type: ignore[union-attr]
 
         class FakeRequest:
             path = "/users/1"
@@ -235,3 +234,58 @@ class TestOyamlHttpApp:
         assert scope_a is not scope_b
 
         composed_app.connection.close()
+
+
+# ---------------------------------------------------------------------------
+# Step 4 – App scope vs request scope (async oyaml equivalents)
+# ---------------------------------------------------------------------------
+
+
+class TestAsyncOyamlHttpApp:
+    """Async oyaml equivalents using aiosqlite + starlette.
+
+    AsyncApps.oyaml inherits async_ffi (async FFI) + Library.oyaml (same
+    business logic) and defines memory_app as the async integration entry.
+    """
+
+    @pytest.mark.asyncio
+    async def test_async_oyaml_app_http_request(self) -> None:
+        """memory_app in AsyncApps.oyaml serves correct response for GET /users/1."""
+        import asyncio
+
+        import httpx
+
+        root = evaluate(app_oyaml, modules_public=True)
+        composed_app = root.AsyncApps.memory_app  # type: ignore[union-attr]
+
+        uvicorn_server = composed_app.server
+        serve_task = asyncio.create_task(uvicorn_server.serve())
+
+        # Wait for server to start listening.
+        while not uvicorn_server.started:
+            await asyncio.sleep(0.01)
+
+        host, port = uvicorn_server.servers[0].sockets[0].getsockname()
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"http://{host}:{port}/users/1")
+
+        assert response.content == b"total=2 current=alice"
+
+        uvicorn_server.should_exit = True
+        await serve_task
+
+        connection = await composed_app.connection
+        await connection.close()
+
+    @pytest.mark.asyncio
+    async def test_async_oyaml_app_request_scope_values(self) -> None:
+        """Async memory_app resolves user_count correctly."""
+        root = evaluate(app_oyaml, modules_public=True)
+        composed_app = root.AsyncApps.memory_app  # type: ignore[union-attr]
+
+        user_count = await composed_app.user_count
+        assert user_count == 2
+
+        connection = await composed_app.connection
+        await connection.close()
