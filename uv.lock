@@ -1749,8 +1749,19 @@ dependencies = [
     { name = "pyyaml" },
 ]
 
+[package.optional-dependencies]
+docs = [
+    { name = "sphinx" },
+    { name = "sphinx-mdinclude" },
+]
+
 [package.metadata]
-requires-dist = [{ name = "pyyaml", specifier = ">=6.0.3" }]
+requires-dist = [
+    { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "sphinx", marker = "extra == 'docs'", specifier = ">=9.1.0" },
+    { name = "sphinx-mdinclude", marker = "extra == 'docs'", specifier = ">=0.6.2" },
+]
+provides-extras = ["docs"]
 
 [[package]]
 name = "overlay-library"
