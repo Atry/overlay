@@ -17,7 +17,18 @@ Decorators:
 
 Runtime:
     - :func:`evaluate`
+
+Reference types (parameters to :func:`extend`):
+    - :class:`AbsoluteReference`
+    - :class:`RelativeReference`
+    - :class:`LexicalReference`
+    - :class:`QualifiedThisReference`
+    - :data:`ResourceReference`
 """
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 # Public API: decorators and evaluate
 from overlay.language._core import eager as eager
@@ -31,9 +42,59 @@ from overlay.language._core import resource as resource
 from overlay.language._core import scope as scope
 from overlay.language._runtime import evaluate as evaluate
 
-# Reference types (public: used as parameters to @extend)
-from overlay.language._core import AbsoluteReference as AbsoluteReference
-from overlay.language._core import LexicalReference as LexicalReference
-from overlay.language._core import QualifiedThisReference as QualifiedThisReference
-from overlay.language._core import RelativeReference as RelativeReference
-from overlay.language._core import ResourceReference as ResourceReference
+if TYPE_CHECKING:
+    from collections.abc import Hashable
+    from typing import Protocol, TypeAlias, final
+
+    @final
+    class AbsoluteReference(Protocol):
+        """An absolute reference to a resource starting from the root scope."""
+
+        path: tuple[Hashable, ...]
+
+        def __init__(self, *, path: tuple[Hashable, ...]) -> None: ...
+
+    @final
+    class RelativeReference(Protocol):
+        """A reference to a resource relative to the current lexical scope."""
+
+        de_bruijn_index: int
+        path: tuple[Hashable, ...]
+
+        def __init__(
+            self, *, de_bruijn_index: int, path: tuple[Hashable, ...]
+        ) -> None: ...
+
+    @final
+    class LexicalReference(Protocol):
+        """A lexical reference following the Overlay language spec resolution algorithm."""
+
+        path: tuple[Hashable, ...]
+
+        def __init__(self, *, path: tuple[Hashable, ...]) -> None: ...
+
+    @final
+    class QualifiedThisReference(Protocol):
+        """A qualified this reference: [SelfName, ~, property, path]."""
+
+        self_name: str
+        path: tuple[str, ...]
+
+        def __init__(
+            self, *, self_name: str, path: tuple[str, ...]
+        ) -> None: ...
+
+    ResourceReference: TypeAlias = (
+        AbsoluteReference
+        | RelativeReference
+        | LexicalReference
+        | QualifiedThisReference
+    )
+else:
+    from overlay.language._core import AbsoluteReference as AbsoluteReference
+    from overlay.language._core import LexicalReference as LexicalReference
+    from overlay.language._core import (
+        QualifiedThisReference as QualifiedThisReference,
+    )
+    from overlay.language._core import RelativeReference as RelativeReference
+    from overlay.language._core import ResourceReference as ResourceReference

@@ -903,7 +903,7 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
         ``get_symbol``/``get_mixin`` for late-binding reparenting.
         """
         return tuple(
-            reference.resolve(self)
+            reference._resolve(self)
             for definition in self.definitions
             for reference in definition.inherits
         )
@@ -2423,7 +2423,7 @@ class AbsoluteReference:
 
     path: Final[tuple[Hashable, ...]]
 
-    def resolve(self, symbol: MixinSymbol) -> "ResolvedReference":
+    def _resolve(self, symbol: MixinSymbol) -> "ResolvedReference":
         """Resolve this absolute reference from the given symbol.
 
         Computes de_bruijn_index as the depth from symbol.outer to root.
@@ -2499,7 +2499,7 @@ class RelativeReference:
 
     path: Final[tuple[Hashable, ...]]
 
-    def resolve(self, symbol: MixinSymbol) -> "ResolvedReference":
+    def _resolve(self, symbol: MixinSymbol) -> "ResolvedReference":
         """Resolve this relative reference from the given symbol."""
         # Compute origin_symbol: start from symbol.outer
         start_symbol: MixinSymbol = symbol
@@ -2649,7 +2649,7 @@ class LexicalReference:
 
     path: Final[tuple[Hashable, ...]]
 
-    def resolve(self, symbol: MixinSymbol) -> ResolvedReference:
+    def _resolve(self, symbol: MixinSymbol) -> ResolvedReference:
         """Resolve this lexical reference from the given symbol.
 
         Strict lexical scoping: only search own definitions, not inherited.
@@ -2762,7 +2762,7 @@ class QualifiedThisReference:
     self_name: str
     path: Final[tuple[str, ...]]
 
-    def resolve(self, symbol: MixinSymbol) -> ResolvedReference:
+    def _resolve(self, symbol: MixinSymbol) -> ResolvedReference:
         """Resolve this qualified-this reference from the given symbol.
 
         Walk up to find scope with matching key, then resolve through dynamic self.
