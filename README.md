@@ -1,5 +1,8 @@
 # Overlay Language
 
+[![PyPI](https://img.shields.io/pypi/v/overlay.language)](https://pypi.org/project/overlay.language/)
+[![CI](https://github.com/Atry/overlay/actions/workflows/ci.yml/badge.svg)](https://github.com/Atry/overlay/actions/workflows/ci.yml)
+
 A pytest-fixture-inspired dependency injection framework for Python.
 
 Declare your services, wire their dependencies through parameter names — just like
@@ -850,11 +853,5 @@ The semantics of the Overlay language are grounded in the
 overlays.
 
 ---
-
-## Installation
-
-```
-pip install overlay.language
-```
 
 PyPI: <https://pypi.org/project/overlay.language/>
