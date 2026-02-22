@@ -3,10 +3,20 @@
 [![PyPI](https://img.shields.io/pypi/v/overlay.language)](https://pypi.org/project/overlay.language/)
 [![CI](https://github.com/Atry/overlay/actions/workflows/ci.yml/badge.svg)](https://github.com/Atry/overlay/actions/workflows/ci.yml)
 
-A pytest-fixture-inspired dependency injection framework for Python.
 
-Declare your services, wire their dependencies through parameter names — just like
-pytest fixtures — then compose them at the call site.
+A dependency injection framework with pytest-fixture syntax, plus a
+configuration language for declarative programming.
+
+The configuration language is designed for modularity — independent modules
+compose freely without glue code, dissolving the
+[Expression Problem](https://en.wikipedia.org/wiki/Expression_problem).
+If you prefer declarative programming, you can even move all your business logic
+from Python into the Overlay language — it is based on
+[Overlay-Calculus](https://arxiv.org/abs/2602.16291), which is provably more
+expressive than λ-calculus. As a bonus, your Python code
+reduces to thin I/O adapters, trivially mockable, and the same Overlay language
+code runs unchanged on both sync and async runtimes
+(a.k.a. [function-color](https://journal.stuffwithstuff.com/2015/02/01/what-color-is-your-function/)-blind).
 
 ```
 pip install overlay.language
@@ -846,10 +856,10 @@ Runnable tests for this example are in
 [tests/test_readme_package_examples.py](tests/test_readme_package_examples.py),
 using the fixture package at [tests/fixtures/app_oyaml/](tests/fixtures/app_oyaml/).
 
-The full language specification is in [specification.md](specification.md).
+The full language specification is in [specification.md](overlay-language/docs/specification.md).
 
 The semantics of the Overlay language are grounded in the
-[Overlay Calculus](https://arxiv.org/abs/2602.16291), a formal calculus for
+[Overlay-Calculus](https://arxiv.org/abs/2602.16291), a formal calculus of
 overlays.
 
 ---

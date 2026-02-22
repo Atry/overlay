@@ -1,7 +1,7 @@
 [project]
 name = "overlay"
 version = "0.1.0"
-description = "The Overlay language — a composition-based programming language built on Overlay-Calculus"
+description = "A dependency injection framework with pytest-fixture syntax, plus a configuration language for declarative programming"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.13"

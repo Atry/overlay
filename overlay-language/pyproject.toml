@@ -15,7 +15,7 @@ metadata = false
 [project]
 name = "overlay.language"
 dynamic = ["version"]
-description = "The Overlay language runtime — a composition-based programming language built on Overlay-Calculus"
+description = "A dependency injection framework with pytest-fixture syntax, plus a configuration language for declarative programming"
 license = "MIT"
 requires-python = ">=3.13"
 authors = [

@@ -25,6 +25,11 @@ extensions = [
     'sphinx_mdinclude',
 ]
 
+source_suffix = {
+    '.rst': 'restructuredtext',
+    '.md': 'markdown',
+}
+
 autodoc_default_options = {
     'imported-members': True,
 }
