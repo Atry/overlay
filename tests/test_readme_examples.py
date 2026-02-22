@@ -34,10 +34,11 @@ class TestStep1BasicServices:
     def test_extern_and_flat_composition(self) -> None:
         """@extern + multi-scope union-mount: each scope owns its own config."""
 
+        # [docs:step1-define-services]
         @scope
         class SQLiteDatabase:
             @extern
-            def database_path() -> str: ...
+            def database_path() -> str: ...       # caller must provide this
 
             @public
             @resource
@@ -50,8 +51,7 @@ class TestStep1BasicServices:
             @resource
             def user_count(connection: sqlite3.Connection) -> int:
                 connection.execute(
-                    "CREATE TABLE IF NOT EXISTS users "
-                    "(id INTEGER PRIMARY KEY, name TEXT)"
+                    "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)"
                 )
                 (count,) = connection.execute("SELECT COUNT(*) FROM users").fetchone()
                 return count
@@ -59,6 +59,7 @@ class TestStep1BasicServices:
         app = evaluate(SQLiteDatabase, UserRepository)
         root = app(database_path=":memory:")
         assert root.user_count == 0
+        # [/docs:step1-define-services]
         root.connection.close()
 
 
@@ -73,6 +74,7 @@ class TestStep2PatchAndMerge:
     def test_patch_overrides_resource(self) -> None:
         """A @patch wraps a @resource value with a transformation."""
 
+        # [docs:step2-patch]
         @scope
         class Base:
             @public
@@ -89,17 +91,19 @@ class TestStep2PatchAndMerge:
                 return lambda previous: previous * 2
 
         root = evaluate(Base, HighLoad)
-        assert root.max_connections == 20
+        assert root.max_connections == 20         # 10 * 2
+        # [/docs:step2-patch]
 
     def test_merge_collects_patches_into_frozenset(self) -> None:
         """@merge defines the aggregation strategy for collected @patch values."""
 
+        # [docs:step2-merge]
         @scope
         class PragmaBase:
             @public
             @merge
             def startup_pragmas() -> Callable[[Iterator[str]], frozenset[str]]:
-                return frozenset
+                return frozenset                  # aggregation strategy: collect into frozenset
 
         @scope
         class WalMode:
@@ -117,10 +121,12 @@ class TestStep2PatchAndMerge:
         assert root.startup_pragmas == frozenset(
             {"PRAGMA journal_mode=WAL", "PRAGMA foreign_keys=ON"}
         )
+        # [/docs:step2-merge]
 
     def test_patch_with_dependency_injection(self) -> None:
         """A @patch can itself declare @extern dependencies, provided as kwargs."""
 
+        # [docs:step2-patch-extern]
         @scope
         class PragmaBase:
             @public
@@ -131,7 +137,7 @@ class TestStep2PatchAndMerge:
         @scope
         class UserVersionPragma:
             @extern
-            def schema_version() -> int: ...    # each scope owns its own config
+            def schema_version() -> int: ...     # provided as a kwarg at call time
 
             @patch
             def startup_pragmas(schema_version: int) -> str:
@@ -140,6 +146,7 @@ class TestStep2PatchAndMerge:
         app = evaluate(PragmaBase, UserVersionPragma)
         root = app(schema_version=3)
         assert root.startup_pragmas == frozenset({"PRAGMA user_version=3"})
+        # [/docs:step2-patch-extern]
 
 
 # ---------------------------------------------------------------------------
@@ -153,6 +160,7 @@ class TestStep3Eager:
     def test_eager_runs_schema_migration_at_startup(self) -> None:
         """Schema migration runs immediately when evaluate() returns."""
 
+        # [docs:step3-eager]
         @scope
         class SQLiteDatabase:
             @public
@@ -170,6 +178,7 @@ class TestStep3Eager:
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).fetchall()
         assert ("users",) in tables
+        # [/docs:step3-eager]
         root.connection.close()
 
     def test_lazy_connection_not_opened_until_accessed(self) -> None:

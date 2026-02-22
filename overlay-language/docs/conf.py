@@ -3,6 +3,7 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -22,6 +23,7 @@ author = 'Bo Yang'
 
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.extlinks',
     'sphinx_mdinclude',
 ]
 
@@ -44,3 +46,16 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 html_theme = 'alabaster'
 html_static_path = ['_static']
+
+# -- GitHub source links (pinned to git commit) --------------------------------
+
+_git_commit = subprocess.check_output(
+    ["git", "rev-parse", "HEAD"], text=True
+).strip()
+
+extlinks = {
+    'github': (
+        f'https://github.com/Atry/overlay/tree/{_git_commit}/%s',
+        '%s',
+    ),
+}

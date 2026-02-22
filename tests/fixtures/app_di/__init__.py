@@ -16,6 +16,7 @@ from overlay.language import RelativeReference as R
 from overlay.language import extend, public, scope
 
 
+# [docs:module-extend]
 @extend(
     R(de_bruijn_index=0, path=("sqlite_database",)),
     R(de_bruijn_index=0, path=("user_repository",)),
@@ -24,6 +25,7 @@ from overlay.language import extend, public, scope
 @scope
 class step1_app:
     pass
+# [/docs:module-extend]
 
 
 @extend(

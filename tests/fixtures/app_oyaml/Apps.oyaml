@@ -1,9 +1,10 @@
+# [docs:apps-oyaml]
 # Apps.oyaml — integration entry points: Library + real FFI + configuration values.
 # Named "Apps" (plural) because multiple entry points can coexist here.
-- [stdlib_ffi]
-- [Library]
+- [stdlib_ffi]                          # inherit real Python FFI adapters
+- [Library]                             # inherit business logic
 - memory_app:
-    - [Apps, ~, SQLiteDatabase]
+    - [Apps, ~, SQLiteDatabase]         # qualified this: inherited from Library
     - [Apps, ~, UserRepository]
     - [Apps, ~, HttpHandlers]
     - [Apps, ~, NetworkServer]
@@ -19,3 +20,4 @@
         user_query_sql: "SELECT id, name FROM users WHERE id = ?"
         path_separator: "/"
         response_template: "total={total} current={current}"
+# [/docs:apps-oyaml]

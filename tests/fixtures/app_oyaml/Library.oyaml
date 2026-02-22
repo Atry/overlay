@@ -2,6 +2,7 @@
 # All FFI references use [FFI, Xxx] which resolves to abstract declarations below.
 # Concrete FFI implementations are provided at composition time (e.g. stdlib_ffi/FFI.py).
 
+# [docs:ffi-declarations]
 FFI:
   SqliteConnectAndExecuteScript:
     database_path: []
@@ -45,38 +46,49 @@ FFI:
     port: []
     handler_class: []
     server: []
+# [/docs:ffi-declarations]
 
+# [docs:sqlite-database]
 SQLiteDatabase:
-  database_path: []
-  setup_sql: []
+  database_path: []                         # extern: caller must provide this
+  setup_sql: []                             # extern: caller must provide this
   _db:
-    - [FFI, SqliteConnectAndExecuteScript]
-    - database_path: [database_path]
+    - [FFI, SqliteConnectAndExecuteScript]  # inherit the FFI adapter
+    - database_path: [database_path]        # wire extern → adapter input
       setup_sql: [setup_sql]
-  connection: [_db, connection]
+  connection: [_db, connection]             # projection: expose _db.connection
+# [/docs:sqlite-database]
 
+# [docs:user-repository-app]
 UserRepository:
-  connection: []
-  user_count_sql: []
-  User:
+  connection: []                            # extern: from SQLiteDatabase
+  user_count_sql: []                        # extern: provided by app
+
+  User:                                     # scope-as-dataclass
     user_id: []
     name: []
+
   _count:
     - [FFI, SqliteScalarQuery]
     - connection: [connection]
       sql: [user_count_sql]
   user_count: [_count, scalar]
+# [/docs:user-repository-app]
+# [docs:user-repository-request-scope]
   RequestScope:
-    user_id: []
-    user_query_sql: []
+    user_id: []                             # extern: from HttpHandlers
+    user_query_sql: []                      # extern: from app.RequestScope
+
     _params:
       - [FFI, TupleWrap]
       - element: [user_id]
+
     _row:
       - [FFI, SqliteRowQuery]
-      - connection: [connection]
+      - connection: [connection]            # lexical: finds UserRepository.connection
         sql: [user_query_sql]
         parameters: [_params, wrapped]
+
     _identifier:
       - [FFI, GetItem]
       - sequence: [_row, row]
@@ -85,21 +97,27 @@ UserRepository:
       - [FFI, GetItem]
       - sequence: [_row, row]
         index: 1
+
     current_user:
       user_id: [_identifier, element]
       name: [_name, element]
-    current_user_name: [current_user, name]
 
+    current_user_name: [current_user, name]
+# [/docs:user-repository-request-scope]
+
+# [docs:http-handlers]
 HttpHandlers:
-  user_count: []
+  user_count: []                            # extern: from UserRepository
+
   RequestScope:
-    - [FFI, ExtractUserId]
-    - [FFI, HttpSendResponse]
-    - request: []
-      path_separator: []
-      response_template: []
-      status_code: 200
-      current_user_name: []
+    - [FFI, ExtractUserId]                  # provides: user_id
+    - [FFI, HttpSendResponse]              # provides: written
+    - request: []                           # extern: injected per-request
+      path_separator: []                    # extern: from app.RequestScope
+      response_template: []                 # extern: from app.RequestScope
+      status_code: 200                      # inline scalar
+      current_user_name: []                 # extern: from UserRepository.RequestScope
+
       _format:
         - [FFI, FormatResponse]
         - response_template: [response_template]
@@ -107,10 +125,13 @@ HttpHandlers:
           current_user_name: [current_user_name]
       response_body: [_format, response_body]
       body: [response_body]
+
       # Qualified this: fails loudly if HttpSendResponse is not composed,
       # unlike `written: []` which silently creates an empty scope.
       response: [RequestScope, ~, written]
+# [/docs:http-handlers]
 
+# [docs:network-server]
 NetworkServer:
   - [FFI, HttpServerCreate]
   - host: []
@@ -120,3 +141,4 @@ NetworkServer:
       - [FFI, HttpHandlerClass]
       - RequestScope: [RequestScope]
     handler_class: [_handler, handler_class]
+# [/docs:network-server]
