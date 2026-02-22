@@ -188,15 +188,15 @@ structures---in the spirit of F-coalgebras~\cite{rutten2000universal}---where
 semantics is determined by the observer and a finite prefix suffices
 for any finite observation. This is not merely a theoretical
 distinction: the \texttt{nixpkgs} package
-collection~\cite{dolstra2006purely}---over 100{,}000
-packages---behaves as a lazily observed structure in practice, allowing any
+collection~\cite{dolstra2006purely} (over 100{,}000
+packages) behaves as a lazily observed structure in practice, allowing any
 single package to be evaluated without materializing the entire set.
 Guided by this observation, we set out to reduce the
 NixOS module system to a minimal set of primitives.
-Through iterative refinement of these primitives---beginning with
-an early version implemented in Nix---the system evolved into the Overlay
+Through iterative refinement (beginning with
+an early version implemented in Nix), the system evolved into the Overlay
 language\selfcite{~\cite{mixin2025}}{~(included as supplementary
-material)}, now implemented in Python---a declarative programming
+material)}, now implemented in Python: a declarative programming
 language with only three constructs (record literals, properties,
 and inheritance) and no functions or let-bindings.
 
@@ -282,7 +282,7 @@ All tests are mechanically verified against expected output snapshots.
     The $\lambda$-calculus translation maps each application to a
     inheritance; the resulting inheritance tree \emph{is} the call stack.
     The $\this$ function of Section~\ref{sec:overlay-trees} resolves
-    self-references by walking this tree---a first-order set-theoretic
+    self-references by walking this tree: a first-order set-theoretic
     query, not a fixed-point construction.
   \item Self-reference resolves to \emph{multiple objects}, not one.
     Path-dependent types with inheritance naturally produce this
@@ -290,7 +290,7 @@ All tests are mechanically verified against expected output snapshots.
     reject it (Scala and the NixOS module system,
     Appendix~\ref{app:scala-multi-path}).
     Since inheritance is idempotent, all objects contribute
-    equally---no disambiguation is needed.
+    equally; no disambiguation is needed.
   \item The $\lambda$-calculus (in A-normal form) translates into
     Overlay-Calculus in five rules (Section~\ref{sec:translation}).
     The translation is fully abstract with respect to
@@ -332,7 +332,7 @@ An expression is a \emph{set} of elements enclosed in braces.
 Each element is either a definition $\ell \mapsto e$ or
 an inheritance source.
 Because expressions are sets, element order is irrelevant and
-duplicates have no effect---inheritance is inherently commutative,
+duplicates have no effect; inheritance is inherently commutative,
 idempotent, and associative.
 
 The $\mapsto$ in $\ell \mapsto e$ defines a property, not a let-binding.
@@ -340,7 +340,7 @@ There is no variable binding in Overlay-Calculus.
 The Overlay language also provides scalar types through a
 foreign-function interface (FFI); Overlay-Calculus is what remains
 after removing the FFI.
-None of the examples in this paper uses the FFI---scalars
+None of the examples in this paper uses the FFI; scalars
 did not arise.
 
 \paragraph{Inheritance}
@@ -542,7 +542,7 @@ Intuitively, inheritance can introduce multiple
 definitions of the same label at the same scope level;
 $\overlays(p)$ collects all such paths that share the
 \emph{same identity} as $p$, so that their definitions
-merge rather than shadow each other---enabling deep merge.
+merge rather than shadow each other, enabling deep merge.
 Concretely, the overlays of $p$ include $p$ itself
 and $p_{\mathrm{branch}} \snoc \last(p)$ for every
 branch $p_{\mathrm{branch}}$ of $\init(p)$ that also defines $\last(p)$:
@@ -650,7 +650,7 @@ $(\lambda x.\, x)\; y$ must be \emph{reduced} to $y$ before its
 meaning is apparent; the operational semantics specifies how and in what
 order reductions occur. In Overlay-Calculus, an inheritance tree such as
 $\{a \mapsto \{\},\; b \mapsto \{\}\}$ does not reduce to
-anything---it \emph{is} the value. The functions $\properties$,
+anything: it \emph{is} the value. The functions $\properties$,
 $\supers$, etc.\ determine what is observable at each path, and that is
 all. Computation arises not from rewriting terms but from querying an
 inductively deeper path in a lazily constructed tree: the observer
@@ -663,9 +663,9 @@ it can be established by a finite chain of applications of these
 equations.  The corresponding operator on the product lattice of
 path sets is monotone, and its least fixed point
 exists by the Knaster--Tarski theorem~\cite{tarski1955lattice}.
-The detailed well-definedness argument---identifying the lattice,
+The detailed well-definedness argument (identifying the lattice,
 verifying positivity of each equation, and handling the transitive
-closure $\bases^*$---is given in Appendix~\ref{app:well-definedness}.
+closure $\bases^*$) is given in Appendix~\ref{app:well-definedness}.
 When no finite derivation exists for a given query, the
 membership is not in this least fixed point and the semantics is
 undefined at that point---analogous to divergence in the
@@ -844,7 +844,7 @@ $\lambda$-calculus---is non-trivial.
 Defining the meaning of Overlay-Calculus requires machinery for
 lazy allocation, recursive data structures, and set-valued
 resolution that have no direct counterparts in the $\lambda$-calculus.
-This sophistication is not accidental---it reflects three features:
+This sophistication is not accidental; it reflects three features:
 
 \begin{enumerate}
   \item \textbf{Self-referential records with lazy evaluation.}
@@ -1162,7 +1162,7 @@ Querying $\mathrm{Test}.\mathrm{Test2plus3}.\mathrm{equal}$ via the host-languag
 returns $\mathrm{True}$.
 No existing file was modified.
 $\mathrm{NatEquality}$ (a new operation) and $\mathrm{Boolean}$
-(a new data type) each required only a new file---extensibility in both
+(a new data type) each required only a new file: extensibility in both
 dimensions of the Expression Problem~\cite{wadler1998expression}.
 
 \paragraph{Tree-level inheritance and return types.}
@@ -1232,7 +1232,7 @@ with $\mathrm{Equal}$:
       \mathrm{Result}.\mathrm{sum}.\mathrm{Equal},\;
       \mathrm{other} \mapsto \{\mathrm{Result}.\mathrm{sum}\}\}\}
 \end{align*}
-$\mathrm{Result}.\mathrm{sum}$ evaluates to the trie $\{4,5,6\}$---all pairwise sums.
+$\mathrm{Result}.\mathrm{sum}$ evaluates to the trie $\{4,5,6\}$, the set of all pairwise sums.
 $\mathrm{Equal}$ then applies to every pair drawn from $\{4,5,6\} \times \{4,5,6\}$;
 querying $\mathrm{CartesianTest}.\mathrm{Check}.\mathrm{equal}$ via the host-language API
 returns $\{\mathrm{True}, \mathrm{False}\}$.
@@ -1490,7 +1490,7 @@ with no additional mechanism beyond the three primitives.
 In package managers, build systems, and OS distributions,
 external toolchains transform configuration into file trees;
 here, the file system serves as configuration to itself,
-and the transformation is inheritance---a
+and the transformation is inheritance: a
 \emph{file-system-as-compiler} in which the directory tree is
 both the source program and the compilation target.
 
@@ -1515,8 +1515,8 @@ The Turing Machine itself, while universal, lacks random
 access: reading a cell at distance~$d$ requires $d$
 sequential tape movements.
 Each of these models achieves Turing completeness by
-\emph{removing} structure from an existing model---fewer
-abstractions, worse ergonomics, no new expressiveness.
+\emph{removing} structure from an existing model:
+fewer abstractions, worse ergonomics, no new expressiveness.
 None of these reductions exhibits emergent phenomena
 absent from the model it reduces.
 
@@ -1728,7 +1728,7 @@ A key example is \emph{totality checking}: verifying that a
 inheritance provides implementations for all required slots, not
 merely that references resolve.
 In untyped Overlay-Calculus, writing $\mathrm{magnitude} \mapsto \{\}$
-is purely documentary---it defines a structural slot but imposes no
+is purely documentary: it defines a structural slot but imposes no
 constraint on what must fill it.
 Totality checking would enforce such declarations statically,
 rejecting inheritances that leave required slots unfilled.
