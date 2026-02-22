@@ -51,6 +51,7 @@ html_theme_options = {
     'fixed_sidebar': True,
     'github_user': 'Atry',
     'github_repo': 'overlay',
+    'github_banner': True,
     'github_button': True,
     'github_type': 'watch',
     'github_count': True,
