@@ -527,7 +527,7 @@ In the Overlay language, scope determines the visibility and inheritance relatio
 
 - **Sibling Mixins**: The names of other mixins in the same file are visible in the current scope and can be inherited using the format `[mixin_name]`. Inheritance from sibling mixins takes precedence over parent mixin inheritance.
 
-- **Parent Mixins**: The names of all parent mixins in the current hierarchy are visible in the current scope. A mixin can access its parent mixins but not itself. If a property within a mixin inherits its containing mixin, it can do so because the containing mixin is in the enclosing scope.
+- **Parent Mixins**: The names of all parent mixins in the current hierarchy are visible in the current scope. Resolution starts from the parent scope (not the mixin itself), so a mixin's own name is not directly in its own lookup scope. Additionally, **same-name skip semantics** apply: when a mixin references a name that matches its own key, the first match found during the upward traversal is skipped. This allows a mixin to reference an outer mixin with the same name without creating a self-reference. For example, if `Inner.value` references `[value]`, the algorithm skips the first `value` it finds (which would be `Inner.value` seen from its parent) and resolves to an outer `value` instead. See Section 5.2.1 for the full resolution algorithm.
 
 - **Directory Scope**: A directory has a lexical scope that includes all mixins defined directly within that directory. Files within the directory can inherit mixins in the directory’s scope using the format `[directory_name, mixin_name]`.
 
@@ -555,7 +555,50 @@ Inheritances in the Overlay language are resolved **dynamically at the time of m
 
     - **Directory Scope**: Mixins defined directly within the current directory.
 
-  - **No Inheritance Lookup in First Segment**: The first segment does not search for properties within inherited mixins.
+  - **No Inheritance Lookup in First Segment**: The first segment does not search for properties within inherited mixins. To reference inherited members, use qualified this syntax: `[ScopeName, ~, inherited_member]`.
+
+- **Same-Name Skip Semantics**:
+
+  Lexical references implement **same-name skip semantics** (analogous to pytest fixture shadowing). When the first segment of a reference path matches the defining mixin's own key, the first match encountered during the upward scope traversal is skipped, and resolution continues to the next outer scope.
+
+  **Algorithm**:
+
+  1. Let `first_segment` be the first element of the reference path.
+  2. If `first_segment` equals the current mixin's key, set `skip_first = true`.
+  3. Starting from the parent scope (not the mixin itself), traverse upward through enclosing scopes:
+     a. At each scope, check if `first_segment` is an **own property** (not inherited) of that scope.
+     b. If found and `skip_first` is `true`: set `skip_first = false` and continue to the next outer scope.
+     c. If found and `skip_first` is `false`: resolve the reference to this scope.
+     d. If not found: continue to the next outer scope.
+  4. If the root is reached without a match, raise a lookup error.
+
+  **Example — single level**:
+
+  ```yaml
+  Root:
+    value: 10
+    Inner:
+      value:
+        - [value]    # References Root.value (10), not Inner.value itself
+        - # ... computes value + 1, resulting in 11
+  ```
+
+  Here, `Inner.value` references `[value]`. Because `first_segment` (`value`) matches `Inner`'s own key (`value`), the algorithm skips the first match (the `value` property found in `Root` that corresponds to `Inner.value`'s sibling) and resolves to `Root.value` instead.
+
+  **Example — multiple levels**:
+
+  ```yaml
+  Root:
+    value: 10
+    Level1:
+      value:
+        - [value]    # Skips Level1.value, resolves to Root.value (10) → 11
+      Level2:
+        value:
+          - [value]  # Skips Level2.value, resolves to Level1.value (11) → 12
+  ```
+
+  At each nesting level, the same-name skip ensures that `[value]` resolves to the nearest outer `value`, not to the mixin being defined. This enables recursive-like compositional patterns where each level wraps the value from the level above.
 
 #### 5.2.2 Subsequent Segment Resolution
 
@@ -944,6 +987,8 @@ This section provides definitions of key terms used in the Overlay language spec
 - **Late Binding**: A type of inheritance resolution where the inheritance is dynamically resolved at the time of mixin evaluation or inheritance. This allows inheritances to adapt to changes in the inheritance hierarchy.
 
 - **Lexical Scope**: The context in which a mixin or property is defined. The lexical scope determines the visibility of mixins and properties within a file, directory, or project.
+
+- **Same-Name Skip Semantics**: A lexical reference resolution rule that prevents self-reference. When the first segment of a reference path matches the defining mixin's own key, the first match found during the upward scope traversal is skipped. This allows a mixin to naturally reference an outer mixin with the same name, similar to how pytest fixtures shadow outer fixtures of the same name. See Section 5.2.1 for details.
 
 - **Directory Scope**: The scope defined by a directory. All mixins within a directory are part of the directory scope, and files within the directory can inherit mixins using the directory scope.
 
