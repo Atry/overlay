@@ -141,7 +141,7 @@ Kustomize~\cite{kustomize}, and JSON Patch~\cite{rfc6902} all provide mechanisms
 structured data through inheritance or overlay. Among these, the NixOS
 module system stands out: its recursive attribute set merging with
 fixed-point semantics and deferred modules~\cite{nixosmodules} achieves
-considerable expressiveness in practice, and the mechanism has been adopted well beyond NixOS itself---Home
+considerable expressiveness in practice, and the mechanism has been adopted well beyond NixOS itself: Home
 Manager~\cite{homemanager}, nix-darwin~\cite{nixdarwin},
 disko~\cite{disko}, flake-parts~\cite{flakeparts},
 dream2nix~\cite{dream2nix}, devenv~\cite{devenv},
@@ -181,10 +181,10 @@ explicit functions, is expressive enough to configure entire operating
 systems.
 
 Conventionally, the value domain of configuration languages is assumed
-to consist of finite, well-founded structures---initial algebras in the
+to consist of finite, well-founded structures, that is, initial algebras in the
 sense of universal algebra. We challenge this assumption: configuration
 values are better understood as lazily observable, possibly infinite
-structures---in the spirit of F-coalgebras~\cite{rutten2000universal}---where
+structures, in the spirit of F-coalgebras~\cite{rutten2000universal}, where
 semantics is determined by the observer and a finite prefix suffices
 for any finite observation. This is not merely a theoretical
 distinction: the \texttt{nixpkgs} package
@@ -200,9 +200,9 @@ material)}, now implemented in Python: a declarative programming
 language with only three constructs (record literals, properties,
 and inheritance) and no functions or let-bindings.
 
-In developing real programs in the Overlay language---boolean logic and
+In developing real programs in the Overlay language, including boolean logic and
 natural number arithmetic (Section~\ref{sec:case-study}) and a web application
-(Section~\ref{sec:practical-function-color})---we found that the
+(Section~\ref{sec:practical-function-color}), we found that the
 linearization problem of mixin-based
 systems~\cite{bracha1990mixin,c3linearization} is structurally absent:
 because records are sets, inheritance is inherently commutative,
@@ -217,12 +217,12 @@ We also found that boolean logic and arithmetic, implemented as separate
 overlay files, extend in both dimensions of the Expression
 Problem~\cite{wadler1998expression} without any dedicated mechanism;
 that Church-encoded values automatically form trie structures; and
-that operations on tries automatically become Cartesian products---for
-example, adding $\{1,2\}$ to $\{3,4\}$ yields $\{4,5,6\}$---which
+that operations on tries automatically become Cartesian products, so that
+adding $\{1,2\}$ to $\{3,4\}$ yields $\{4,5,6\}$, which
 is the relational semantics of logic programming
 (Section~\ref{sec:case-study}); and that the same web
 application overlay file runs under both Python asyncio and synchronous
-execution without modification---an instance of function color
+execution without modification, an instance of function color
 blindness~\cite{nystrom2015color}, equivalently CPS-agnostic behavior
 (Section~\ref{sec:practical-function-color}).
 
@@ -237,8 +237,8 @@ Overlay-Calculus, Overlay-Calculus is Turing complete.
 The translation reveals an \emph{asymmetry}:
 while embedding the $\lambda$-calculus into Overlay-Calculus is trivial,
 the reverse is non-trivial because Overlay-Calculus provides primitive
-operations---self-referential records, open recursion, symmetric
-inheritance---that have no direct counterparts in the $\lambda$-calculus.
+operations, namely self-referential records, open recursion, and symmetric
+inheritance, that have no direct counterparts in the $\lambda$-calculus.
 This asymmetry suggests that Overlay-Calculus is not merely a
 syntactic variant of the $\lambda$-calculus but captures
 different computational patterns.
@@ -266,8 +266,8 @@ All tests are mechanically verified against expected output snapshots.
     declarative programming that contains only overlay constructs (record,
     definition, inheritance) and no functions or scalar types.
   \item Inheritance operates at the \emph{tree level}:
-    a record is a set of elements---definitions and
-    inheritance sources---so inheriting from two overlays that share a label
+    a record is a set of elements, both definitions and
+    inheritance sources, so inheriting from two overlays that share a label
     recursively merges their subtrees (deep merge), rather
     than overriding at the method level as in mixin and trait calculi.
     Since records are sets, inheritance is inherently commutative,
@@ -360,8 +360,8 @@ notations:
     $n = 0$ refers to the reference's enclosing scope,
     and each increment of $n$ moves one scope level further out.
 \end{itemize}
-Both forms retrieve the target scope---the fully inherited record
-after all inheritance has been applied---and then project properties
+Both forms retrieve the target scope, that is, the fully inherited record
+after all inheritance has been applied, and then project properties
 $\ell_{\mathrm{down},1}\ldots\ell_{\mathrm{down},k}$ from it.
 The named form desugars to the indexed form during parsing
 (Section~\ref{sec:overlay-trees}).
@@ -408,8 +408,8 @@ Unlike the $\lambda$-calculus, which requires reduction rules
 evaluation order, and no notion of a ``result'' that a term reduces to.
 Instead, the semantics is purely \emph{observational}: one queries
 whether a label $\ell$ is a property at a path $p$ in the inheritance
-tree. The mutually recursive functions defined below---$\properties$,
-$\supers$, $\overlays$, $\bases$, $\resolve$, $\this$---constitute the
+tree. The mutually recursive functions defined below, namely $\properties$,
+$\supers$, $\overlays$, $\bases$, $\resolve$, and $\this$, constitute the
 \emph{entire} semantics. This is the observational perspective
 introduced in Section~\ref{sec:introduction}: like an
 F-coalgebra~\cite{rutten2000universal}, an overlay tree's behavior is
@@ -565,7 +565,7 @@ It remains to define $\bases$, the other dependency of $\supers$.
 
 \paragraph{Bases}
 Intuitively, $\bases(p)$ are the paths that $p$ directly
-inherits from via references---analogous to the direct base
+inherits from via references, analogous to the direct base
 classes in object-oriented languages.
 Concretely, $\bases$ resolves every reference in
 $p$'s $\overlays$ one step:
@@ -668,7 +668,7 @@ verifying positivity of each equation, and handling the transitive
 closure $\bases^*$) is given in Appendix~\ref{app:well-definedness}.
 When no finite derivation exists for a given query, the
 membership is not in this least fixed point and the semantics is
-undefined at that point---analogous to divergence in the
+undefined at that point, analogous to divergence in the
 $\lambda$-calculus, and the expected consequence of Turing
 completeness.
 This observation model
@@ -777,12 +777,12 @@ approaches in the mathematical machinery it requires:
     reflexive domain $D$ satisfying $D \cong [D \to D]$ via an
     inverse limit in a category of continuous lattices.
     Here, the semantic domain is a product of powerset
-    lattices---no function spaces, no continuity conditions,
-    no inverse limits.
+    lattices, with no function spaces, no continuity conditions,
+    and no inverse limits.
     The only fixed-point construction is Knaster--Tarski on
     powerset lattices
     (Appendix~\ref{app:well-definedness}), which requires
-    only set-theoretic monotonicity---strictly weaker than
+    only set-theoretic monotonicity, which is strictly weaker than
     Scott continuity.
   \item \emph{No substitution.}
     Operational semantics defines $\beta$-reduction via
@@ -790,7 +790,7 @@ approaches in the mathematical machinery it requires:
     motivated de~Bruijn indices~\cite{debruijn1972lambda} and
     explicit substitution calculi.
     Here, variable references are resolved by the $\this$
-    function walking the inheritance tree---no substitution
+    function walking the inheritance tree; no substitution
     occurs at any point.
   \item \emph{No reduction rules.}
     There are no $\beta$-reduction steps, no evaluation
@@ -812,8 +812,8 @@ normal form) and fully abstract (two terms are
   overlay-contextually equivalent iff they have the same B\"ohm
 tree).
 
-Combining these two facts---elementary machinery and full
-abstraction---yields a noteworthy consequence:
+Combining these two facts, elementary machinery and full
+abstraction, yields a noteworthy consequence:
 \emph{the lazy $\lambda$-calculus admits a fully abstract
 semantics that lives entirely in naive set theory.}
 The only mathematical prerequisites are powerset lattices,
@@ -839,8 +839,8 @@ The translation above consists of five rules; the full computational
 power of the $\lambda$-calculus embeds into Overlay-Calculus with no
 additional machinery.
 
-The reverse direction---encoding Overlay-Calculus in pure
-$\lambda$-calculus---is non-trivial.
+The reverse direction, encoding Overlay-Calculus in pure
+$\lambda$-calculus, is non-trivial.
 Defining the meaning of Overlay-Calculus requires machinery for
 lazy allocation, recursive data structures, and set-valued
 resolution that have no direct counterparts in the $\lambda$-calculus.
@@ -879,7 +879,7 @@ it provides primitive operations for computational patterns that are
 
 The reverse asymmetry also exists: nested expressions such as
 $f\;(g\;x)$ are primitive in the $\lambda$-calculus but require
-manual A-normal form conversion in Overlay-Calculus---the
+manual A-normal form conversion in Overlay-Calculus, since the
 intermediate result $g\;x$ must be given an explicit name.
 However, ANF conversion is a mechanical
 transformation~\cite{flanagan1993essence}; a surface language built
@@ -897,7 +897,7 @@ B\"ohm tree~\cite{barendregt1984lambda} of the original $\lambda$-term.
 An overlay tree $T$ \emph{converges}, written $T{\Downarrow}$,
 if following finitely many $\mathrm{result}$ projections from
 the root reaches a node with both $\mathrm{argument}$ and
-$\mathrm{result}$ among its properties---the \emph{abstraction shape}
+$\mathrm{result}$ among its properties, that is, the \emph{abstraction shape}
 produced by $\mathcal{T}(\lambda x.\, M)$.
 We write $T{\Uparrow}$ if no such depth exists.
 
@@ -938,13 +938,13 @@ We write $T{\Uparrow}$ if no such depth exists.
 \noindent
 Together, Adequacy and Full Abstraction establish that
 the overlay tree semantics is a computation mechanism for
-B\"ohm trees~\cite{barendregt1984lambda}---the canonical fully
-abstract model of the lazy $\lambda$-calculus---using only
+B\"ohm trees~\cite{barendregt1984lambda}, the canonical fully
+abstract model of the lazy $\lambda$-calculus, using only
 powerset lattices and the Knaster--Tarski fixed-point theorem,
 without the topological infrastructure of domain theory.
 This is stronger than Scott's denotational
 semantics~\cite{scott1976data,wadsworth1976semantics}, which is
-adequate but not fully abstract---it identifies terms that
+adequate but not fully abstract, as it identifies terms that
 observational equivalence
 distinguishes~\cite{plotkin1975callbyname}.
 The full proof, including the Single-Path Lemma,
@@ -963,7 +963,7 @@ The implementation follows a declarative object-oriented style:
 each concern is one file;
 UpperCamelCase names are constructors and operations;
 lowerCamelCase names are fields and parameters;
-and since there are no methods, all names are nouns or adjectives---$\mathrm{Plus}$
+and since there are no methods, all names are nouns or adjectives: $\mathrm{Plus}$
 is a structure, not an action.
 Operations expose their result through a projection field (e.g., $\mathrm{sum}$).
 
@@ -1118,7 +1118,7 @@ Case analysis on $\mathrm{other}$ is done via its $\mathrm{Visitor}$:
         \mathrm{OtherVisitor}.\mathrm{Visit}.\mathrm{equal}\}\}\}\}\}
 \end{align*}}
 Composing $\mathrm{NatPlus}$ with $\mathrm{NatEquality}$ by
-inheriting both---with no modifications to either file---gives the
+inheriting both, with no modifications to either file, gives the
 resulting Nat values both $\mathrm{Plus}$ and $\mathrm{Equal}$
 automatically.
 The concrete numerals live in a shared file that inherits only $\mathrm{NatData}$:
@@ -1176,7 +1176,7 @@ Crucially, this applies to return types: $\mathrm{NatPlus}$ returns
 values from $\mathrm{NatFactory}$, and $\mathrm{NatEquality}$
 independently adds $\mathrm{Equal}$ to the same factory.
 Inheriting both causes the values returned by $\mathrm{Plus}$ to
-carry $\mathrm{Equal}$ automatically---without modifying either file.
+carry $\mathrm{Equal}$ automatically, without modifying either file.
 In object algebras~\cite{oliveira2012extensibility} and finally
 tagless interpreters~\cite{carette2009finally}, independently defined
 operations do not automatically enrich each other's return types;
@@ -1194,8 +1194,8 @@ $\qualifiedthis{\mathrm{Successor}}.\mathrm{predecessor}$
 inside each operation resolves through both routes, and since
 inheritance is idempotent, all routes contribute the same
 properties.
-In Scala, the same pattern---two independently defined inner
-classes extending the same outer class's trait---triggers a
+In Scala, the same pattern, where two independently defined inner
+classes extend the same outer class's trait, triggers a
 ``conflicting base types'' rejection
 (Appendix~\ref{app:scala-multi-path}), because DOT's self variable
 is single-valued and cannot resolve through multiple inheritance
@@ -1259,8 +1259,8 @@ records, definitions, and inheritance.
 Two degrees of freedom remain.
 These dimensions are independent, and each combination yields a coherent semantics.
 They arise in any system whose definitions form a tree of named
-scopes---where each node is a path and references are
-path-dependent---even in systems ruled out above, such as Scala,
+scopes, where each node is a path and references are
+path-dependent, even in systems ruled out above, such as Scala,
 which has separate primitives for methods, classes, objects, and types.
 
 Existing designs occupy several of the resulting cells:
@@ -1293,7 +1293,7 @@ back to properties of its enclosing context contributed by later
 composition.
 Early binding combined with deep merge is coherent and
 practically useful, but cross-overlay cooperation requires
-explicit wiring rather than inheritance---a definition cannot
+explicit wiring rather than inheritance: a definition cannot
 observe properties contributed by overlays composed after it.
 
 \paragraph{Dynamic scope}
@@ -1309,7 +1309,7 @@ Jsonnet~\cite{jsonnet} follows this approach: \texttt{self} always
 refers to the final merged object, not the object at the definition
 site.
 When the Scala multi-path example (Appendix~\ref{app:scala-multi-path})
-is translated to Jsonnet, it does not error---but \texttt{outer}
+is translated to Jsonnet, it does not error, but \texttt{outer}
 resolves to the merged \texttt{MyObjectA} rather than to
 \texttt{Object1} or \texttt{Object2} separately, silently discarding
 the distinction between the two inheritance routes.
@@ -1318,7 +1318,7 @@ which inheritance route a reference came from.
 
 \paragraph{Deep merge}
 Without the second case of equation~(\ref{eq:overlays}),
-$\overlays(p)$ would always return $\{p\}$---a single
+$\overlays(p)$ would always return $\{p\}$, a single
 element.
 When two independently authored overlays both define a label
 with the same name at the same scope level, only the
@@ -1330,9 +1330,9 @@ pytest permits at most one fixture per name per scope;
 trait systems~\cite{scharli2003traits} flag same-name
 methods as conflicts.
 Under any of these rules, two independently authored overlays
-that both extend an entity with the same name---the situation
+that both extend an entity with the same name, which is the situation
 that arises naturally when solving the Expression
-Problem~\cite{wadler1998expression}---cannot be composed.
+Problem~\cite{wadler1998expression}, cannot be composed.
 The non-trivial case of equation~(\ref{eq:overlays}) removes
 this limitation: it collects all paths that share the same
 label and merges their definitions rather than shadowing each other.
@@ -1358,7 +1358,7 @@ When inheritance introduces multiple inheritance routes
 to the same scope, Scala rejects the ambiguity at compile time
 (Appendix~\ref{app:scala-multi-path})
 and the NixOS module system rejects the duplicate option
-declaration (Appendix~\ref{app:scala-multi-path})---neither
+declaration (Appendix~\ref{app:scala-multi-path}); neither
 can express that all routes are equally valid.
 
 Overlay-Calculus combines the predictability of lexical scope
@@ -1397,7 +1397,7 @@ single current scope.
 If the equations were restricted to single-target resolution
 (as in DOT's single-valued self
 variable~\cite{amin2016dot}), they would need to reject
-structurally legitimate cases---adding complexity, not
+structurally legitimate cases, adding complexity rather than
 removing it.
 
 \paragraph{Consequences of the alternative choices}
@@ -1414,7 +1414,7 @@ Restricting $\overlays(p)$ to $\{p\}$ means same-label
 definitions from different inheritance sources no longer
 share identity, requiring either a method resolution order
 (MRO)~\cite{c3linearization} to linearize them or a
-shadowing rule to select one and discard the rest---which is
+shadowing rule to select one and discard the rest, which is
 why systems without deep merge rarely support
 path-dependent multiple inheritance in practice.
 Restricting $\this$ to a single path requires a mechanism to
@@ -1422,9 +1422,9 @@ select among inheritance routes (Scala rejects the ambiguity
 at compile time; the NixOS module system raises a
 duplicate-declaration error), and loses contributions from
 all non-selected routes.
-These mechanisms---early-binding freezing, runtime context
-threading, MRO, shadowing, route selection, error
-reporting---are more artificial than their absence.
+These mechanisms, including early-binding freezing, runtime context
+threading, MRO, shadowing, route selection, and error
+reporting, are more artificial than their absence.
 The equations of Section~\ref{sec:overlay-trees} contain
 none of them.
 
@@ -1435,8 +1435,8 @@ in practice turn out to be instances of Overlay-Calculus.
 
 \subsubsection{Configuration and Object-Oriented Languages}
 \label{sec:practical-config}
-The NixOS module system~\cite{dolstra2010nixos,nixosmodules}---whose
-recursive attribute merging motivated this work---can be understood as an
+The NixOS module system~\cite{dolstra2010nixos,nixosmodules}, whose
+recursive attribute merging motivated this work, can be understood as an
 implementation of Overlay-Calculus with additional features (type checking,
 error reporting, FFI to the Nix language).
 Detailed comparisons with CUE, Jsonnet, Dhall, with mixin and
@@ -1458,7 +1458,7 @@ This is an instance of function color
 blindness~\cite{nystrom2015color}: async and sync functions are
 distinct types in the host language, yet the overlay file is
 agnostic to the distinction because its empty property slots
-are filled at assembly time---with coroutine handlers under
+are filled at assembly time, with coroutine handlers under
 \texttt{asyncio}, or with direct implementations under
 synchronous execution.
 More generally, empty slots can be filled with effect
@@ -1478,8 +1478,8 @@ behavior. These systems implement Overlay-Calculus patterns ad hoc.
 \label{sec:practical-union-fs}
 Union file systems (UnionFS, OverlayFS, AUFS) layer multiple directory
 hierarchies to present a unified view. Their semantics resembles
-Overlay-Calculus---later layers override earlier layers, files from all
-layers remain accessible---but without a formal foundation these systems
+Overlay-Calculus in that later layers override earlier layers and files from all
+layers remain accessible, but without a formal foundation these systems
 resort to ad-hoc choices: asymmetric inheritance, non-commutative
 conflict resolution for scalar files, and no late-binding or dynamic
 dispatch across layers.
@@ -1526,9 +1526,9 @@ semantics of inheritance, modeling objects as recursive records and
 inheritance as composition of \emph{generators} (functions from self
 to complete object) and \emph{wrappers} (functions that modify
 generators), solved by a fixed-point construction.
-Cook's key insight---that inheritance is a general mechanism
-applicable to any form of recursive definition, not only
-object-oriented methods---is one of the starting points of the
+Cook's key insight, that inheritance is a general mechanism
+applicable to any form of recursive definition and not only
+object-oriented methods, is one of the starting points of the
 present work.
 The model has four primitives (records, functions, generators,
 wrappers) and requires a fixed-point combinator; composition is
@@ -1536,8 +1536,8 @@ asymmetric (a wrapper modifies a generator, not vice versa).
 
 \paragraph{Mixin-based inheritance}
 Bracha and Cook~\cite{bracha1990mixin} formalized mixins as
-abstract subclasses---functions from a superclass parameter to a
-subclass---unifying the inheritance mechanisms of Smalltalk, Beta,
+abstract subclasses, that is, functions from a superclass parameter to a
+subclass, unifying the inheritance mechanisms of Smalltalk, Beta,
 and CLOS under a single model.
 Because mixin application is function composition, it is
 \emph{neither commutative nor idempotent}: applying the same
@@ -1549,14 +1549,14 @@ whether linearization is inherent to inheritance or an artifact of
 non-commutativity had not been established.
 Mixin composition operates at the \emph{method level}: applying a
 mixin replaces or extends individual methods in a flat namespace.
-There is no recursive merging of nested structure---composing two
+There is no recursive merging of nested structure: composing two
 mixins that define the same method name results in an override, not
 deep merge.
 Finally, mixins presuppose the $\lambda$-calculus as their
 computational foundation: method bodies are functions, and mixin
 application is function composition.
 Mixins organize and compose functions but cannot replace
-them---without the underlying $\lambda$-calculus, there is nothing
+them; without the underlying $\lambda$-calculus, there is nothing
 to compose.  The mixin mechanism itself is not Turing complete.
 
 \paragraph{Traits}
@@ -1588,14 +1588,14 @@ The path \texttt{this.out} navigates to an enclosing scope, analogous
 to qualified this ($\qualifiedthis{\ell_{\mathrm{up}}}$) in this paper.
 A notable restriction is that each such path resolves to a
 \emph{single} class in a \emph{single} enclosing object.
-When multiple inheritance routes lead to the same scope---a common
-situation under inheritance---single-valued resolution must choose
+When multiple inheritance routes lead to the same scope, a common
+situation under inheritance, single-valued resolution must choose
 one route and discard the others, losing information.
 The framework provides no mechanism for set-valued resolution.
 
 \paragraph{Object calculi}
 Abadi and Cardelli~\cite{abadi1996theory} developed a comprehensive
-theory of objects, treating objects---rather than classes---as the
+theory of objects, treating objects rather than classes as the
 primitive notion. Their calculi include method update and
 self-referential objects, but methods are fundamentally functions
 (taking self as a parameter), and object extension is asymmetric
@@ -1604,8 +1604,8 @@ Boudol~\cite{boudol2004recursive} studied the recursive record
 semantics of objects in a call-by-value setting, showing that
 self-referential records require an unsafe fixed-point operator.
 Whether self-reference can be handled without a fixed-point operator
-in the object language---for instance, through coalgebraic
-observation rather than reduction---was not explored in these calculi.
+in the object language, for instance through coalgebraic
+observation rather than reduction, was not explored in these calculi.
 
 \paragraph{Record calculi}
 Harper and Pierce~\cite{harper1991record} presented a record
@@ -1621,9 +1621,9 @@ variants in ML.
 These calculi operate on \emph{flat} records (no nesting) and
 treat records as \emph{data} (initial algebras): a record is a
 finite map from labels to values, fully determined at construction
-time.  Nested records, self-reference, and lazy observation---the
+time.  Nested records, self-reference, and lazy observation, which are the
 properties needed for records to serve as a computational
-substrate---are outside their scope.
+substrate, are outside their scope.
 
 \paragraph{DOT calculus}
 Amin et al.~\cite{amin2016dot} formalized path-dependent types in
@@ -1659,7 +1659,7 @@ Jsonnet~\cite{jsonnet} provides object inheritance via the
 \texttt{+} operator with mixin semantics: composition is
 \emph{not} commutative (the right-hand side wins on scalar
 conflicts), and deep merging requires explicit opt-in (\texttt{+:}
-syntax) on a per-field basis---so deep merge is
+syntax) on a per-field basis, so deep merge is
 available but not the default.
 Dhall~\cite{dhall2017} takes a functional approach: it is a typed
 $\lambda$-calculus with records, where composition is a record merge
@@ -1668,7 +1668,7 @@ operator, not an inheritance mechanism.
 \paragraph{Module systems and deep merge}
 The NixOS module system~\cite{dolstra2010nixos,nixosmodules}
 composes modules by \emph{recursively merging nested attribute sets},
-not by linearization or method-level override---the same overlay
+not by linearization or method-level override, which is the same overlay
 semantics that distinguishes tree-level inheritance from mixin and
 trait composition.
 When two modules define the same nested path, their subtrees are
@@ -1689,8 +1689,8 @@ declaration of the shared options; the module system's
 \texttt{merge\-Option\-Decls} rejects duplicate declarations
 with a static error (Appendix~\ref{app:scala-multi-path}).
 The module system cannot express that both routes contribute
-equally to the same option---the multi-path situation that
-recursive merging naturally gives rise to---which motivated the
+equally to the same option, that is, the multi-path situation that
+recursive merging naturally gives rise to, which motivated the
 coalgebraic semantics of Section~\ref{sec:overlay-trees}.
 
 \section{Future Work}
@@ -1703,15 +1703,15 @@ it includes compile-time checking that all references resolve to
 valid paths in the inheritance, and a foreign-function interface (FFI)
 that introduces scalar values from the host language.
 The future work described below concerns the distance between this
-implementation and a fully practical language---spanning both
+implementation and a fully practical language, spanning both
 theoretical foundations and library-level encodings.
 
 \paragraph{Type system}
 The Overlay language's existing compile-time checks verify that every
 reference path resolves to a property that exists in the inherited
-result. Formalizing the soundness of these checks---proving that
+result. Formalizing the soundness of these checks, that is, proving that
 well-typed programs do not produce dangling references at
-runtime---is one direction of future work.
+runtime, is one direction of future work.
 Such a formalization would relate to the DOT
 calculus~\cite{amin2016dot} in a manner analogous to how
 Overlay-Calculus relates to the $\lambda$-calculus: a Typed
@@ -1742,11 +1742,11 @@ Overlay-Calculus is \emph{open by default}: inheritance
 can freely merge any two overlays, and a value may simultaneously
 inhabit multiple constructors (e.g.,
 $\{\mathrm{Zero},\; \mathrm{Odd},\; \mathrm{half} \mapsto \mathrm{Zero}\}$).
-This is not a defect---it is the natural trie semantics of the
+This is not a defect; it is the natural trie semantics of the
 calculus, and the basis for solving the expression problem
 (Section~\ref{sec:asymmetry}).
 However, many operations (e.g., equality testing) assume that values
-are \emph{linear}---inhabiting exactly one constructor.
+are \emph{linear}, inhabiting exactly one constructor.
 The observer pattern (Section~\ref{sec:case-study}) does not enforce
 this: applied to a multi-constructor value, all callbacks fire and
 their results are inherited.
@@ -1758,12 +1758,12 @@ returning a Boolean; a second Boolean dispatch then branches on the
 result.
 By chaining such tests, a factory can validate that a value matches
 exactly one constructor and carries the required fields.
-This does not restrict inheritance itself---it remains
-unconstrained---but provides a way to detect invariant violations
+This does not restrict inheritance itself, which remains
+unconstrained, but provides a way to detect invariant violations
 before they propagate.
 
-The same technique---observer returning Boolean, followed by Boolean
-dispatch---yields \emph{closed pattern matching}.
+The same technique, an observer returning Boolean followed by Boolean
+dispatch, yields \emph{closed pattern matching}.
 The observer pattern of Section~\ref{sec:case-study} is inherently
 \emph{open}: new constructor cases can be added through inheritance.
 Closed matching, where exactly one branch is taken, can be encoded as
@@ -1773,7 +1773,7 @@ This is analogous to GHC.Generics' $\mathrm{(:+:)}$ sum
 representation~\cite{magalhaes2010generic}, where each link
 corresponds to one summand.
 An important consequence is that such chains do \emph{not}
-commute---they have a fixed order---and therefore cannot be extended
+commute, as they have a fixed order, and therefore cannot be extended
 through open inheritance, which is the correct semantics for closed
 dispatch.
 
@@ -1794,8 +1794,8 @@ foundation than the $\lambda$-calculus.
 \section{Multi-Path Self-Reference in Other Systems}
 \label{app:scala-multi-path}
 
-This appendix demonstrates that two representative systems---Scala~3
-and the NixOS module system---reject the multi-path self-reference
+This appendix demonstrates that two representative systems, Scala~3
+and the NixOS module system, reject the multi-path self-reference
 pattern that Overlay-Calculus handles naturally.
 
 \subsection*{Scala~3}
@@ -1833,7 +1833,7 @@ self variable~$x$ binds to a \emph{single} object.
 path-dependent types, each constraining the outer self-reference
 to a different object.
 Their intersection requires \texttt{outer} to simultaneously
-return \texttt{Object1} and \texttt{Object2}---but DOT's self
+return \texttt{Object1} and \texttt{Object2}, but DOT's self
 variable is single-valued, making this intersection unrealizable.
 
 The equivalent Overlay-Calculus definition is:
@@ -1862,8 +1862,8 @@ the $\this$ function (equation~\ref{eq:this}) resolves
 $\qualifiedthis{\mathrm{MyOuter}}$ by searching through
 $\supers(\mathrm{MyObjectA})$ for overlay paths matching
 $\mathrm{MyInner}$'s definition site.
-It finds two inheritance-site paths---one through
-$\mathrm{Object1}$ and one through $\mathrm{Object2}$---and
+It finds two inheritance-site paths, one through
+$\mathrm{Object1}$ and one through $\mathrm{Object2}$, and
 returns both.
 Both paths lead to records that inherit from the same
 $\mathrm{MyOuter}$, so querying
@@ -1966,7 +1966,7 @@ module, including the declaration
 \texttt{options.\allowbreak{}outer}.
 When \texttt{My\-ObjectA} imports both, the module system's
 \texttt{merge\-Option\-Decls} encounters two declarations of the
-same option and raises a static error---it cannot express that
+same option and raises a static error; it cannot express that
 both declarations originate from the same trait and should be
 unified.
 
@@ -2167,7 +2167,7 @@ is monotone in $S'$.
 \medskip\noindent
 In summary, every mutually defined function appears on the
 right-hand side of every equation only inside the pattern
-$x \in f(\ldots)$ within a set comprehension---i.e., as the
+$x \in f(\ldots)$ within a set comprehension, i.e., as the
 domain of an existential quantifier.
 No complement, set difference, or negated membership test
 appears in any equation.
@@ -2199,7 +2199,7 @@ if and only if it appears at some finite stage $F^k(\bot)$,
 which corresponds to a finite derivation tree using the
 equations.
 When no finite derivation exists, the membership is absent from
-the least fixed point and the query is undefined---the
+the least fixed point and the query is undefined, the
 analogue of divergence.
 \end{proof}
 
