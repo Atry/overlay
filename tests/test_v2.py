@@ -7,6 +7,7 @@ from typing import Callable
 import pytest
 
 from overlay.language import (
+    LexicalReference,
     RelativeReference,
     eager,
     extend,
@@ -28,8 +29,6 @@ from overlay.language._runtime import (
     Scope,
     evaluate,
 )
-
-R = RelativeReference
 
 FIXTURES_DIR = str(Path(__file__).parent / "fixtures")
 
@@ -417,8 +416,8 @@ class TestPatch:
                     return lambda x: x * 2
 
             @extend(
-                R(de_bruijn_index=0, path=("Base",)),
-                R(de_bruijn_index=0, path=("Patcher",)),
+                LexicalReference(path=("Base",)),
+                LexicalReference(path=("Patcher",)),
             )
             @public
             @scope
@@ -451,9 +450,9 @@ class TestPatch:
                     return lambda x: x + 3
 
             @extend(
-                R(de_bruijn_index=0, path=("Base",)),
-                R(de_bruijn_index=0, path=("Patch1",)),
-                R(de_bruijn_index=0, path=("Patch2",)),
+                LexicalReference(path=("Base",)),
+                LexicalReference(path=("Patch1",)),
+                LexicalReference(path=("Patch2",)),
             )
             @public
             @scope
@@ -484,8 +483,8 @@ class TestPatches:
                     return ((lambda x: x + 5), (lambda x: x + 3))
 
             @extend(
-                R(de_bruijn_index=0, path=("Base",)),
-                R(de_bruijn_index=0, path=("Patcher",)),
+                LexicalReference(path=("Base",)),
+                LexicalReference(path=("Patcher",)),
             )
             @public
             @scope
@@ -628,9 +627,9 @@ class TestMerger:
                     return "tag2"
 
             @extend(
-                R(de_bruijn_index=0, path=("Base",)),
-                R(de_bruijn_index=0, path=("Provider1",)),
-                R(de_bruijn_index=0, path=("Provider2",)),
+                LexicalReference(path=("Base",)),
+                LexicalReference(path=("Provider1",)),
+                LexicalReference(path=("Provider2",)),
             )
             @public
             @scope
@@ -662,8 +661,8 @@ class TestUnionMount:
                     return "bar_value"
 
             @extend(
-                R(de_bruijn_index=0, path=("Namespace1",)),
-                R(de_bruijn_index=0, path=("Namespace2",)),
+                LexicalReference(path=("Namespace1",)),
+                LexicalReference(path=("Namespace2",)),
             )
             @public
             @scope
@@ -684,7 +683,7 @@ class TestUnionMount:
                 def base_value() -> str:
                     return "base"
 
-            @extend(R(de_bruijn_index=0, path=("Namespace1",)))
+            @extend(LexicalReference(path=("Namespace1",)))
             @public
             @scope
             class Namespace2:
@@ -732,9 +731,9 @@ class TestUnionMount:
                     return f"tag2_{another_dependency}"
 
             @extend(
-                R(de_bruijn_index=0, path=("branch0",)),
-                R(de_bruijn_index=0, path=("branch1",)),
-                R(de_bruijn_index=0, path=("branch2",)),
+                LexicalReference(path=("branch0",)),
+                LexicalReference(path=("branch1",)),
+                LexicalReference(path=("branch2",)),
             )
             @public
             @scope
@@ -769,8 +768,8 @@ class TestUnionMount:
                     return f"{foo}_bar"
 
             @extend(
-                R(de_bruijn_index=0, path=("branch1",)),
-                R(de_bruijn_index=0, path=("branch2",)),
+                LexicalReference(path=("branch1",)),
+                LexicalReference(path=("branch2",)),
             )
             @public
             @scope
@@ -867,7 +866,7 @@ class TestExtendNameResolution:
                 def base_value() -> int:
                     return 42
 
-            @extend(R(de_bruijn_index=0, path=("Base",)))
+            @extend(LexicalReference(path=("Base",)))
             @public
             @scope
             class Extended:
@@ -903,7 +902,7 @@ class TestScalaStylePathDependentTypes:
                 def i() -> int:
                     return 1
 
-                @extend(R(de_bruijn_index=1, path=("Base",)))
+                @extend(RelativeReference(de_bruijn_index=1, path=("Base",)))
                 @scope
                 class MyInner:
                     @patch
@@ -917,7 +916,7 @@ class TestScalaStylePathDependentTypes:
                 def i() -> int:
                     return 2
 
-                @extend(R(de_bruijn_index=1, path=("Base",)))
+                @extend(RelativeReference(de_bruijn_index=1, path=("Base",)))
                 @scope
                 class MyInner:
                     @patch
@@ -925,8 +924,8 @@ class TestScalaStylePathDependentTypes:
                         return lambda x: x + i
 
             @extend(
-                R(de_bruijn_index=0, path=("object1", "MyInner")),
-                R(de_bruijn_index=0, path=("object2", "MyInner")),
+                LexicalReference(path=("object1", "MyInner")),
+                LexicalReference(path=("object2", "MyInner")),
             )
             @public
             @scope
@@ -1259,7 +1258,7 @@ class TestSyntheticScopeCallable:
                     def value(arg: str) -> str:
                         return f"value_{arg}"
 
-            @extend(R(de_bruijn_index=0, path=("Base",)))
+            @extend(LexicalReference(path=("Base",)))
             @public
             @scope
             class Extended:
@@ -1367,7 +1366,7 @@ class TestExtendInstanceScopeProhibition:
             def my_instance(MyOuter: Scope) -> Scope:
                 return MyOuter(i=42)
 
-            @extend(R(de_bruijn_index=0, path=("my_instance",)))
+            @extend(LexicalReference(path=("my_instance",)))
             @public
             @scope
             class Extended:
@@ -1402,7 +1401,7 @@ class TestExtendInstanceScopeProhibition:
                 return MyOuter(i=42)
 
             # This fails because my_instance is a merger MixinSymbol, not a scope
-            @extend(R(de_bruijn_index=0, path=("my_instance", "MyInner")))
+            @extend(LexicalReference(path=("my_instance", "MyInner")))
             @scope
             class Invalid:
                 pass
@@ -1433,7 +1432,7 @@ class TestExtendInstanceScopeProhibition:
                     def base_value() -> int:
                         return 100
 
-                @extend(R(de_bruijn_index=0, path=("Inner2",)))
+                @extend(LexicalReference(path=("Inner2",)))
                 @public
                 @scope
                 class Inner1:
@@ -1470,7 +1469,7 @@ class TestExtendNonMixin:
 
             # Extending a Resource (not a Scope) with a patch
             # The resulting merged resource inherits is_public from base_value
-            @extend(R(de_bruijn_index=0, path=("base_value",)))
+            @extend(LexicalReference(path=("base_value",)))
             @patch
             def patched_value() -> Callable[[int], int]:
                 return lambda x: x + 1
@@ -1601,8 +1600,8 @@ class TestScopeDir:
                     return "bar"
 
             @extend(
-                R(de_bruijn_index=0, path=("Namespace1",)),
-                R(de_bruijn_index=0, path=("Namespace2",)),
+                LexicalReference(path=("Namespace1",)),
+                LexicalReference(path=("Namespace2",)),
             )
             @public
             @scope
@@ -1633,8 +1632,8 @@ class TestScopeDir:
                     return lambda s: s + "_patched"
 
             @extend(
-                R(de_bruijn_index=0, path=("Namespace1",)),
-                R(de_bruijn_index=0, path=("Namespace2",)),
+                LexicalReference(path=("Namespace1",)),
+                LexicalReference(path=("Namespace2",)),
             )
             @public
             @scope

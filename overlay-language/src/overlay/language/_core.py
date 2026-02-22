@@ -1791,10 +1791,10 @@ def scope(c: object) -> ObjectScopeDefinition:
 
     Example - Union mounting multiple scopes using @extend::
 
-        Use ``@extend`` with ``RelativeReference`` to combine multiple scopes.
+        Use ``@extend`` with ``LexicalReference`` to combine multiple scopes.
         This is the recommended way to create union mount points::
 
-            from overlay.language import RelativeReference as R
+            from overlay.language import LexicalReference
 
             @scope
             class Root:
@@ -1814,8 +1814,8 @@ def scope(c: object) -> ObjectScopeDefinition:
                         return f"{foo}_bar"
 
                 @extend(
-                    R(de_bruijn_index=0, path=("Branch1",)),
-                    R(de_bruijn_index=0, path=("Branch2",)),
+                    LexicalReference(path=("Branch1",)),
+                    LexicalReference(path=("Branch2",)),
                 )
                 @scope
                 class Combined:
@@ -1846,7 +1846,7 @@ def extend(
 
     Example - Extending a sibling scope::
 
-        from overlay.language import RelativeReference as R
+        from overlay.language import LexicalReference
 
         @scope
         class Root:
@@ -1856,7 +1856,7 @@ def extend(
                 def value() -> int:
                     return 10
 
-            @extend(R(de_bruijn_index=0, path=("Base",)))
+            @extend(LexicalReference(path=("Base",)))
             @scope
             class Extended:
                 @patch
@@ -1885,11 +1885,11 @@ def extend(
                 return f"{foo}_bar"
 
             # my_package/__init__.py
-            from overlay.language import RelativeReference as R, extend, scope
+            from overlay.language import LexicalReference, extend, scope
 
             @extend(
-                R(de_bruijn_index=0, path=("branch1",)),
-                R(de_bruijn_index=0, path=("branch2",)),
+                LexicalReference(path=("branch1",)),
+                LexicalReference(path=("branch2",)),
             )
             @scope
             class combined:
@@ -1944,7 +1944,7 @@ def merge(
     The following example defines a merge that deduplicates strings from multiple patches into a frozenset::
 
         from overlay.language import merge, patch, resource, extend, scope, evaluate, extern
-        from overlay.language import RelativeReference as R
+        from overlay.language import LexicalReference
 
         @scope
         class Root:
@@ -1974,9 +1974,9 @@ def merge(
                     return f"tag2_{another_dependency}"
 
             @extend(
-                R(de_bruijn_index=0, path=("Branch0",)),
-                R(de_bruijn_index=0, path=("Branch1",)),
-                R(de_bruijn_index=0, path=("Branch2",)),
+                LexicalReference(path=("Branch0",)),
+                LexicalReference(path=("Branch1",)),
+                LexicalReference(path=("Branch2",)),
             )
             @scope
             class Combined:

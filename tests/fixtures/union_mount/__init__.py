@@ -1,13 +1,13 @@
 """Union mount fixtures demonstrating merge and patches use cases."""
 
-from overlay.language import RelativeReference as R
+from overlay.language import LexicalReference
 from overlay.language import extend, public, scope
 
 
 @extend(
-    R(de_bruijn_index=0, path=("branch0",)),
-    R(de_bruijn_index=0, path=("branch1",)),
-    R(de_bruijn_index=0, path=("branch2",)),
+    LexicalReference(path=("branch0",)),
+    LexicalReference(path=("branch1",)),
+    LexicalReference(path=("branch2",)),
 )
 @public
 @scope

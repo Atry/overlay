@@ -113,7 +113,7 @@ instead of a coroutine, which cannot be safely awaited in multiple dependents.
    from http.server import BaseHTTPRequestHandler, HTTPServer
    from types import ModuleType
 
-   from overlay.language import RelativeReference as R, extend
+   from overlay.language import LexicalReference, extend
 
    @scope
    class SQLiteDatabase:
@@ -230,10 +230,10 @@ instead of a coroutine, which cannot be safely awaited in multiple dependents.
 
    # Declare composition via @extend — each scope only knows its own config.
    @extend(
-       R(de_bruijn_index=0, path=("SQLiteDatabase",)),
-       R(de_bruijn_index=0, path=("UserRepository",)),
-       R(de_bruijn_index=0, path=("HttpHandlers",)),
-       R(de_bruijn_index=0, path=("NetworkServer",)),
+       LexicalReference(path=("SQLiteDatabase",)),
+       LexicalReference(path=("UserRepository",)),
+       LexicalReference(path=("HttpHandlers",)),
+       LexicalReference(path=("NetworkServer",)),
    )
    @public
    @scope

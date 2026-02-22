@@ -8,7 +8,7 @@ Convention tested:
 import pytest
 
 from overlay.language import (
-    RelativeReference as R,
+    LexicalReference,
     extend,
     extern,
     public,
@@ -126,7 +126,7 @@ class Nat:
                 pass
 
             @public
-            @extend(R(de_bruijn_index=0, path=("ZeroVisitor",)))
+            @extend(LexicalReference(path=("ZeroVisitor",)))
             @scope
             class Visitor:
                 """Result of visitor application (inherits from ZeroVisitor)."""
@@ -175,7 +175,7 @@ class Nat:
                 pass
 
             @public
-            @extend(R(de_bruijn_index=0, path=("SuccVisitor",)))
+            @extend(LexicalReference(path=("SuccVisitor",)))
             @scope
             class Visitor:
                 """Result of visitor application (inherits from SuccVisitor)."""

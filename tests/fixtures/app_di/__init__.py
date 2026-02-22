@@ -12,14 +12,14 @@ Composite scopes declared via @extend:
 - step4_app          → all four modules (Step 4, full stack)
 """
 
-from overlay.language import RelativeReference as R
+from overlay.language import LexicalReference
 from overlay.language import extend, public, scope
 
 
 # [docs:module-extend]
 @extend(
-    R(de_bruijn_index=0, path=("sqlite_database",)),
-    R(de_bruijn_index=0, path=("user_repository",)),
+    LexicalReference(path=("sqlite_database",)),
+    LexicalReference(path=("user_repository",)),
 )
 @public
 @scope
@@ -29,9 +29,9 @@ class step1_app:
 
 
 @extend(
-    R(de_bruijn_index=0, path=("sqlite_database",)),
-    R(de_bruijn_index=0, path=("user_repository",)),
-    R(de_bruijn_index=0, path=("http_handlers",)),
+    LexicalReference(path=("sqlite_database",)),
+    LexicalReference(path=("user_repository",)),
+    LexicalReference(path=("http_handlers",)),
 )
 @public
 @scope
@@ -40,10 +40,10 @@ class step4_request_app:
 
 
 @extend(
-    R(de_bruijn_index=0, path=("sqlite_database",)),
-    R(de_bruijn_index=0, path=("user_repository",)),
-    R(de_bruijn_index=0, path=("http_handlers",)),
-    R(de_bruijn_index=0, path=("network_server",)),
+    LexicalReference(path=("sqlite_database",)),
+    LexicalReference(path=("user_repository",)),
+    LexicalReference(path=("http_handlers",)),
+    LexicalReference(path=("network_server",)),
 )
 @public
 @scope

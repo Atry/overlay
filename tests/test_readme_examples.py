@@ -18,7 +18,7 @@ from typing import Callable, Iterator, Protocol
 
 from types import ModuleType
 
-from overlay.language import RelativeReference as R
+from overlay.language import LexicalReference
 from overlay.language import eager, extend, extern, merge, patch, public, resource, scope
 from overlay.language._runtime import evaluate
 
@@ -358,10 +358,10 @@ class TestStep4HttpServer:
                 return HTTPServer((host, port), Handler)
 
         @extend(
-            R(de_bruijn_index=0, path=("SQLiteDatabase",)),
-            R(de_bruijn_index=0, path=("UserRepository",)),
-            R(de_bruijn_index=0, path=("HttpHandlers",)),
-            R(de_bruijn_index=0, path=("NetworkServer",)),
+            LexicalReference(path=("SQLiteDatabase",)),
+            LexicalReference(path=("UserRepository",)),
+            LexicalReference(path=("HttpHandlers",)),
+            LexicalReference(path=("NetworkServer",)),
         )
         @public
         @scope
@@ -477,8 +477,8 @@ class TestStep4HttpServer:
                     )
 
         @extend(
-            R(de_bruijn_index=0, path=("SQLiteDatabase",)),
-            R(de_bruijn_index=0, path=("UserRepository",)),
+            LexicalReference(path=("SQLiteDatabase",)),
+            LexicalReference(path=("UserRepository",)),
         )
         @public
         @scope
