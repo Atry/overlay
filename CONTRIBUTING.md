@@ -1560,6 +1560,35 @@ def test_compute(snapshot: SnapshotAssertion):
 ```
 
 
+## LaTeX Style (overlay-calculus paper)
+
+### Heading capitalization
+
+- `\section` and `\subsection`: **Title Case** (capitalize all major words; lowercase articles, prepositions, and conjunctions unless they are the first word).
+- `\paragraph`: **Sentence case** (capitalize only the first word and proper nouns).
+
+### No trailing periods in headings
+
+`\paragraph` headings must **not** end with a period:
+
+```latex
+% ✗ BAD
+\paragraph{Church-encoded Nats are tries.}
+
+% ✓ GOOD
+\paragraph{Church-encoded Nats are tries}
+```
+
+### Building the paper
+
+The paper entry points are `preprint.tex` and `submission.tex`, which `\input` the shared body `overlay-calculus.tex`. Build via:
+
+```bash
+cd overlay-calculus && direnv exec . latexmk -pdf preprint.tex
+```
+
+Do **not** run `latexmk` directly on `overlay-calculus.tex` — it is a fragment without a `\documentclass`.
+
 ## Adding TeXLive Packages
 
 TeXLive packages are declared in `modules/texlive.nix`. Note that package names in nixpkgs may differ from CTAN names (e.g., `zi4` is `inconsolata`, `newtxmath` is `newtx`).

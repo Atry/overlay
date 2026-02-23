@@ -688,8 +688,6 @@ structure.
 
 \section{Embedding the \texorpdfstring{$\lambda$}{λ}-Calculus}
 \label{sec:translation}
-
-\subsection{From \texorpdfstring{$\lambda$}{λ}-Calculus to Overlay-calculus}
 \label{sec:forward-translation}
 
 The following translation maps the $\lambda$-calculus in
@@ -951,7 +949,7 @@ and since there are no methods, all names are nouns or adjectives: $\mathrm{Plus
 is a structure, not an action.
 Operations expose their result through a projection field (e.g., $\mathrm{sum}$).
 
-\paragraph{NatData.}
+\paragraph{NatData}
 Following the Church-encoding
 convention\selfcite{~\cite{mixin2025}}{~(supplementary material)},
 we define a factory containing the abstract product type and its two
@@ -974,7 +972,7 @@ The file name $\mathrm{NatData}$ is itself the top-level scope:
       \mathrm{NatFactory}.\mathrm{Product}\}\}
 \end{align*}
 
-\paragraph{NatPlus.}
+\paragraph{NatPlus}
 Addition is a separate overlay file that inherits $\mathrm{NatData}$
 and extends each constructor with a $\mathrm{Plus}$ operation
 exposing a $\mathrm{sum}$ field.
@@ -1006,7 +1004,7 @@ by delegating to $n_0$'s $\mathrm{Plus}$ with an incremented addend:
         \mathrm{\_recursiveAddition}.\mathrm{sum}\}\}\}\}\}
 \end{align*}
 
-\paragraph{NatEquality.}
+\paragraph{NatEquality}
 To test that $2 + 3 = 5$, we needed equality on Nat values.
 Equality requires case analysis on the constructor; we use the
 Visitor pattern.
@@ -1149,7 +1147,7 @@ $\mathrm{NatEquality}$, a new operation, and $\mathrm{Boolean}$,
 a new data type, each required only a new file: extensibility in both
 dimensions of the Expression Problem~\cite{wadler1998expression}.
 
-\paragraph{Tree-level inheritance and return types.}
+\paragraph{Tree-level inheritance and return types}
 \label{sec:discussion-expression-problem}
 Each operation is an independent overlay that extends a factory's
 subtree.
@@ -1190,7 +1188,7 @@ defined operations inherently produces multi-path inheritance to
 shared schemas, which DOT's single-valued self variable cannot
 accommodate.
 
-\paragraph{Church-encoded Nats are tries.}
+\paragraph{Church-encoded Nats are tries}
 A Church-encoded Nat is a record whose structure mirrors the
 constructor path used to build it: $\mathrm{Zero}$ is a flat record;
 $\mathrm{S}(\mathrm{Zero})$ is a record with a $\mathrm{predecessor}$
@@ -1220,9 +1218,28 @@ $\mathrm{Result}.\mathrm{sum}$ evaluates to the trie $\{4,5,6\}$, the set of all
 $\mathrm{Equal}$ then applies to every pair drawn from $\{4,5,6\} \times \{4,5,6\}$;
 querying $\mathrm{CartesianTest}.\mathrm{Check}.\mathrm{equal}$ via the host-language API
 returns $\{\mathrm{True}, \mathrm{False}\}$.
+The Cartesian product arises directly from the semantic equations.
+$\mathrm{OneOrTwo}$ inherits both $\mathrm{One}$ and $\mathrm{Two}$,
+so $\bases(\mathrm{OneOrTwo})$ contains two paths.
+When $\mathrm{Result}$ inherits
+$\mathrm{OneOrTwo}.\mathrm{Plus}$, the $\bases$ of
+$\mathrm{Result}$ include the $\mathrm{Plus}$ of both
+$\mathrm{One}$ and $\mathrm{Two}$.
+Each $\mathrm{Plus}$ resolves its $\mathrm{addend}$ via
+$\this$, reaching $\mathrm{ThreeOrFour}$, which is itself a
+trie union of $\mathrm{Three}$ and $\mathrm{Four}$:
+the $\supers$ of the $\mathrm{addend}$ path contain both values.
+Since $\mathrm{Successor}.\mathrm{Plus}$ recursively delegates to
+$\mathrm{predecessor}.\mathrm{Plus}$ with an incremented addend,
+and $\mathrm{predecessor}$ also resolves through the trie union,
+the recursion branches at every trie node.
+The result $\mathrm{sum}$ therefore collects all paths reachable
+through any combination of the two operands, which is the
+Cartesian product.
+
 The same $\mathrm{Plus}$ and $\mathrm{Equal}$ files that operate on
-single values produce, without modification, the relational
-semantics of logic programming (Datalog, Prolog):
+single values thus produce, without modification, the relational
+semantics of logic programming:
 $\overlays$ and $\supers$ collect all inheritance paths, and
 every operation distributes over them.
 
@@ -1266,14 +1283,26 @@ structure.
 
   \item \textbf{Relational semantics.}
     Every overlay-calculus operation is defined by recursion on
-    overlay trees, not on individual values.  When an overlay
-    tree is viewed as a trie, every path from the root to a leaf
-    is a tuple; tree-level recursion then becomes join,
-    projection, and union over those tuples---the
-    relational algebra of Datalog.  The carrier is a trie rather
-    than a flat relation, and the fixed point is coinductive
-    (greatest) rather than Datalog's inductive (least), but the
-    relational structure of the computation is the same.
+    overlay trees, not on individual values.
+    When an overlay tree is viewed as a trie, the correspondence
+    with relational algebra becomes precise:
+    a path from the root to a leaf encodes a single value
+    (e.g., $\mathrm{Successor} \to \mathrm{predecessor} \to
+    \mathrm{Zero}$ encodes the natural number~$1$);
+    a trie union encodes a \emph{set} of such values, i.e., a
+    unary relation.
+    An operation that takes two trie-union operands traverses
+    every combination of their paths through $\bases$
+    (equation~\ref{eq:bases}), which is a cross-join;
+    the transitive closure $\bases^*$ in $\supers$
+    (equation~\ref{eq:supers}) computes the union of all
+    reachable paths; and $\properties$
+    (equation~\ref{eq:properties}) projects the observable labels.
+    The carrier is a trie rather than a flat relation, and
+    observation is coinductive---the observer drives computation
+    by querying progressively deeper paths---rather than
+    Datalog's bottom-up materialization, but the relational
+    structure of the computation is the same.
     In the Case Study (Section~\ref{sec:case-study}), the
     $\mathrm{Plus}$ and $\mathrm{Equal}$ operations are defined
     on single Nat values.  When applied to set-valued overlays
