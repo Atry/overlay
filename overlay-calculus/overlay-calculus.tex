@@ -1415,6 +1415,8 @@ dictionary for open recursion, and every composition must
 be wrapped in order-insensitive infrastructure for commutativity.
 These are global, cascading transformations, not local
 rewrites of individual terms.
+In common sense, overlay-calculus is strictly more expressive
+than the $\lambda$-calculus.
 
 \subsection{Classification of Semantic Variants}
 \label{sec:semantic-variants}
@@ -1625,6 +1627,124 @@ Each of these models achieves Turing completeness by
 fewer abstractions, worse ergonomics, no new expressiveness.
 None of these reductions exhibits emergent phenomena
 absent from the model it reduces.
+
+\paragraph{Semantic descriptions of the $\lambda$-calculus}
+The semantics of the $\lambda$-calculus can be defined in
+several fundamentally different ways.
+\emph{Operational semantics} takes $\beta$-reduction
+$(\lambda x.\,M)\,N \to M[N/x]$ as the primitive notion of
+computation~\cite{church1936unsolvable,church1941calculi,barendregt1984lambda}.
+This requires capture-avoiding substitution, a mechanism whose
+subtleties motivated de~Bruijn
+indices~\cite{debruijn1972lambda} and explicit substitution
+calculi~\cite{abadi1991explicit}, and a choice of evaluation
+strategy: call-by-name versus
+call-by-value~\cite{plotkin1975callbyname} or the lazy
+strategy of Abramsky~\cite{abramsky1990lazy}.
+\emph{Denotational semantics}~\cite{scott1970outline,scott1976data}
+interprets terms in a mathematical domain, but giving meaning
+to $\beta$-reduction requires a reflexive domain
+$D \cong [D \to D]$, which has no set-theoretic solution by
+Cantor's theorem; Scott's $D_\infty$ resolves this by
+constructing $D$ as an inverse limit of continuous
+lattices~\cite{scott1972continuous}.
+The resulting semantics is adequate but not fully
+abstract~\cite{plotkin1977lcf,milner1977fully}:
+it identifies terms that observational equivalence
+distinguishes~\cite{plotkin1975callbyname}.
+\emph{Game semantics}~\cite{abramsky2000full,hyland2000full,nickau1994hereditarily}
+achieves full abstraction for PCF and for the lazy
+$\lambda$-calculus~\cite{abramsky1993lazy,abramsky1995games}
+at the cost of considerably more intricate mathematical
+machinery (arenas, strategies, innocence conditions).
+In each of these approaches, the function space $[D \to D]$
+is the central obstacle: operational semantics needs it
+implicitly (via substitution), denotational semantics
+constructs it explicitly, and game semantics refines it via
+strategies.
+None of these approaches yields a semantics of the lazy
+$\lambda$-calculus that simultaneously lives in naive set
+theory and is fully abstract: Scott's $D_\infty$ is adequate
+but not fully abstract, and game semantics is fully abstract
+but requires machinery (arenas, strategies, innocence
+conditions) far beyond set theory.
+None of them eliminates the function space from the semantic
+domain; none avoids capture-avoiding substitution; and none
+dispenses with reduction rules or evaluation strategies.
+
+\paragraph{Set-theoretic models of the $\lambda$-calculus}
+Several families of $\lambda$-calculus models avoid the
+inverse-limit construction of Scott's $D_\infty$ by working
+in set-theoretic rather than domain-theoretic settings.
+\emph{Graph models}~\cite{engeler1981algebras,plotkin1993set}
+take a \emph{web}~$A$ equipped with an injection
+$\iota : \mathcal{P}_{\mathrm{fin}}(A) \times A
+\hookrightarrow A$
+and set $D = \mathcal{P}(A)$.
+Application is
+$f \cdot x = \{\, b \mid \exists\, S \subseteq x,\;
+\iota(S, b) \in f \,\}$:
+the function space $[D \to D]$ is not constructed
+explicitly but encoded inside $D$ via~$\iota$.
+The construction uses only powerset lattices, no Scott
+topology or continuity conditions.
+Graph models are sensible (they equate all unsolvable
+terms) but not fully abstract:
+Bucciarelli and Salibra~\cite{bucciarelli2008graph}
+proved that the greatest sensible graph theory equals the
+B\"ohm tree theory~$\mathcal{B}$, which is
+strictly coarser than observational equivalence for the lazy
+$\lambda$-calculus.
+\emph{Filter models}~\cite{barendregt1983filter,coppo1978type}
+interpret a term as the filter (upward-closed,
+intersection-closed set) of all intersection types derivable
+for it.
+The collection of all such filters forms an $\omega$-algebraic
+lattice.
+Barendregt, Coppo, and Dezani-Ciancaglini proved that type
+assignment is sound and complete with respect to the filter
+$\lambda$-model.
+Dezani-Ciancaglini et al.~\cite{dezani1998intersection}
+showed that the $\lambda$-theory of the BCD filter model
+coincides exactly with B\"ohm tree equality: two terms
+receive the same set of types if and only if they have the
+same B\"ohm tree.
+Filter models are more discriminating than graph models but
+are still not fully abstract for the lazy $\lambda$-calculus,
+and require the additional machinery of intersection type
+theory and algebraic lattices.
+\emph{Relational models}~\cite{ehrhard2005finiteness,bucciarelli2001phase}
+arise from the relational semantics of linear logic: the
+exponential modality~$!$ is interpreted via finite
+multisets~$\mathcal{M}_{\mathrm{fin}}(A)$, giving a
+co-Kleisli category whose morphisms are relations from
+$\mathcal{M}_{\mathrm{fin}}(A)$ to~$B$.
+The multiset structure corresponds to non-idempotent
+intersection types~\cite{decarvalho2018execution}, which
+carry quantitative information (bounds on reduction length)
+that idempotent systems lack.
+Ehrhard~\cite{ehrhard2005finiteness} showed that in the
+finiteness-space refinement of this model, standard
+fixed-point operators are not finitary, and a standard
+reflexive object for the pure $\lambda$-calculus cannot
+exist in this category.
+For the lazy $\lambda$-calculus, full abstraction has been
+achieved only through game
+semantics~\cite{abramsky1993lazy,abramsky1995games};
+none of the three set-theoretic families attains it.
+All three families are semantic \emph{models} of the
+$\lambda$-calculus: they interpret $\lambda$-terms in an
+external mathematical structure and validate
+$\beta$-reduction as an equation in that structure.
+None of them is a self-contained calculus with its own
+primitives into which the $\lambda$-calculus embeds.
+Moreover, all three identify terms more coarsely than
+observational equivalence---graph and filter models coincide
+with B\"ohm tree equality, while relational models cannot
+even host a standard reflexive
+object~\cite{ehrhard2005finiteness}---and none provides a
+fully abstract semantics for the lazy $\lambda$-calculus
+without resorting to game-theoretic machinery.
 
 \paragraph{Denotational semantics of inheritance}
 Cook~\cite{cook1989denotational} gave the first denotational
