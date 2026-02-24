@@ -66,12 +66,14 @@
   equivalence~\cite{barendregt1984lambda}.
   Overlay-calculus is distilled from the Overlay language, a
   practical implementation in which we observed further emergent
-  phenomena: the Expression Problem dissolves, programs are
-  function color blind~\cite{nystrom2015color}, ordinary arithmetic
-  yields the relational semantics of logic programming,
-  and self-reference resolves to multiple targets,
-  making overlay-calculus strictly more expressive than the
-  $\lambda$-calculus in Felleisen's
+  phenomena: the same code acts as different function
+  colors~\cite{nystrom2015color};
+  ordinary arithmetic
+  yields the relational semantics of logic programming~\cite{vanemden1976semantics};
+  self-reference resolves to multiple targets;
+  and programs are immune to the Expression Problem~\cite{wadler1998expression}.
+  This makes overlay-calculus strictly more expressive than the
+  $\lambda$-calculus in both common sense and Felleisen's
   sense~\cite{felleisen1991expressive}.
   These properties suggest applications to configuration languages,
   dependency injection, object-oriented programming, composable
@@ -223,7 +225,7 @@ Problem~\cite{wadler1998expression} without any dedicated mechanism;
 that Church-encoded values automatically form trie structures; and
 that operations on tries automatically become Cartesian products, so that
 adding $\{1,2\}$ to $\{3,4\}$ yields $\{4,5,6\}$, which
-is the relational semantics of logic programming
+is the relational semantics of logic programming~\cite{vanemden1976semantics}
 (Section~\ref{sec:case-study}); and that the same web
 application overlay file runs under both Python asyncio and synchronous
 execution without modification, an instance of function color
@@ -1336,13 +1338,13 @@ structure.
 
   \item \textbf{Function color blindness.}
     \label{sec:practical-function-color}
-    We implemented a web application as overlay
-    files\selfcite{~\cite{mixin2025}}{~(supplementary material)},
+    In a web
+    application\selfcite{~\cite{mixin2025}}{~(supplementary material)}
     initially targeting Python's synchronous \texttt{sqlite3} and
-    \texttt{http.server} modules.
-    The business logic overlay file contained no async-specific code.
-    Later, we replaced the FFI layer with one built on
-    \texttt{aiosqlite} and \texttt{starlette}; the business logic
+    \texttt{http.server} modules,
+    the business logic overlay file contained no async-specific code.
+    When the FFI layer was replaced with one built on
+    \texttt{aiosqlite} and \texttt{starlette}, the business logic
     overlay file did not change.
     This is an instance of function color
     blindness~\cite{nystrom2015color}: async and sync functions are
@@ -1355,6 +1357,49 @@ structure.
     handlers~\cite{plotkin2003algebraic,pretnar2015introduction}
     under a CPS interpretation, or with direct implementations
     under a direct-style interpretation, without explicit monad machinery.
+
+  \item \textbf{Immunity to nonextensibility.}
+    Programming languages typically provide a mix of extensible and
+    nonextensible constructs.
+    In such languages, extensibility is opt-in: frameworks
+    must encode nonextensible constructs into extensible constructs
+    using sophisticated
+    mechanisms~\cite{liang1995monad, lammel2003scrap, loh2006open,
+    swierstra2008data, carette2009finally, oliveira2012extensibility,
+    kiselyov2013extensible, wu2014effect, kiselyov2015freer,
+    wang2016trivially, leijen2017type, poulsen2023hefty},
+    and code that uses nonextensible constructs
+    cannot be extended unless rewritten in the framework.
+    In contrast, every construct of overlay-calculus
+    (Section~\ref{sec:syntax}) is extensible
+    via deep merge (equation~\ref{eq:overlays}).
+    There is no nonextensible construct, so it is
+    impossible to write a nonextensible program.
+    In the Case Study (Section~\ref{sec:case-study}),
+    new operations and data types are added without
+    modifying existing files.
+    Tree-level inheritance
+    (Section~\ref{sec:discussion-expression-problem}) and
+    multi-path qualified this (equation~\ref{eq:this};
+    Appendix~\ref{app:scala-multi-path}) account for this.
+    The Expressive Asymmetry
+    (Section~\ref{sec:asymmetry};
+    Theorem~\ref{thm:cartesian-non-expressibility}) provides the
+    formal counterpart: the overlay trees in its separating
+    construction are mechanical translations of
+    $\lambda$-terms via $\mathcal{T}$
+    (Section~\ref{sec:forward-translation}), yet a new observable
+    projection is added to them without modification.
+    This is the extensibility that the Expression
+    Problem~\cite{wadler1998expression} demands.%
+    \footnote{As an untyped calculus, overlay-calculus cannot violate
+    the extensibility requirement of the Expression Problem but does
+    not encounter its type-safety requirement.
+    A typed language built on
+    overlay-calculus\selfcite{~\cite{mixin2025}}{~(supplementary
+    material)} inherits the immunity to nonextensibility and need
+    only ensure that its type system does not introduce
+    nonextensible constructs.}
 \end{enumerate}
 
 \noindent
