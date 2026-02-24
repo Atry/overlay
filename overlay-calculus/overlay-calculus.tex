@@ -244,7 +244,9 @@ The translation reveals an asymmetry: embedding the
 $\lambda$-calculus into overlay-calculus requires five local,
 syntax-directed rules
 (Section~\ref{sec:forward-translation}), but the reverse is
-impossible---overlay enables open extension that changes
+not macro-expressible under the equivalence notions fixed in
+Section~\ref{sec:asymmetry} and Appendix~\ref{app:expressiveness}---
+overlay enables open extension that changes
 operational equivalence on $\lambda$-terms, establishing a
 strict separation in Felleisen's sense of
 expressiveness~\cite{felleisen1991expressive}
@@ -297,7 +299,8 @@ All tests are mechanically verified against expected output snapshots.
     reject it (Scala and the NixOS module system,
     Appendix~\ref{app:scala-multi-path}).
     Since inheritance is idempotent, all objects contribute
-    equally; no disambiguation is needed.
+    equally; this semantics does not introduce a route-priority
+    disambiguation rule.
   \item The $\lambda$-calculus (in A-normal form) translates into
     overlay-calculus in five rules (Section~\ref{sec:translation}).
     The translation is fully abstract with respect to
@@ -2214,7 +2217,8 @@ $\mathrm{MyObjectA}.\mathrm{outer}$ yields the
 $\properties$ of $\mathrm{MyOuter}$ regardless of which
 route is taken.
 Since inheritance is idempotent, the two routes contribute the
-same properties and no disambiguation is needed.
+same properties in this semantics, so no route-priority
+disambiguation rule is introduced.
 
 \subsection*{NixOS Module System}
 
