@@ -8,6 +8,25 @@
 
 \usepackage{mathtools}
 \usepackage{mathrsfs}
+\usepackage{listings}
+
+\lstdefinestyle{scala}{
+  language=Scala,
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  showstringspaces=false,
+  columns=flexible,
+}
+
+\lstdefinestyle{nix}{
+  language=,
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  showstringspaces=false,
+  columns=flexible,
+  commentstyle=\itshape,
+  morecomment=[l]{\#},
+}
 
 %% Conditional citation: hide self-citations under anonymous review.
 %% Use \@firstoftwo / \@secondoftwo so the unchosen branch is never
@@ -2240,26 +2259,26 @@ pattern that inheritance-calculus handles naturally.
 Consider two objects that independently extend an outer class,
 each providing its own copy of an inner trait:
 
-\begin{verbatim}
+\begin{lstlisting}[style=scala]
 class MyOuter:
   trait MyInner:
     def outer = MyOuter.this
 
 object Object1 extends MyOuter
 object Object2 extends MyOuter
-object MyObjectA extends Object1.MyInner
+object HasMultipleOuters extends Object1.MyInner
                      with Object2.MyInner
-\end{verbatim}
+\end{lstlisting}
 
 \noindent
-Scala~3 rejects \texttt{MyObjectA} with the error:
+Scala~3 rejects \texttt{HasMultipleOuters} with the error:
 
-\begin{verbatim}
+\begin{lstlisting}
 trait MyInner is extended twice
-object MyObjectA cannot be instantiated since
+object HasMultipleOuters cannot be instantiated since
   it has conflicting base types
   Object1.MyInner and Object2.MyInner
-\end{verbatim}
+\end{lstlisting}
 
 \noindent
 The rejection is not a surface-level restriction but a consequence
@@ -2280,7 +2299,7 @@ The equivalent inheritance-calculus definition is:
   \mathrm{outer} \mapsto \qualifiedthis{\mathrm{MyOuter}}\}\}, \\
   \mathrm{Object1} &\mapsto \{\mathrm{MyOuter}\}, \\
   \mathrm{Object2} &\mapsto \{\mathrm{MyOuter}\}, \\
-  \mathrm{MyObjectA} &\mapsto \{
+  \mathrm{HasMultipleOuters} &\mapsto \{
     \mathrm{Object1}.\mathrm{MyInner},\;
   \mathrm{Object2}.\mathrm{MyInner}\}
 \quad \}
@@ -2292,19 +2311,19 @@ has de~Bruijn index $n = 1$:
 starting from $\mathrm{outer}$'s enclosing scope
 $\mathrm{MyInner}$, one $\this$ step reaches
 $\mathrm{MyOuter}$.
-When $\mathrm{MyObjectA}$ inherits from both
+When $\mathrm{HasMultipleOuters}$ inherits from both
 $\mathrm{Object1}.\mathrm{MyInner}$ and
 $\mathrm{Object2}.\mathrm{MyInner}$,
 the $\this$ function (equation~\ref{eq:this}) resolves
 $\qualifiedthis{\mathrm{MyOuter}}$ by searching through
-$\supers(\mathrm{MyObjectA})$ for override paths matching
+$\supers(\mathrm{HasMultipleOuters})$ for override paths matching
 $\mathrm{MyInner}$'s definition site.
 It finds two inheritance-site paths, one through
 $\mathrm{Object1}$ and one through $\mathrm{Object2}$, and
 returns both.
 Both paths lead to records that inherit from the same
 $\mathrm{MyOuter}$, so querying
-$\mathrm{MyObjectA}.\mathrm{outer}$ yields the
+$\mathrm{HasMultipleOuters}.\mathrm{outer}$ yields the
 $\properties$ of $\mathrm{MyOuter}$ regardless of which
 route is taken.
 Since inheritance is idempotent, the two routes contribute the
@@ -2319,7 +2338,7 @@ The translation uses the module system's own abstractions:
 into other fixpoints, and \texttt{submoduleWith} for objects, which are evaluated
 in their own fixpoints.
 
-\begin{verbatim}
+\begin{lstlisting}[style=nix]
 let
   lib = (import <nixpkgs> { }).lib;
   result = lib.evalModules {
@@ -2367,9 +2386,9 @@ let
             modules = [ toplevel.config.MyOuter ];
           };
         };
-        # object MyObjectA extends
+        # object HasMultipleOuters extends
         #   Object1.MyInner with Object2.MyInner
-        options.MyObjectA = lib.mkOption {
+        options.HasMultipleOuters = lib.mkOption {
           default = { };
           type = lib.types.submoduleWith {
             modules = [
@@ -2382,18 +2401,18 @@ let
     ];
   };
 in
-  builtins.attrNames result.config.MyObjectA.outer
-\end{verbatim}
+  builtins.attrNames result.config.HasMultipleOuters.outer
+\end{lstlisting}
 
 \noindent
 The NixOS module system rejects this with:
 
-\begin{verbatim}
-error: The option `MyObjectA.outer'
+\begin{lstlisting}
+error: The option `HasMultipleOuters.outer'
   in `<unknown-file>'
   is already declared
   in `<unknown-file>'.
-\end{verbatim}
+\end{lstlisting}
 
 \noindent
 The rejection occurs because

@@ -929,15 +929,15 @@ class TestScalaStylePathDependentTypes:
             )
             @public
             @scope
-            class MyObjectA:
+            class HasMultipleOuters:
                 @patch
                 def foo() -> Callable[[int], int]:
                     return lambda x: 100 + x
 
         root = evaluate(Root)
 
-        # foo = 10 (Base) + 1 (object1.MyInner) + 2 (object2.MyInner) + 100 (MyObjectA) = 113
-        assert root.MyObjectA.foo == 113
+        # foo = 10 (Base) + 1 (object1.MyInner) + 2 (object2.MyInner) + 100 (HasMultipleOuters) = 113
+        assert root.HasMultipleOuters.foo == 113
 
 
 class TestModuleParsing:
