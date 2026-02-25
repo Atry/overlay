@@ -37,7 +37,7 @@
               }
             )
             // {
-              overlay = prev.overlay.overrideAttrs (_: {
+              mixinv2-workspace = prev.mixinv2-workspace.overrideAttrs (_: {
                 buildPhase = "mkdir -p $out";
                 installPhase = "true";
                 nativeBuildInputs = [ ];
@@ -70,6 +70,8 @@
               );
 
           members = [
+            "mixinv2"
+            "mixinv2-library"
             "overlay-language"
             "overlay-library"
           ];
@@ -138,27 +140,27 @@
             ]
           );
 
-          overlay-dev-env =
-            (editablePythonSet.mkVirtualEnv "overlay-dev-env" workspace.deps.all).overrideAttrs
+          mixinv2-dev-env =
+            (editablePythonSet.mkVirtualEnv "mixinv2-dev-env" workspace.deps.all).overrideAttrs
               (old: {
                 venvIgnoreCollisions = [ "*" ];
               });
         in
         {
           packages.default =
-            (pythonSet.mkVirtualEnv "overlay-env" (builtins.removeAttrs workspace.deps.default [ "overlay" ])).overrideAttrs
+            (pythonSet.mkVirtualEnv "mixinv2-env" (builtins.removeAttrs workspace.deps.default [ "mixinv2-workspace" ])).overrideAttrs
               (old: {
                 venvIgnoreCollisions = [ "*" ];
               });
-          packages.overlay-dev-env = overlay-dev-env;
+          packages.mixinv2-dev-env = mixinv2-dev-env;
 
           ml-ops.devcontainer.devenvShellModule = {
             packages = [
-              overlay-dev-env
+              mixinv2-dev-env
               pkgs.uv
             ];
             env = {
-              UV_PYTHON = "${overlay-dev-env}/bin/python";
+              UV_PYTHON = "${mixinv2-dev-env}/bin/python";
               UV_PYTHON_DOWNLOADS = "never";
               UV_NO_SYNC = "1";
             };
@@ -166,7 +168,7 @@
               unset PYTHONPATH
               export REPO_ROOT=$(git rev-parse --show-toplevel)
               rm -rf .venv
-              ln -sf ${overlay-dev-env} .venv
+              ln -sf ${mixinv2-dev-env} .venv
             '';
           };
         };

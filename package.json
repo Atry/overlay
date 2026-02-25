@@ -1,5 +1,5 @@
 {
-  "name": "overlay",
+  "name": "mixinv2",
   "devDependencies": {
     "doi-mcp": "github:tfscharff/doi-mcp"
   }

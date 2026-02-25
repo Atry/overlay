@@ -15,7 +15,7 @@ metadata = false
 [project]
 name = "overlay.library"
 dynamic = ["version", "dependencies"]
-description = "The MIXINv2 standard library — built-in definitions for MIXINv2"
+description = "Backward compatibility wrapper — overlay.library is now mixinv2-library"
 license = "MIT"
 requires-python = ">=3.13"
 authors = [
@@ -30,11 +30,11 @@ classifiers = [
 
 [tool.hatch.metadata.hooks.uv-dynamic-versioning]
 dependencies = [
-    "overlay.language=={{ version }}",
+    "mixinv2-library=={{ version }}",
 ]
 
 [tool.uv]
-sources = {overlay-language = {workspace = true}}
+sources = {mixinv2-library = {workspace = true}}
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/overlay"]

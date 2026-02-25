@@ -30,7 +30,7 @@ from typing import (
     final,
 )
 
-from overlay.language._core import HasDict, OuterSentinel, SymbolKind
+from mixinv2._core import HasDict, OuterSentinel, SymbolKind
 
 
 class KwargsSentinel(Enum):
@@ -41,7 +41,7 @@ class KwargsSentinel(Enum):
 
 
 if TYPE_CHECKING:
-    from overlay.language._core import (
+    from mixinv2._core import (
         EndofunctionMergerSymbol,
         FunctionalMergerSymbol,
         MixinSymbol,
@@ -162,7 +162,7 @@ class Mixin(HasDict):
         re-navigate down. If downward navigation is needed, we stay in the
         instance tree since children correctly inherit instance kwargs.
         """
-        from overlay.language._core import MixinSymbol
+        from mixinv2._core import MixinSymbol
 
         self_symbol = self.symbol
         target = target_symbol
@@ -301,7 +301,7 @@ class Mixin(HasDict):
 
         This mirrors V1's Resource.evaluated logic exactly.
         """
-        from overlay.language._core import (
+        from mixinv2._core import (
             ElectedMerger,
             MergerElectionSentinel,
         )
@@ -663,7 +663,7 @@ def evaluate(
     from types import ModuleType
     from typing import assert_never
 
-    from overlay.language._core import (
+    from mixinv2._core import (
         MixinSymbol,
         OuterSentinel,
         ScopeDefinition,
@@ -707,4 +707,4 @@ def evaluate(
 if TYPE_CHECKING:
     from types import ModuleType
 
-    from overlay.language._core import ScopeDefinition
+    from mixinv2._core import ScopeDefinition

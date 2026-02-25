@@ -1,6 +1,6 @@
 """ForeignKeys: contributes foreign key enforcement pragma."""
 
-from overlay.language import patch
+from mixinv2 import patch
 
 
 @patch

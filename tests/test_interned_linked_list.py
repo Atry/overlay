@@ -2,7 +2,7 @@
 
 import gc
 
-from overlay.language._core import (
+from mixinv2._core import (
     MixinSymbol,
     Nested,
     ObjectScopeDefinition,

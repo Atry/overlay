@@ -12,8 +12,8 @@ Composite scopes declared via @extend:
 - step4_app          → all four modules (Step 4, full stack)
 """
 
-from overlay.language import LexicalReference
-from overlay.language import extend, public, scope
+from mixinv2 import LexicalReference
+from mixinv2 import extend, public, scope
 
 
 # [docs:module-extend]

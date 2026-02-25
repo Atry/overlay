@@ -1,6 +1,6 @@
 """A regular module (not a package) for testing."""
 
-from overlay.language import resource
+from mixinv2 import resource
 
 
 @resource

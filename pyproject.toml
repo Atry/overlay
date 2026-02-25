@@ -1,5 +1,5 @@
 [project]
-name = "overlay"
+name = "mixinv2-workspace"
 version = "0.1.0"
 description = "A dependency injection framework with pytest-fixture syntax, plus a configuration language for declarative programming"
 readme = "README.md"
@@ -8,22 +8,22 @@ requires-python = ">=3.13"
 authors = [
     {name = "Yang, Bo", email = "yang-bo@yang-bo.com"},
 ]
-keywords = ["overlay", "mixin", "composition", "dependency-injection"]
+keywords = ["mixinv2", "mixin", "composition", "dependency-injection"]
 dependencies = [
-    "overlay.language",
-    "overlay.library",
+    "mixinv2",
+    "mixinv2-library",
 ]
 
 [project.urls]
 Repository = "https://github.com/Atry/overlay"
 
 [tool.uv]
-sources = {overlay-language = {workspace = true}, overlay-library = {workspace = true}}
+sources = {mixinv2 = {workspace = true}, mixinv2-library = {workspace = true}, overlay-language = {workspace = true}, overlay-library = {workspace = true}}
 cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
 # Note: uv source keys use normalized names (dashes) even when project names use dots
 
 [tool.uv.workspace]
-members = ["overlay-language", "overlay-library"]
+members = ["mixinv2", "mixinv2-library", "overlay-language", "overlay-library"]
 
 [dependency-groups]
 dev = [
@@ -53,8 +53,8 @@ dev = [
     "starlette>=0.50.0",
     "syrupy>=5.0.0",
     "vcrpy>=7.0.0",
-    "overlay-language[docs]",
+    "mixinv2[docs]",
 ]
 
 [tool.pyright]
-include = ["overlay-language/src", "overlay-library/src", "tests"]
+include = ["mixinv2/src", "mixinv2-library/src", "tests"]

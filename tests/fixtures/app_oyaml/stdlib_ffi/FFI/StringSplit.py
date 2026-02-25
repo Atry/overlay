@@ -1,6 +1,6 @@
 """string.split(separator) -> tuple of parts"""
 
-from overlay.language import extern, public, resource
+from mixinv2 import extern, public, resource
 
 
 @extern

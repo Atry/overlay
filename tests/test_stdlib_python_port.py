@@ -7,7 +7,7 @@ Convention tested:
 
 import pytest
 
-from overlay.language import (
+from mixinv2 import (
     LexicalReference,
     extend,
     extern,
@@ -15,8 +15,8 @@ from overlay.language import (
     resource,
     scope,
 )
-from overlay.language._core import MixinSymbol
-from overlay.language._runtime import Scope, evaluate
+from mixinv2._core import MixinSymbol
+from mixinv2._runtime import Scope, evaluate
 
 
 # =============================================================================

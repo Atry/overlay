@@ -48,7 +48,7 @@ from typing import TypeAlias, final
 
 import yaml
 
-from overlay.language._core import (
+from mixinv2._core import (
     Definition,
     EndofunctionMergerDefinition,
     LexicalReference,

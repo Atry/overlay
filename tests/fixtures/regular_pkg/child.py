@@ -1,6 +1,6 @@
 """A child module within regular_pkg."""
 
-from overlay.language import public, resource
+from mixinv2 import public, resource
 
 
 @public

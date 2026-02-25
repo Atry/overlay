@@ -1,6 +1,6 @@
 """Module B in namespace package with internal dependencies."""
 
-from overlay.language import public, resource
+from mixinv2 import public, resource
 
 
 @public

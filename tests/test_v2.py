@@ -6,7 +6,7 @@ from typing import Callable
 
 import pytest
 
-from overlay.language import (
+from mixinv2 import (
     LexicalReference,
     RelativeReference,
     eager,
@@ -19,12 +19,12 @@ from overlay.language import (
     resource,
     scope,
 )
-from overlay.language._core import (
+from mixinv2._core import (
     PackageScopeDefinition,
     ScopeDefinition,
     _parse_package,
 )
-from overlay.language._runtime import (
+from mixinv2._runtime import (
     Mixin,
     Scope,
     evaluate,
@@ -1065,7 +1065,7 @@ class TestModuleParsing:
             ns_pkg_dir = Path(tmpdir) / "ns_pkg"
             ns_pkg_dir.mkdir()
             (ns_pkg_dir / "mod_c.py").write_text(
-                "from overlay.language import public, resource\n"
+                "from mixinv2 import public, resource\n"
                 "value_c = public(resource(lambda: 'c'))\n"
             )
 
@@ -1217,7 +1217,7 @@ class TestInstanceScopeImplementation:
 
         When providing a value via __call__, endofunction patches should be applied.
         """
-        from overlay.language._core import Endofunction
+        from mixinv2._core import Endofunction
 
         @scope
         class Config:

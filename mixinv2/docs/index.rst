@@ -1,7 +1,7 @@
 MIXINv2
 =======
 
-``overlay.language`` is a dependency injection framework with pytest-fixture
+``mixinv2`` is a dependency injection framework with pytest-fixture
 syntax, plus a configuration language for declarative programming. The package
 has two parts:
 
@@ -31,7 +31,7 @@ to thin I/O adapters that are trivial to mock or replace. The same MIXINv2 code 
 never changes, even when you
 port your synchronous program to async — the problem known as
 `function color <https://journal.stuffwithstuff.com/2015/02/01/what-color-is-your-function/>`_.
-See :doc:`overlay-language-tutorial`.
+See :doc:`mixinv2-tutorial`.
 
 :doc:`installation`
    Install the package from PyPI.
@@ -40,7 +40,7 @@ See :doc:`overlay-language-tutorial`.
    Getting started with the Python decorator API — build a web application
    step by step using ``@scope``, ``@extern``, and ``@resource``.
 
-:doc:`overlay-language-tutorial`
+:doc:`mixinv2-tutorial`
    Getting started with MIXINv2 — rewrite the same application
    in ``.mixin.yaml``, separating business logic from I/O, then switch the
    underlying framework to asyncio without changing your code.
@@ -48,7 +48,7 @@ See :doc:`overlay-language-tutorial`.
 :doc:`specification`
    Full language specification for MIXINv2.
 
-`API Reference <api/overlay.language.html>`__
+`API Reference <api/mixinv2.html>`__
    Python API reference (auto-generated).
 
 .. toctree::
@@ -56,6 +56,6 @@ See :doc:`overlay-language-tutorial`.
 
    installation
    tutorial
-   overlay-language-tutorial
+   mixinv2-tutorial
    specification
-   API Reference <api/overlay.language>
+   API Reference <api/mixinv2>

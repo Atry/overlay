@@ -18,9 +18,9 @@ from typing import Callable, Iterator, Protocol
 
 from types import ModuleType
 
-from overlay.language import LexicalReference
-from overlay.language import eager, extend, extern, merge, patch, public, resource, scope
-from overlay.language._runtime import evaluate
+from mixinv2 import LexicalReference
+from mixinv2 import eager, extend, extern, merge, patch, public, resource, scope
+from mixinv2._runtime import evaluate
 
 
 # ---------------------------------------------------------------------------

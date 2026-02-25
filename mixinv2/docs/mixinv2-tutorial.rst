@@ -311,7 +311,7 @@ Evaluation
 .. code-block:: python
 
    import tests.fixtures.app_oyaml as app_oyaml
-   from overlay.language import evaluate
+   from mixinv2 import evaluate
 
    # evaluate() auto-discovers stdlib_ffi/, Library.oyaml, and Apps.oyaml.
    root = evaluate(app_oyaml, modules_public=True)

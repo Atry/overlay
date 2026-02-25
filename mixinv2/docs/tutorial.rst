@@ -113,7 +113,7 @@ instead of a coroutine, which cannot be safely awaited in multiple dependents.
    from http.server import BaseHTTPRequestHandler, HTTPServer
    from types import ModuleType
 
-   from overlay.language import LexicalReference, extend
+   from mixinv2 import LexicalReference, extend
 
    @scope
    class SQLiteDatabase:

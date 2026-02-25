@@ -2,8 +2,8 @@ from pathlib import PurePath
 
 import pytest
 
-from overlay.language import AbsoluteReference, RelativeReference
-from overlay.language._core import resource_reference_from_pure_path
+from mixinv2 import AbsoluteReference, RelativeReference
+from mixinv2._core import resource_reference_from_pure_path
 
 
 class TestResourceReferenceFromPurePath:

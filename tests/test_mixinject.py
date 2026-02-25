@@ -2,8 +2,8 @@
 
 import pytest
 
-from overlay.language import LexicalReference
-from overlay.language._core import (
+from mixinv2 import LexicalReference
+from mixinv2._core import (
     MixinSymbol,
     ObjectScopeDefinition,
 )

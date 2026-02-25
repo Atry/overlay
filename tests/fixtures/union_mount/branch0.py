@@ -2,7 +2,7 @@
 
 from typing import Callable, Iterator
 
-from overlay.language import merge, public, scope
+from mixinv2 import merge, public, scope
 
 
 @public

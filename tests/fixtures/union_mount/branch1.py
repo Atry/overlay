@@ -1,6 +1,6 @@
 """Branch 1: Provides tag1 patch and another_dependency resource."""
 
-from overlay.language import patch, public, resource, scope
+from mixinv2 import patch, public, resource, scope
 
 
 @patch

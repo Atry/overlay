@@ -6,14 +6,14 @@ build:
     python: "3.13"
   jobs:
     pre_build:
-      - sphinx-apidoc --implicit-namespaces -o overlay-language/docs/api overlay-language/src/overlay
+      - sphinx-apidoc --implicit-namespaces -o mixinv2/docs/api mixinv2/src/mixinv2
 
 sphinx:
-  configuration: overlay-language/docs/conf.py
+  configuration: mixinv2/docs/conf.py
 
 python:
   install:
     - method: pip
-      path: overlay-language
+      path: mixinv2
       extra_requirements:
         - docs

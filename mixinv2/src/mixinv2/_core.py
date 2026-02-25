@@ -63,7 +63,7 @@ This explicit-only design makes dependency injection predictable and self-docume
 
 Example::
 
-    from overlay.language import scope, resource, patch, evaluate
+    from mixinv2 import scope, resource, patch, evaluate
 
     @scope
     class Base:
@@ -444,7 +444,7 @@ Example
 ::
 
     # config.py
-    from overlay.language import parameter, resource
+    from mixinv2 import parameter, resource
 
     @extern
     def settings(): ...
@@ -454,7 +454,7 @@ Example
         return f"{settings['host']}:{settings['port']}"
 
     # main.py
-    from overlay.language import evaluate
+    from mixinv2 import evaluate
 
     root = evaluate(config)(settings={"host": "db.example.com", "port": "3306"})
     assert root.connection_string == "db.example.com:3306"
@@ -573,19 +573,19 @@ from typing import (
 
 
 if TYPE_CHECKING:
-    from overlay.language import _runtime as runtime
+    from mixinv2 import _runtime as runtime
 else:
     import importlib
 
     class _LazyRuntimeModule:
-        """Lazy proxy for overlay.language._runtime to break circular imports."""
+        """Lazy proxy for mixinv2._runtime to break circular imports."""
 
         _module: object = None
 
         def __getattr__(self, name: str) -> object:
             if _LazyRuntimeModule._module is None:
                 _LazyRuntimeModule._module = importlib.import_module(
-                    "overlay.language._runtime"
+                    "mixinv2._runtime"
                 )
             return getattr(_LazyRuntimeModule._module, name)
 
@@ -1762,7 +1762,7 @@ class PackageScopeDefinition(ObjectScopeDefinition):
         assert isinstance(key, str)
         mixin_file = self._mixin_files.get(key)
         if mixin_file is not None:
-            from overlay.language._mixin_parser import (
+            from mixinv2._mixin_parser import (
                 OverlayFileScopeDefinition,
             )
 
@@ -1798,7 +1798,7 @@ def scope(c: object) -> ObjectScopeDefinition:
         Use ``@extend`` with ``LexicalReference`` to combine multiple scopes.
         This is the recommended way to create union mount points::
 
-            from overlay.language import LexicalReference
+            from mixinv2 import LexicalReference
 
             @scope
             class Root:
@@ -1850,7 +1850,7 @@ def extend(
 
     Example - Extending a sibling scope::
 
-        from overlay.language import LexicalReference
+        from mixinv2 import LexicalReference
 
         @scope
         class Root:
@@ -1889,7 +1889,7 @@ def extend(
                 return f"{foo}_bar"
 
             # my_package/__init__.py
-            from overlay.language import LexicalReference, extend, scope
+            from mixinv2 import LexicalReference, extend, scope
 
             @extend(
                 LexicalReference(path=("branch1",)),
@@ -1947,8 +1947,8 @@ def merge(
 
     The following example defines a merge that deduplicates strings from multiple patches into a frozenset::
 
-        from overlay.language import merge, patch, resource, extend, scope, evaluate, extern
-        from overlay.language import LexicalReference
+        from mixinv2 import merge, patch, resource, extend, scope, evaluate, extern
+        from mixinv2 import LexicalReference
 
         @scope
         class Root:
@@ -2071,7 +2071,7 @@ def resource(
     Example:
         The following example defines a resource that can be modified by patches::
 
-            from overlay.language import resource, patch
+            from mixinv2 import resource, patch
             @resource
             def greeting() -> str:
                 return "Hello"
@@ -2083,7 +2083,7 @@ def resource(
 
         Alternatively, ``greeting`` can be defined with an explicit merge::
 
-            from overlay.language import merge
+            from mixinv2 import merge
             @merge
             def greeting() -> Callable[[Iterator[Endofunction[str]]], str]:
                 return lambda endos: reduce(

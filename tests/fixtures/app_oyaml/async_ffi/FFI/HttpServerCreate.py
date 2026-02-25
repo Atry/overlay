@@ -6,7 +6,7 @@ import uvicorn
 from starlette.applications import Starlette
 from starlette.routing import Route
 
-from overlay.language import extern, public, resource
+from mixinv2 import extern, public, resource
 
 
 @extern

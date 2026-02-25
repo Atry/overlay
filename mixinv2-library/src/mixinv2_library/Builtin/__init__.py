@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from overlay.language import (
+from mixinv2 import (
     LexicalReference,
     extend,
     merge,
@@ -9,7 +9,7 @@ from overlay.language import (
     public,
     scope,
 )
-from overlay.language._core import MappingScopeDefinition
+from mixinv2._core import MappingScopeDefinition
 
 
 class _NatScope(Protocol):

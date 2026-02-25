@@ -1,6 +1,6 @@
 """template.format(total=user_count, current=current_user_name).encode() -> response_body"""
 
-from overlay.language import extern, public, resource
+from mixinv2 import extern, public, resource
 
 
 @extern

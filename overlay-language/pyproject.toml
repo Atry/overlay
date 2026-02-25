@@ -14,8 +14,8 @@ metadata = false
 
 [project]
 name = "overlay.language"
-dynamic = ["version"]
-description = "A dependency injection framework with pytest-fixture syntax, plus a configuration language for declarative programming"
+dynamic = ["version", "dependencies"]
+description = "Backward compatibility wrapper — overlay.language is now mixinv2"
 license = "MIT"
 requires-python = ">=3.13"
 authors = [
@@ -27,15 +27,14 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
 ]
+
+[tool.hatch.metadata.hooks.uv-dynamic-versioning]
 dependencies = [
-    "pyyaml>=6.0.3",
+    "mixinv2=={{ version }}",
 ]
 
-[project.optional-dependencies]
-docs = [
-    "sphinx>=9.1.0",
-    "sphinx-mdinclude>=0.6.2",
-]
+[tool.uv]
+sources = {mixinv2 = {workspace = true}}
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/overlay"]

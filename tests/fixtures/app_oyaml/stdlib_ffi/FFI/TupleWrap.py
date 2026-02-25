@@ -1,6 +1,6 @@
 """(element,) -> 1-tuple"""
 
-from overlay.language import extern, public, resource
+from mixinv2 import extern, public, resource
 
 
 @extern

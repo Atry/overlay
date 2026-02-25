@@ -10,7 +10,7 @@ from collections.abc import Awaitable
 from starlette.requests import Request
 from starlette.responses import Response
 
-from overlay.language import extern, public, resource
+from mixinv2 import extern, public, resource
 
 from ._async_resource import async_resource
 

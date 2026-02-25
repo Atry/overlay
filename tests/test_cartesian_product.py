@@ -19,9 +19,9 @@ from pathlib import Path
 
 import pytest
 
-import overlay.library
-from overlay.language._mixin_directory import DirectoryMixinDefinition
-from overlay.language._runtime import Scope, evaluate
+import mixinv2_library
+from mixinv2._mixin_directory import DirectoryMixinDefinition
+from mixinv2._runtime import Scope, evaluate
 
 
 TESTS_PATH = Path(__file__).parent
@@ -33,7 +33,7 @@ def cartesian_scope() -> Scope:
     tests_definition = DirectoryMixinDefinition(
         inherits=(), is_public=True, underlying=TESTS_PATH
     )
-    root = evaluate(overlay.library, tests_definition, modules_public=True)
+    root = evaluate(mixinv2_library, tests_definition, modules_public=True)
     result = root.CartesianProductTest
     assert isinstance(result, Scope)
     return result

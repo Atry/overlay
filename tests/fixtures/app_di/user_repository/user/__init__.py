@@ -1,6 +1,6 @@
 """UserRepository.User: composable data object — @scope used as a dataclass."""
 
-from overlay.language import extern, public
+from mixinv2 import extern, public
 
 
 @public

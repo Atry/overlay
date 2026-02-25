@@ -1,6 +1,6 @@
 """template.format_map(arguments) -> str"""
 
-from overlay.language import extern, public, resource
+from mixinv2 import extern, public, resource
 
 
 @extern

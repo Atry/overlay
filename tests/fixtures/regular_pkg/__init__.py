@@ -1,6 +1,6 @@
 """A regular package for testing."""
 
-from overlay.language import public, resource
+from mixinv2 import public, resource
 
 
 @public

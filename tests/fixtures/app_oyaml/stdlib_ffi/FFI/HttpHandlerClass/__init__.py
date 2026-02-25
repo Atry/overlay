@@ -3,7 +3,7 @@
 from http.server import BaseHTTPRequestHandler
 from typing import Protocol
 
-from overlay.language import public, resource
+from mixinv2 import public, resource
 
 
 class _RequestScopeInstance(Protocol):

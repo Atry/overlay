@@ -1,7 +1,7 @@
 """Union mount fixtures demonstrating merge and patches use cases."""
 
-from overlay.language import LexicalReference
-from overlay.language import extend, public, scope
+from mixinv2 import LexicalReference
+from mixinv2 import extend, public, scope
 
 
 @extend(

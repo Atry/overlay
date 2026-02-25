@@ -1,5 +1,5 @@
 """Child package (one level deep)."""
-from overlay.language import public, resource
+from mixinv2 import public, resource
 
 
 @public

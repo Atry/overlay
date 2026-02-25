@@ -1,6 +1,6 @@
 """UserVersionPragma: contributes user_version pragma, depends on schema_version."""
 
-from overlay.language import extern, patch
+from mixinv2 import extern, patch
 
 
 @extern

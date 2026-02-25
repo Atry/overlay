@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 # -- Path setup --------------------------------------------------------------
-# Add overlay-language/src to sys.path so autodoc can import the modules.
+# Add mixinv2/src to sys.path so autodoc can import the modules.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 # -- Project information -----------------------------------------------------
@@ -37,7 +37,7 @@ autodoc_default_options = {
 }
 
 templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'api/modules.rst', 'api/overlay.rst']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'api/modules.rst', 'api/mixinv2.rst']
 
 
 

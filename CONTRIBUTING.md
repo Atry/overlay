@@ -14,7 +14,7 @@
 
 ```bash
 # ✗ FORBIDDEN - Never use git checkout to discard changes
-git checkout overlay-language/src/overlay/language
+git checkout mixinv2/src/mixinv2
 git checkout .
 
 # ✓ REQUIRED - Use named git stash with descriptive message

@@ -1,6 +1,6 @@
 """Debug script to trace kwargs flow."""
-from overlay.language import public, resource, scope, extern
-from overlay.language._runtime import Scope, evaluate
+from mixinv2 import public, resource, scope, extern
+from mixinv2._runtime import Scope, evaluate
 
 @public
 @scope

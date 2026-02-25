@@ -26,10 +26,10 @@ import tests.fixtures.app_di.pragmas.user_version as user_version
 import tests.fixtures.app_di.pragmas.wal_mode as wal_mode
 import tests.fixtures.app_oyaml as app_oyaml
 
-from overlay.language import extern, public, resource, scope
-from overlay.language._mixin_directory import DirectoryMixinDefinition
-from overlay.language._mixin_parser import OverlayFileScopeDefinition
-from overlay.language._runtime import evaluate
+from mixinv2 import extern, public, resource, scope
+from mixinv2._mixin_directory import DirectoryMixinDefinition
+from mixinv2._mixin_parser import OverlayFileScopeDefinition
+from mixinv2._runtime import evaluate
 
 
 # ---------------------------------------------------------------------------

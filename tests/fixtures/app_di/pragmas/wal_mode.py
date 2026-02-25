@@ -1,6 +1,6 @@
 """WalMode: contributes WAL journal mode pragma."""
 
-from overlay.language import patch
+from mixinv2 import patch
 
 
 @patch

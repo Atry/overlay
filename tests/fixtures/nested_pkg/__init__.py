@@ -1,5 +1,5 @@
 """Nested package for testing lazy import depth."""
-from overlay.language import public, resource
+from mixinv2 import public, resource
 
 
 @public

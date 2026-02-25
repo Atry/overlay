@@ -1,6 +1,6 @@
 """HttpHandlers: HTTP request handling — no network/DB knowledge."""
 
-from overlay.language import extern
+from mixinv2 import extern
 
 
 @extern

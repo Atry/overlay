@@ -6,7 +6,7 @@ from typing import Protocol
 from starlette.requests import Request
 from starlette.responses import Response
 
-from overlay.language import public, resource
+from mixinv2 import public, resource
 
 
 class _RequestScopeInstance(Protocol):
