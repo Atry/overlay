@@ -16,8 +16,7 @@ See :doc:`tutorial`.
 ``.mixin.json`` / ``.mixin.toml`` files (also ``.oyaml`` / ``.ojson`` / ``.otoml``). SQL queries, format strings, URL patterns — all
 the business decisions that clutter Python code — live in MIXINv2
 instead, where independent modules deep-merge by name without glue code —
-dissolving the
-`Expression Problem <https://en.wikipedia.org/wiki/Expression_problem>`_.
+immune to the `Expression Problem <https://en.wikipedia.org/wiki/Expression_problem>`_.
 
 If you have ever struggled to mock a service that tangles I/O with business
 logic, or dreaded porting an application from sync to async, or needed to swap
