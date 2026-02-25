@@ -162,7 +162,7 @@ Conventionally, the value domain of configuration languages is assumed
 to consist of finite, well-founded structures, that is, initial algebras in the
 sense of universal algebra. We challenge this assumption: configuration
 values are better understood as lazily observable, possibly infinite
-structures, in the spirit of F-coalgebras~\cite{rutten2000universal}, where
+structures, where
 semantics is determined by the observer and a finite prefix suffices
 for any finite observation. This is not merely a theoretical
 distinction: the \texttt{nixpkgs} package
@@ -390,29 +390,19 @@ Given an AST, what are the \emph{properties} visible at
 each position in the tree? This section answers the question by
 defining a collection of mutually recursive functions over paths.
 
-A mixin tree has a single syntactic construct---the mixin---that
-simultaneously plays the roles of field, method, class, and object
-in object-oriented languages.
-A mixin that defines no children acts as a field or method;
-a mixin that defines children acts as a class;
-and every path in the tree is already an object, since its
-observable behavior is determined by the semantic functions below.
-This unification is the source of the calculus's economy:
-the six equations that follow suffice because they need only
-describe one kind of entity.
+A mixin tree has a single abstraction, the mixin:
+every mixin can serve as field, method, class, and object
+at the same time in object-oriented terms.
 
-Unlike the $\lambda$-calculus, which requires reduction rules
-($\beta$-reduction) to specify how terms compute, inheritance-calculus has
-\emph{no reduction steps}. There is no rewriting of terms, no
-evaluation order, and no notion of a ``result'' that a term reduces to.
+Unlike the $\lambda$-calculus, which requires $\beta$-reduction
+to specify how terms compute, inheritance-calculus has
+\emph{no reduction steps}: no rewriting of terms, no
+evaluation order, and no notion of a result that a term reduces to.
 Instead, the semantics is purely \emph{observational}: one queries
 whether a label $\ell$ is a property at a path $p$ in the inheritance
 tree. The mutually recursive functions defined below, namely $\properties$,
 $\supers$, $\overrides$, $\bases$, $\resolve$, and $\this$, constitute the
-\emph{entire} semantics. This is the observational perspective
-introduced in Section~\ref{sec:introduction}: like an
-F-coalgebra~\cite{rutten2000universal}, a mixin tree's behavior is
-determined by observation (property presence), not by reduction.
+\emph{entire} semantics.
 
 Each function has an analogue in object-oriented languages:
 $\Path$ identifies a position in the tree,
@@ -676,9 +666,7 @@ membership is not in this least fixed point and the semantics is
 undefined at that point, analogous to divergence in the
 $\lambda$-calculus, and the expected consequence of Turing
 completeness.
-This observation model
-is inspired by F-coalgebras~\cite{rutten2000universal}, where
-identity is determined by observable behavior rather than by internal
+Identity is determined by observable behavior rather than by internal
 structure.
 
 \section{Embedding the \texorpdfstring{$\lambda$}{λ}-Calculus}
@@ -1407,34 +1395,15 @@ rewrites of individual terms.
 In common sense, inheritance-calculus is strictly more expressive
 than the $\lambda$-calculus.
 
-\subsection{Classification of Semantic Variants}
+\subsection{Semantic Alternatives}
 \label{sec:semantic-variants}
 
 The preceding item established that inheritance-calculus is immune
 to nonextensibility.
-This section shows that immunity determines each semantic choice:
-every alternative design is vulnerable to nonextensibility
-in a specific way.
-
-\begin{center}
-  \begin{tabular}{lll}
-    \textbf{Variant} & \textbf{Vulnerability}
-    & \textbf{Representative systems} \\
-    \hline
-    Functions as unit of reuse
-    & same-label extensions conflict
-    & trait systems~\cite{scharli2003traits}, OOP languages \\
-    Early binding
-    & mixin cannot replace function
-    & CUE~\cite{cue2019} \\
-    Dynamic scope
-    & mixin cannot replace function
-    & Jsonnet~\cite{jsonnet}, union file systems \\
-    Single-target $\this$
-    & nested extensions rejected
-    & NixOS modules~\cite{nixosmodules} \\
-  \end{tabular}
-\end{center}
+We now ask whether an alternative semantics could share this
+immunity.
+Each candidate we examine turns out to be vulnerable
+to nonextensibility in a specific way.
 
 \begin{description}
   \item[Functions as unit of reuse]
@@ -1449,36 +1418,32 @@ in a specific way.
     Extending an entity with a new operation requires modifying
     the original definition or encoding extensibility via separate
     machinery (visitor pattern,
-    object algebras~\cite{oliveira2012extensibility},
+      object algebras~\cite{oliveira2012extensibility},
     finally tagless interpreters~\cite{carette2009finally}).
-    In inheritance-calculus, the mixin is the unit of reuse.
-    A mixin's labels are visible to the composition system, and
-    deep merge (equation~\ref{eq:overrides}) combines same-label
-    definitions from independent sources.
-    This choice is what makes the framework of
-    Section~\ref{sec:mixin-trees} possible:
-    the six equations
-    (\ref{eq:properties})--(\ref{eq:this}) are set-theoretic
-    functions over a single meta-language object---the $\Path$ that
-    identifies a mixin---
-    with no function spaces, no reduction rules,
-    and no substitution
-    (Section~\ref{sec:forward-translation}).
-    A function-based semantics requires function spaces
-    (Scott domains satisfying $D \cong [D \to D]$),
-    reduction rules ($\beta$-reduction), and
-    capture-avoiding substitution---machinery that the
-    mixin-based framework avoids entirely.
+    This opacity is the root vulnerability:
+    independently authored closures with the same label cannot
+    be merged, so extensibility must be encoded via separate
+    machinery.
     Functions may exist at the periphery
     (FFI, host-language interop);
-    core composition does not depend on closures, so their opacity
-    does not affect extensibility.
-    The $\lambda$-calculus embedding
+    the $\lambda$-calculus embedding
     (Section~\ref{sec:forward-translation}) translates
     $\lambda$-functions into mixin records
     $\{\mathrm{argument} \mapsto \{\},\;
     \mathrm{result} \mapsto \ldots\}$,
     retaining their computational semantics without their opacity.
+    Once functions are excluded as the unit of reuse,
+    the remaining four equations are determined by the syntax:
+    $\properties$~(\ref{eq:properties}) reads the labels of a
+    record, $\bases$~(\ref{eq:bases}) reads its inheritance
+    sources, $\supers$~(\ref{eq:supers}) takes the transitive
+    closure, and $\overrides$~(\ref{eq:overrides}) merges
+    same-label definitions---the deep merge that opacity
+    prevented.
+    The only remaining degree of freedom is how references
+    resolve: the $\resolve$~(\ref{eq:resolve}) and
+    $\this$~(\ref{eq:this}) equations.
+    The next three candidates vary this dimension.
 
   \item[Early binding]
     With early binding, references resolve at definition time to a
@@ -1513,26 +1478,34 @@ in a specific way.
     file-system level: a symbolic link's relative path resolves
     against the mount context at dereference time, not against the
     layer that defined the link.
-    Dynamic scope does not preserve de~Bruijn index semantics:
-    the $\lambda$-calculus requires variable references to resolve
-    at the lexical definition site.
-    In the equations, $\resolve$~(\ref{eq:resolve}) starts from
-    the definition-site path $\init(p_{\mathrm{def}})$, and
-    $\this$~(\ref{eq:this}) uses the de~Bruijn index~$n$
-    determined at the definition site;
-    dynamic scope would replace both with a runtime context,
-    losing the lexical structure that the $\lambda$-calculus
-    embedding relies on.
-    When the multi-path example
-    (Appendix~\ref{app:scala-multi-path}) is translated to
-    Jsonnet, \texttt{outer} resolves to the merged
-    \texttt{MyObjectA} rather than to \texttt{Object1} or
-    \texttt{Object2} separately, collapsing the two inheritance
-    routes into one.
+    Dynamic scope breaks the $\lambda$-calculus embedding
+    (Section~\ref{sec:forward-translation}):
+    specifically, the Substitution Lemma
+    (Lemma~\ref{lem:substitution}) that underpins full
+    abstraction (Appendix~\ref{app:expressiveness}).
+    The lemma's base case relies on
+    $\resolve$~(\ref{eq:resolve}) starting from
+    the definition-site path $\init(p_{\mathrm{def}})$ and
+    $\this$~(\ref{eq:this}) navigating up exactly~$n$ scope
+    levels (the de~Bruijn index determined at the definition site)
+    to reach the binding $\lambda$.
+    With dynamic scope, both would be replaced by a runtime
+    context, and a reference to variable~$y$ ($y \neq x$)
+    could resolve to the $\mathrm{argument}$ slot
+    intended for~$x$, violating the variable-separation
+    property on which the induction depends.
     As with early binding, the mixin cannot serve as a complete
     replacement for functions.
 
   \item[Single-target $\this$]
+    Single-target $\this$ is a promising candidate:
+    the Single-Path Lemma~(\ref{lem:single-path}) shows that
+    for translated $\lambda$-terms, the frontier set~$S$ in
+    $\this$~(\ref{eq:this}) always contains exactly one path,
+    so the $\lambda$-calculus embedding does not require
+    multi-target resolution.
+    However, single-target $\this$ is vulnerable to
+    nonextensibility for a different reason.
     When multiple inheritance routes reach the same scope,
     single-target resolution must reject the situation or select
     one route.
@@ -1544,17 +1517,6 @@ in a specific way.
     when solving the Expression
     Problem~\cite{wadler1998expression}
     (Section~\ref{sec:expression-problem}).
-    In the equations, $\this$~(\ref{eq:this}) tracks a frontier
-    \emph{set}~$S$ rather than a single path;
-    $\resolve$~(\ref{eq:resolve}) inherits the multi-valued
-    result, and $\bases$~(\ref{eq:bases}) collects targets from
-    all resolved paths.
-    Restricting $S$ to a single element would require a
-    disambiguation rule absent from the equations.
-    Functions-as-reuse-unit and single-target $\this$ affect
-    extensibility at different levels: opaque functions prevent
-    same-level merging; single-target $\this$ prevents cross-level
-    (nested) extensions from coexisting.
 
     Our first three implementations of MIXINv2 used
     standard techniques for self-reference resolution: closure-based
@@ -1578,12 +1540,39 @@ in a specific way.
 \end{description}
 
 \noindent
-Inheritance-calculus is the design point where immunity to
-nonextensibility holds.
-The mechanisms present in the alternative designs---MRO,
-framework encodings, explicit wiring, runtime context threading,
+The following table summarizes these results.
+
+\begin{center}
+  \begin{tabular}{lll}
+    \textbf{Candidate} & \textbf{Vulnerability}
+    & \textbf{Representative systems} \\
+    \hline
+    Functions as unit of reuse
+    & same-label extensions conflict
+    & trait systems~\cite{scharli2003traits}, OOP languages \\
+    Early binding
+    & mixin cannot replace function
+    & CUE~\cite{cue2019} \\
+    Dynamic scope
+    & mixin cannot replace function
+    & Jsonnet~\cite{jsonnet}, union file systems \\
+    Single-target $\this$
+    & nested extensions rejected
+    & NixOS modules~\cite{nixosmodules} \\
+  \end{tabular}
+\end{center}
+
+\noindent
+None of the candidates above is immune to nonextensibility.
+The first candidate prevents same-level merging;
+the next two prevent the mixin from replacing functions;
+the last prevents cross-level (nested) extensions from coexisting.
+The mechanisms they require---MRO,
+framework encodings, runtime context threading,
 duplicate-declaration errors---are absent from the equations of
 Section~\ref{sec:mixin-trees}.
+We are not aware of a semantic alternative that warrants
+serious consideration.
 
 \section{Related Work}
 \label{sec:related-work}
@@ -1900,7 +1889,7 @@ with a static error (Appendix~\ref{app:scala-multi-path}).
 The module system cannot express that both routes contribute
 equally to the same option, that is, the multi-path situation that
 recursive merging naturally gives rise to, which motivated the
-coalgebraic semantics of Section~\ref{sec:mixin-trees}.
+observational semantics of Section~\ref{sec:mixin-trees}.
 
 \paragraph{Modular software architectures}
 \label{sec:practical-modular}
@@ -2016,7 +2005,7 @@ dispatch.
 
 \section{Conclusion}
 
-The goals of declarative programming forced the semantics
+Immunity to nonextensibility forced the semantics
 of inheritance-calculus upon us.
 The emergent phenomena exhibit an expressive asymmetry
 between inheritance-calculus and the $\lambda$-calculus.
