@@ -2,7 +2,7 @@
 
 ## 1. Introduction
 
-MIXINv2 is a programming language designed to facilitate the flexible composition and configuration of logic and data structures through the use of _overlays_. Unlike traditional programming languages that use classes or functions as the primary building blocks, MIXINv2 employs a unified concept where everything is represented as an overlay. This approach allows for greater modularity, reusability, and flexibility.
+MIXINv2 is the successor of [MIXIN](https://github.com/Atry/MIXIN). It is a programming language designed to facilitate the flexible composition and configuration of logic and data structures through the use of _overlays_. Unlike traditional programming languages that use classes or functions as the primary building blocks, MIXINv2 employs a unified concept where everything is represented as an overlay. This approach allows for greater modularity, reusability, and flexibility.
 
 MIXINv2 is a lazily-evaluated, immutable language, meaning that values are only computed when necessary, and once created, they cannot be changed. This design makes MIXINv2 particularly well-suited for applications that require functional purity, such as configuration management, domain-specific language (DSL) creation, and code generation.
 
