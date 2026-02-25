@@ -13,7 +13,7 @@ App-scoped singletons and per-request resources coexist naturally.
 See :doc:`tutorial`.
 
 **MIXINv2** is a configuration language written in ``.mixin.yaml`` /
-``.mixin.json`` / ``.mixin.toml`` files (also ``.oyaml`` / ``.ojson`` / ``.otoml``). SQL queries, format strings, URL patterns — all
+``.mixin.json`` / ``.mixin.toml`` files. SQL queries, format strings, URL patterns — all
 the business decisions that clutter Python code — live in MIXINv2
 instead, where independent modules deep-merge by name without glue code —
 immune to the `Expression Problem <https://en.wikipedia.org/wiki/Expression_problem>`_.
