@@ -1,0 +1,23 @@
+version: 2
+
+build:
+  os: ubuntu-24.04
+  tools:
+    python: "3.13"
+  commands:
+    - mkdir -p $READTHEDOCS_OUTPUT/html
+    - |
+      cat > $READTHEDOCS_OUTPUT/html/index.html << 'HTMLEOF'
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Redirecting to mixinv2</title>
+        <meta http-equiv="refresh" content="0; url=https://mixinv2.readthedocs.io/">
+        <link rel="canonical" href="https://mixinv2.readthedocs.io/">
+      </head>
+      <body>
+        <p>This project has been renamed. Redirecting to <a href="https://mixinv2.readthedocs.io/">mixinv2.readthedocs.io</a>...</p>
+      </body>
+      </html>
+      HTMLEOF
