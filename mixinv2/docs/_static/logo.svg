@@ -190,9 +190,9 @@
     <circle cx="240" cy="190" r="170" fill="url(#gradient-11)" clip-path="url(#sector-11)"/>
   </g>
 
-  <!-- "Overlay" text: 6 colors cycling, O and y both red -->
+  <!-- "MIXINv2" text: 6 colors cycling, M and 2 both red -->
   <!-- Stroke is 50% opacity of each letter's fill color, rendered behind fill via paint-order -->
   <text y="445" font-family="'Varela Round', sans-serif" font-size="100" font-weight="normal" text-anchor="middle" stroke-width="10" stroke-linejoin="round" paint-order="stroke fill">
-    <tspan x="240"><tspan fill="#F00000" stroke="#F00000" stroke-opacity="0.5">O</tspan><tspan fill="#ECE901" stroke="#ECE901" stroke-opacity="0.5">v</tspan><tspan fill="#008B00" stroke="#008B00" stroke-opacity="0.5">e</tspan><tspan fill="#04ECEB" stroke="#04ECEB" stroke-opacity="0.5">r</tspan><tspan fill="#006FFC" stroke="#006FFC" stroke-opacity="0.5">l</tspan><tspan fill="#FFC0FA" stroke="#FFC0FA" stroke-opacity="0.5">a</tspan><tspan fill="#F00000" stroke="#F00000" stroke-opacity="0.5">y</tspan></tspan>
+    <tspan x="240"><tspan fill="#F00000" stroke="#F00000" stroke-opacity="0.5">M</tspan><tspan fill="#ECE901" stroke="#ECE901" stroke-opacity="0.5">I</tspan><tspan fill="#008B00" stroke="#008B00" stroke-opacity="0.5">X</tspan><tspan fill="#04ECEB" stroke="#04ECEB" stroke-opacity="0.5">I</tspan><tspan fill="#006FFC" stroke="#006FFC" stroke-opacity="0.5">N</tspan><tspan fill="#FFC0FA" stroke="#FFC0FA" stroke-opacity="0.5">v</tspan><tspan fill="#F00000" stroke="#F00000" stroke-opacity="0.5">2</tspan></tspan>
   </text>
 </svg>
