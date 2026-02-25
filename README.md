@@ -26,5 +26,4 @@ Full documentation is available at [mixinv2.readthedocs.io](https://mixinv2.read
 
 ## History
 
-MIXINv2 is the successor to [MIXIN](https://github.com/Atry/MIXIN), a Scala
-implementation of the same calculus.
+MIXINv2 is the successor to [MIXIN](https://github.com/Atry/MIXIN).
