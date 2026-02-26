@@ -36,6 +36,7 @@
             "draftwatermark"
             "preprint"
             "tex-gyre"
+            "multirow"
           ];
         };
       };

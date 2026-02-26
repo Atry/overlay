@@ -9,6 +9,8 @@
 \usepackage{mathtools}
 \usepackage{mathrsfs}
 \usepackage{listings}
+\usepackage{multirow}
+\usepackage{graphicx}
 
 \lstdefinestyle{scala}{
   language=Scala,
@@ -1293,7 +1295,7 @@ structure.
     functional setting.
 
   \item[Commutative, idempotent merge]
-    Inheritance in inheritance-calculus is symmetric:
+    The inheritance operation is symmetric:
     a record's elements form a set, so reordering them produces
     the same observable result.  In the $\lambda$-calculus, function composition
     $(f \circ g)$ is neither commutative nor idempotent, and simulating
@@ -1419,51 +1421,183 @@ than the $\lambda$-calculus.
 
 The preceding item established that inheritance-calculus is immune
 to nonextensibility.
-We now ask whether an alternative semantics could share this
-immunity.
-Each candidate we examine turns out to be vulnerable
-to nonextensibility in a specific way.
+We now ask whether an alternative design could share this property
+by surveying every candidate known to us.
+
+\paragraph{Degrees of freedom}
+Every language whose programs are tree-structured ASTs with
+references can be characterized by two finite sets:
+a set~$\mathcal{N}$ of \emph{node types}, each determining how a
+subtree organizes its children, and a set~$\mathcal{R}$ of
+\emph{reference types}, each determining how one position in the
+tree refers to another.
+The syntax is fixed by the choice of $\mathcal{N}$ and
+$\mathcal{R}$; the semantics is determined by how each node type
+structures composition and how each reference type resolves its
+target.
+
+{\small
+\begin{center}
+  \begin{tabular}{lp{0.38\columnwidth}p{0.33\columnwidth}}
+    \textbf{Language}
+    & \textbf{Node types $\mathcal{N}$}
+    & \textbf{Reference types $\mathcal{R}$} \\
+    \hline
+    Java (OOP)
+    & class, interface, method,
+      block, conditional, loop,
+      \texttt{throw}, lambda, \ldots
+    & variable, field access, method call,
+      \texttt{extends}/\texttt{implements},
+      \texttt{import}, \ldots \\[3pt]
+    Haskell (FP)
+    & $\lambda$, application, \texttt{let},
+      \texttt{case}, \texttt{data},
+      type class, instance, \ldots
+    & variable, constructor,
+      type class dispatch,
+      \texttt{import}, \ldots \\[3pt]
+    Scala (multi-paradigm)
+    & class, trait, object, method,
+      block, conditional, \texttt{match},
+      \texttt{while}, \texttt{throw}, \ldots
+    & variable, member access,
+      \texttt{extends}, \texttt{with},
+      implicits, \texttt{import}, \ldots \\
+    \hline
+    $\lambda$-calculus
+    & abstraction, application
+    & variable \\
+    Inheritance-calculus
+    & record
+    & inheritance \\
+  \end{tabular}
+\end{center}
+}
+
+\paragraph{Immunity to nonextensibility}
+A path~$p$ in a program~$P$ is \emph{extensible} if there exists
+a program~$Q$ such that composing $P$ with~$Q$ through a reference
+makes new properties observable at~$p$ without modifying~$P$.
+A language is \emph{immune to nonextensibility} if every path in
+every well-formed program is extensible.
+
+We now classify the design space to explain why we chose the
+semantics of Section~\ref{sec:mixin-trees}.
+Two axes remain free:
+the \emph{composition mechanism}---how the single reference
+type incorporates definitions;
+and the \emph{reference resolution}---how the single reference
+type finds its target.
+
+\subsubsection*{The composition mechanism}
+
+Every composition mechanism determines how the definitions of one
+abstraction are incorporated into another.
+The following table classifies the known candidates by whether
+they satisfy commutativity~(C), idempotence~(I), and
+associativity~(A), and by their extensibility model.
+
+\begin{center}
+  \begin{tabular}{lcccll}
+    \textbf{Candidate} & \textbf{C} & \textbf{I} & \textbf{A}
+    & \textbf{Extensibility} & \textbf{Representative} \\
+    \hline
+    Deep merge
+    & $\checkmark$ & $\checkmark$ & $\checkmark$
+    & universal & this paper \\
+    Shallow merge
+    & $\times$ & $\checkmark$ & $\checkmark$
+    & top-level only & JS spread \\
+    Conflict rejection
+    & $\checkmark$ & $\checkmark$ & $\checkmark$
+    & none on overlap
+    & Harper--Pierce~\cite{harper1991record} \\
+    Priority merge
+    & $\times$ & $\times$ & $\checkmark$
+    & universal & Jsonnet~\texttt{+}, Nix~\texttt{//} \\
+    $\beta$-reduction
+    & $\times$ & $\times$ & $\times$
+    & opt-in & Java, Haskell, Scala, \ldots \\
+    Conditional
+    & \multicolumn{3}{c}{breaks monotonicity}
+    & --- & --- \\
+  \end{tabular}
+\end{center}
 
 \begin{description}
-  \item[Functions as unit of reuse]
-    When the composition mechanism is function application,
-    the reuse unit is the closure.
-    A closure's internal structure is not visible to the
-    composition system: two closures that define the same label
-    cannot be merged.
-    Systems must reject the conflict
-    (trait systems~\cite{scharli2003traits} flag same-name methods),
-    linearize (MRO~\cite{c3linearization}), or shadow.
-    Extending an entity with a new operation requires modifying
-    the original definition or encoding extensibility via separate
-    machinery (visitor pattern,
-      object algebras~\cite{oliveira2012extensibility},
-    finally tagless interpreters~\cite{carette2009finally}).
-    This opacity is the root vulnerability:
-    independently authored closures with the same label cannot
-    be merged, so extensibility must be encoded via separate
-    machinery.
-    Functions may exist at the periphery
-    (FFI, host-language interop);
-    the $\lambda$-calculus embedding
-    (Section~\ref{sec:forward-translation}) translates
-    $\lambda$-functions into mixin records
-    $\{\mathrm{argument} \mapsto \{\},\;
-    \mathrm{result} \mapsto \ldots\}$,
-    retaining their computational semantics without their opacity.
-    Once functions are excluded as the unit of reuse,
-    the remaining four equations are determined by the syntax:
-    $\properties$~(\ref{eq:properties}) reads the labels of a
-    record, $\bases$~(\ref{eq:bases}) reads its inheritance
-    sources, $\supers$~(\ref{eq:supers}) takes the transitive
-    closure, and $\overrides$~(\ref{eq:overrides}) merges
-    same-label definitions---the deep merge that opacity
-    prevented.
-    The only remaining degree of freedom is how references
-    resolve: the $\resolve$~(\ref{eq:resolve}) and
-    $\this$~(\ref{eq:this}) equations.
-    The next three candidates vary this dimension.
+  \item[Deep merge]
+    Merging same-label definitions recurses into their subtrees
+    ($\overrides$, equation~\ref{eq:overrides}).
+    Every label is an extension point, whether or not the
+    original author anticipated extension.
 
+  \item[Shallow merge]
+    Nested labels cannot be independently extended.
+
+  \item[Conflict rejection]
+    Same-label definitions are rejected as errors.
+    All three identities hold---but vacuously:
+    the identities are satisfied because the compositions that
+    would test them are refused.
+    Conflict rejection prevents extending existing
+    labels~\cite{harper1991record}---the composability that the
+    Expression Problem~\cite{wadler1998expression} requires.
+
+  \item[Priority merge]
+    $A + B \neq B + A$: one source takes
+    precedence~\cite{jsonnet,dolstra2010nixos}, introducing
+    an ordering dependency.
+
+  \item[$\beta$-reduction]
+    Only the parameters placed by the author are extension
+    points; the function body is closed.
+    To make a new aspect extensible, the original function must
+    be rewritten to accept an additional parameter.
+    This applies to every language whose composition mechanism
+    is function application---functional, object-oriented, and
+    multi-paradigm alike---because method calls, virtual
+    dispatch, and type-class resolution all reduce to
+    $\beta$-reduction.
+    The Expression Problem~\cite{wadler1998expression} is hard
+    in all of them for the same reason:
+    extensibility is opt-in.
+    The frameworks that simulate universal extensibility
+    (visitor pattern,
+    object algebras~\cite{oliveira2012extensibility},
+    finally tagless interpreters~\cite{carette2009finally})
+    are the machinery needed to work around this limitation.
+
+  \item[Conditional incorporation]
+    Removing or conditionally including definitions breaks
+    monotonicity, so the semantic equations
+    (Appendix~\ref{app:well-definedness}) may have no
+    fixed point~\cite{tarski1955lattice}.
+\end{description}
+
+\noindent
+Among the candidates above, deep merge is the only one we found
+that is commutative, idempotent, associative, and
+universally extensible.
+The other candidates each introduce a vulnerability to
+nonextensibility or break monotonicity.
+
+\subsubsection*{The reference resolution}
+
+Once deep merge over records is fixed as the composition
+mechanism, four of the six semantic equations are determined
+by the syntax:
+$\properties$~(\ref{eq:properties}) reads the labels of a
+record, $\bases$~(\ref{eq:bases}) reads its inheritance
+sources, $\supers$~(\ref{eq:supers}) takes the transitive
+closure, and $\overrides$~(\ref{eq:overrides}) implements
+the merge.
+The only remaining degree of freedom is how references
+resolve: the $\resolve$~(\ref{eq:resolve}) and
+$\this$~(\ref{eq:this}) equations.
+We examine the three known candidates.
+
+\begin{description}
   \item[Early binding]
     With early binding, references resolve at definition time to a
     fixed path, independently of how the record is later inherited.
@@ -1485,7 +1619,7 @@ to nonextensibility in a specific way.
     mixins.
     Without a Turing-complete mixin, functions must be
     reintroduced as the composition mechanism, re-exposing
-    the opacity problem above.
+    the opt-in extensibility problem above.
 
   \item[Dynamic scope]
     With dynamic scope, references resolve at the point of use
@@ -1498,21 +1632,32 @@ to nonextensibility in a specific way.
     against the mount context at dereference time, not against the
     layer that defined the link.
     Dynamic scope breaks the $\lambda$-calculus embedding
-    (Section~\ref{sec:forward-translation}):
-    specifically, the Substitution Lemma
-    (Lemma~\ref{lem:substitution}) that underpins full
-    abstraction (Appendix~\ref{app:expressiveness}).
-    The lemma's base case relies on
-    $\resolve$~(\ref{eq:resolve}) starting from
-    the definition-site path $\init(p_{\mathrm{def}})$ and
-    $\this$~(\ref{eq:this}) navigating up exactly~$n$ scope
-    levels (the de~Bruijn index determined at the definition site)
-    to reach the binding $\lambda$.
-    With dynamic scope, both would be replaced by a runtime
-    context, and a reference to variable~$y$ ($y \neq x$)
-    could resolve to the $\mathrm{argument}$ slot
-    intended for~$x$, violating the variable-separation
-    property on which the induction depends.
+    (Section~\ref{sec:forward-translation}).
+    The Substitution Lemma (Lemma~\ref{lem:substitution})
+    relies on the base case $M = y$ ($y \neq x$):
+    the de~Bruijn index $m$ of~$y$ walks up from the
+    definition-site path $\init(p_{\mathrm{def}})$ to a scope
+    level different from~$x$'s binder, so the substitution
+    $\mathrm{argument} \mapsto \mathcal{T}(V)$ at~$x$'s scope
+    has no effect.
+    With dynamic scope this separation fails.%
+    \footnote{Counterexample:
+      $(\lambda x.\, \lambda y.\, x)\; V_1\; V_2$.
+      The reference to~$x$ inside $\lambda y.\, x$ translates to
+      $\dbi{1}.\mathrm{argument}$ (de~Bruijn index~$1$).
+      With late binding, $\this$ starts from the definition-site
+      scope (the inner $\lambda$) and walks up one level to the
+      outer $\lambda$, reaching the slot
+      $\mathrm{argument} \mapsto \mathcal{T}(V_1)$.
+      With dynamic scope, the reference resolves from the
+      use-site context, where the innermost enclosing scope is
+      the application $\{C_1.\mathrm{result},\;
+      \mathrm{argument} \mapsto \mathcal{T}(V_2)\}$;
+      walking up one level reaches this scope's
+      $\mathrm{argument}$ slot, returning $\mathcal{T}(V_2)$
+      instead of $\mathcal{T}(V_1)$.
+      This is the classical variable-capture failure of dynamic
+      scoping.}
     As with early binding, the mixin cannot serve as a complete
     replacement for functions.
 
@@ -1559,39 +1704,63 @@ to nonextensibility in a specific way.
 \end{description}
 
 \noindent
-The following table summarizes these results.
+The following table summarizes the vulnerabilities of all
+alternatives at both levels.
 
 \begin{center}
-  \begin{tabular}{lll}
-    \textbf{Candidate} & \textbf{Vulnerability}
-    & \textbf{Representative systems} \\
+  \begin{tabular}{llll}
+    & \textbf{Candidate} & \textbf{Vulnerability}
+    & \textbf{Representative} \\
     \hline
-    Functions as unit of reuse
-    & same-label extensions conflict
-    & trait systems~\cite{scharli2003traits}, OOP languages \\
-    Early binding
+    \multirow{5}{*}{\rotatebox[origin=c]{90}{\scriptsize composition}}
+    & Shallow merge
+    & nested extensions not composable
+    & JS spread \\
+    & Conflict rejection
+    & same-label extensions rejected
+    & Harper--Pierce~\cite{harper1991record} \\
+    & Priority merge
+    & ordering dependency
+    & Jsonnet~\texttt{+}~\cite{jsonnet},
+      Nix~\texttt{//}~\cite{dolstra2010nixos} \\
+    & $\beta$-reduction
+    & opt-in extensibility
+    & Java, Haskell, Scala, \ldots \\
+    & Conditional
+    & breaks monotonicity
+    & --- \\
+    \hline
+    \multirow{3}{*}{\rotatebox[origin=c]{90}{\scriptsize resolution}}
+    & Early binding
     & mixin cannot replace function
     & CUE~\cite{cue2019} \\
-    Dynamic scope
+    & Dynamic scope
     & mixin cannot replace function
-    & Jsonnet~\cite{jsonnet}, union file systems \\
-    Single-target $\this$
+    & Jsonnet~\cite{jsonnet}, union FS \\
+    & Single-target $\this$
     & nested extensions rejected
     & NixOS modules~\cite{nixosmodules} \\
   \end{tabular}
 \end{center}
 
 \noindent
-None of the candidates above is immune to nonextensibility.
-The first candidate prevents same-level merging;
-the next two prevent the mixin from replacing functions;
-the last prevents cross-level (nested) extensions from coexisting.
-The mechanisms they require---MRO,
-framework encodings, runtime context threading,
-duplicate-declaration errors---are absent from the equations of
-Section~\ref{sec:mixin-trees}.
-We are not aware of a semantic alternative that warrants
-serious consideration.
+No alternative we examined at either level is immune to
+nonextensibility.
+
+The semantics of inheritance-calculus was not chosen from a menu.
+We arrived at it by trying each alternative in this section
+and finding that it failed:
+shallow merge could not compose nested extensions;
+priority merge introduced ordering dependencies;
+early binding froze references before composition could
+supply them;
+dynamic scope broke the substitution that the
+$\lambda$-calculus embedding relies on;
+single-target $\this$ rejected the multi-path compositions
+that the Expression Problem demands
+(three successive implementations confirmed this---see above).
+Deep merge with multi-target late-binding $\this$ is what
+remained.
 
 \section{Related Work}
 \label{sec:related-work}
@@ -2024,8 +2193,8 @@ dispatch.
 
 \section{Conclusion}
 
-Immunity to nonextensibility forced the semantics
-of inheritance-calculus upon us.
+Immunity to nonextensibility guided the design of
+inheritance-calculus.
 The emergent phenomena exhibit an expressive asymmetry
 between inheritance-calculus and the $\lambda$-calculus.
 Inheritance is not a mechanism for organizing functions;
@@ -2199,7 +2368,8 @@ a sibling record $\mathrm{repr}$:
 \begin{align*}
   C ={} & \{\mathrm{eq} \mapsto \{
       \mathrm{result} \mapsto \{
-        \mathrm{repr} \mapsto \{
+        \mathrm{repr} \mapsto \{ \\
+        & \qquad
           \mathrm{firstOperand}
           \mapsto \dbi{2}.\mathrm{argument},\;
           \mathrm{secondOperand}
