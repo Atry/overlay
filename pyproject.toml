@@ -7,7 +7,7 @@ license = "MIT"
 requires-python = ">=3.13"
 authors = [{ name = "Yang, Bo", email = "yang-bo@yang-bo.com" }]
 keywords = ["mixinv2", "mixin", "composition", "dependency-injection"]
-dependencies = ["mixinv2", "mixinv2-library"]
+dependencies = ["mixinv2", "mixinv2-library", "mixinv2-examples"]
 
 [project.urls]
 Repository = "https://github.com/Atry/MIXINv2"

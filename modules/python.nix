@@ -171,6 +171,7 @@
               ../mixinv2.schema.json
               ../tests
               ../pyproject.toml
+              ../uv.lock
               ../LICENSE
               ../README.md
             ];
@@ -188,6 +189,7 @@
             - `packages/mixinv2/src/mixinv2/` — Python implementation of the MIXINv2 runtime
             - `packages/mixinv2-library/src/mixinv2_library/Builtin/` — Standard library (`.oyaml` files):
               Boolean logic, Nat arithmetic, BinNat arithmetic, visitors, equality
+            - `packages/mixinv2-examples/` — Example case studies (Fibonacci, function color blindness, DI)
             - `tests/` — Test suite (see below)
 
             ## Paper Examples in the Test Suite
@@ -207,10 +209,29 @@
 
             ## Running Tests
 
+            Requires Python >= 3.13 and [uv](https://docs.astral.sh/uv/).
+
             ```
-            pip install -e ".[docs]" -e packages/mixinv2-library
-            pytest tests/
+            uv sync
+            uv run pytest tests/ packages/mixinv2-examples/tests/
             ```
+
+            ## Running Examples
+
+            After installation (see above), launch the stdlib HTTP server demo:
+
+            ```
+            uv run mixinv2-example app_oyaml Apps memory_app server
+            ```
+
+            Or launch the async (uvicorn/starlette) HTTP server demo:
+
+            ```
+            uv run mixinv2-example app_oyaml AsyncApps memory_app server
+            ```
+
+            The `mixinv2-example` command evaluates the MIXINv2 examples package and
+            navigates the scope tree along the given path.
           '';
 
           anonymizedSource = pkgs.runCommand "anonymized-source" {
@@ -239,6 +260,37 @@
                   "$f"
               fi
             done
+
+            # Strip overlay-language and overlay-library workspace references
+            sed -i \
+              -e 's|, overlay-language = { workspace = true }||g' \
+              -e 's|, overlay-library = { workspace = true }||g' \
+              "$out/pyproject.toml"
+
+            # Remove overlay packages from uv.lock
+            # 1. Remove member list entries
+            sed -i \
+              -e '/^    "overlay-language",$/d' \
+              -e '/^    "overlay-library",$/d' \
+              "$out/uv.lock"
+            # 2. Remove full [[package]] blocks (from [[package]] header to next [[package]] or EOF)
+            ${pkgs.gawk}/bin/awk '
+              /^\[\[package\]\]/ { header=$0; next_line=1; next }
+              next_line {
+                if ($0 ~ /^name = "overlay-(language|library)"/) {
+                  skip=1
+                } else {
+                  skip=0
+                  print header
+                  print
+                }
+                next_line=0
+                next
+              }
+              skip && /^\[\[package\]\]/ { skip=0; header=$0; next_line=1; next }
+              !skip { print }
+            ' "$out/uv.lock" > "$out/uv.lock.tmp"
+            mv "$out/uv.lock.tmp" "$out/uv.lock"
           '';
 
           htmlDocs = pkgs.runCommand "mixinv2-html-docs" {
@@ -314,12 +366,22 @@
 
               # Excluded items absent
               if find $TMPDIR/verify/supplementary-material -path '*inheritance-calculus*' \
-                -o -path '*overlay-language*' | grep -q .; then
+                -o -path '*overlay-language*' -o -path '*overlay-library*' | grep -q .; then
                 echo "FAIL: Found excluded directory" >&2; exit 1
+              fi
+
+              # No overlay references in file contents
+              if grep -rl 'overlay-language\|overlay-library' $TMPDIR/verify/supplementary-material/; then
+                echo "FAIL: Found overlay-language or overlay-library reference" >&2; exit 1
               fi
 
               # Anonymization applied
               grep -rl "Anonymous Author" $TMPDIR/verify/supplementary-material/ > /dev/null
+
+              # Integration test (uv sync + pytest) requires network access,
+              # so it cannot run in the Nix sandbox. Run manually:
+              #   cd /tmp && unzip result && cd supplementary-material
+              #   uv sync && uv run pytest tests/ packages/mixinv2-examples/tests/
             '';
           };
         in
