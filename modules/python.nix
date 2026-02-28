@@ -158,12 +158,12 @@
           supplementarySourceFiles = lib.fileset.toSource {
             root = ../.;
             fileset = lib.fileset.unions [
-              ../mixinv2/src
-              ../mixinv2/pyproject.toml
-              ../mixinv2/README.md
-              ../mixinv2/docs
-              ../mixinv2-library/src
-              ../mixinv2-library/pyproject.toml
+              ../packages/mixinv2/src
+              ../packages/mixinv2/pyproject.toml
+              ../packages/mixinv2/README.md
+              ../packages/mixinv2/docs
+              ../packages/mixinv2-library/src
+              ../packages/mixinv2-library/pyproject.toml
               ../mixinv2.schema.json
               ../tests
               ../pyproject.toml
@@ -181,8 +181,8 @@
             ## Directory Structure
 
             - `docs` — Built HTML documentation
-            - `mixinv2/src/mixinv2/` — Python implementation of the MIXINv2 runtime
-            - `mixinv2-library/src/mixinv2_library/Builtin/` — Standard library (`.oyaml` files):
+            - `packages/mixinv2/src/mixinv2/` — Python implementation of the MIXINv2 runtime
+            - `packages/mixinv2-library/src/mixinv2_library/Builtin/` — Standard library (`.oyaml` files):
               Boolean logic, Nat arithmetic, BinNat arithmetic, visitors, equality
             - `tests/` — Test suite (see below)
 
@@ -193,10 +193,10 @@
 
             | Paper section | `.oyaml` file(s) | Test file |
             |---|---|---|
-            | Case Study: Nat arithmetic | `mixinv2-library/.../NatData.oyaml`, `NatPlus.oyaml`, `NatEquality.oyaml`, `NatVisitor.oyaml`, `NatDecrement.oyaml`, `tests/NatConstants.oyaml`, `tests/ArithmeticTest.oyaml` | `tests/test_nat_arithmetic.py` |
-            | Case Study: BinNat arithmetic | `mixinv2-library/.../BinNat*.oyaml`, `tests/BinNatArithmeticTest.oyaml` | `tests/test_bin_nat_arithmetic.py` |
+            | Case Study: Nat arithmetic | `packages/mixinv2-library/.../NatData.oyaml`, `NatPlus.oyaml`, `NatEquality.oyaml`, `NatVisitor.oyaml`, `NatDecrement.oyaml`, `tests/NatConstants.oyaml`, `tests/ArithmeticTest.oyaml` | `tests/test_nat_arithmetic.py` |
+            | Case Study: BinNat arithmetic | `packages/mixinv2-library/.../BinNat*.oyaml`, `tests/BinNatArithmeticTest.oyaml` | `tests/test_bin_nat_arithmetic.py` |
             | Case Study: Cartesian product (relational semantics) | `tests/CartesianProductTest.oyaml` | `tests/test_cartesian_product.py` |
-            | Boolean logic | `mixinv2-library/.../Boolean*.oyaml`, `tests/ChurchBooleanTest.oyaml` | `tests/test_church_boolean.py` |
+            | Boolean logic | `packages/mixinv2-library/.../Boolean*.oyaml`, `tests/ChurchBooleanTest.oyaml` | `tests/test_church_boolean.py` |
             | Fibonacci | `tests/FibonacciTest.oyaml`, `tests/FibonacciLibrary.oyaml` | `tests/test_fibonacci.py` |
             | Function color blindness | `tests/fixtures/app_oyaml/` | `tests/test_stdlib_python_port.py` |
             | Expression Problem | Composition of separate `.oyaml` files without modification | `tests/test_nat_arithmetic.py`, `tests/test_bin_nat_arithmetic.py` |
@@ -204,7 +204,7 @@
             ## Running Tests
 
             ```
-            pip install -e ".[docs]" -e mixinv2-library
+            pip install -e ".[docs]" -e packages/mixinv2-library
             pytest tests/
             ```
           '';
@@ -241,7 +241,7 @@
             nativeBuildInputs = [ sphinxEnv ];
           } ''
             # Mutable copy for sphinx-apidoc output + conf.py patching
-            cp -r ${anonymizedSource}/mixinv2/docs docs-build
+            cp -r ${anonymizedSource}/packages/mixinv2/docs docs-build
             chmod -R u+w docs-build
 
             # Patch out git rev-parse call (no git repo in sandbox)
@@ -252,7 +252,7 @@
             sed -i '/^_git_commit = subprocess/,/\.strip()$/c\_git_commit = "anonymous"' docs-build/conf.py
 
             # Generate API docs
-            sphinx-apidoc --implicit-namespaces -o docs-build/api ${anonymizedSource}/mixinv2/src/mixinv2
+            sphinx-apidoc --implicit-namespaces -o docs-build/api ${anonymizedSource}/packages/mixinv2/src/mixinv2
 
             # Build HTML
             sphinx-build -b html docs-build $out
@@ -264,21 +264,21 @@
             dontUnpack = true;
 
             buildPhase = ''
-              mkdir -p staging/mixinject-supplementary
+              mkdir -p staging/supplementary-material
 
               # Copy anonymized source (includes mixinv2/docs/ source)
-              cp -r ${anonymizedSource}/* staging/mixinject-supplementary/
-              chmod -R u+w staging/mixinject-supplementary
+              cp -r ${anonymizedSource}/* staging/supplementary-material/
+              chmod -R u+w staging/supplementary-material
 
-              # Add built HTML docs under mixinv2/docs/_build/html/
-              mkdir -p staging/mixinject-supplementary/mixinv2/docs/_build
-              cp -r ${htmlDocs} staging/mixinject-supplementary/mixinv2/docs/_build/html
+              # Add built HTML docs under packages/mixinv2/docs/_build/html/
+              mkdir -p staging/supplementary-material/packages/mixinv2/docs/_build
+              cp -r ${htmlDocs} staging/supplementary-material/packages/mixinv2/docs/_build/html
 
               # Copy HTML docs to top-level docs/ directory
-              cp -r staging/mixinject-supplementary/mixinv2/docs/_build/html staging/mixinject-supplementary/docs
+              cp -r staging/supplementary-material/packages/mixinv2/docs/_build/html staging/supplementary-material/docs
 
               cd staging
-              zip -r --latest-time $TMPDIR/supplementary-material.zip mixinject-supplementary
+              zip -r --latest-time $TMPDIR/supplementary-material.zip supplementary-material
             '';
 
             installPhase = ''
@@ -290,32 +290,32 @@
               unzip $out -d $TMPDIR/verify
 
               # No identity leaks
-              if grep -rli "Bo Yang" $TMPDIR/verify/mixinject-supplementary/; then
+              if grep -rli "Bo Yang" $TMPDIR/verify/supplementary-material/; then
                 echo "FAIL: Found 'Bo Yang'" >&2; exit 1
               fi
-              if grep -rli "yang-bo" $TMPDIR/verify/mixinject-supplementary/; then
+              if grep -rli "yang-bo" $TMPDIR/verify/supplementary-material/; then
                 echo "FAIL: Found 'yang-bo'" >&2; exit 1
               fi
-              if grep -rli "Figure AI" $TMPDIR/verify/mixinject-supplementary/; then
+              if grep -rli "Figure AI" $TMPDIR/verify/supplementary-material/; then
                 echo "FAIL: Found 'Figure AI'" >&2; exit 1
               fi
-              if grep -rl "Atry" $TMPDIR/verify/mixinject-supplementary/; then
+              if grep -rl "Atry" $TMPDIR/verify/supplementary-material/; then
                 echo "FAIL: Found 'Atry'" >&2; exit 1
               fi
 
               # HTML docs present
-              test -d $TMPDIR/verify/mixinject-supplementary/docs
-              test -f $TMPDIR/verify/mixinject-supplementary/docs/index.html
-              test -f $TMPDIR/verify/mixinject-supplementary/mixinv2/docs/_build/html/index.html
+              test -d $TMPDIR/verify/supplementary-material/docs
+              test -f $TMPDIR/verify/supplementary-material/docs/index.html
+              test -f $TMPDIR/verify/supplementary-material/packages/mixinv2/docs/_build/html/index.html
 
               # Excluded items absent
-              if find $TMPDIR/verify/mixinject-supplementary -path '*inheritance-calculus*' \
+              if find $TMPDIR/verify/supplementary-material -path '*inheritance-calculus*' \
                 -o -path '*overlay-language*' | grep -q .; then
                 echo "FAIL: Found excluded directory" >&2; exit 1
               fi
 
               # Anonymization applied
-              grep -rl "Anonymous Author" $TMPDIR/verify/mixinject-supplementary/ > /dev/null
+              grep -rl "Anonymous Author" $TMPDIR/verify/supplementary-material/ > /dev/null
             '';
           };
         in

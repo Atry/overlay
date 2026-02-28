@@ -23,7 +23,7 @@ cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true 
 # Note: uv source keys use normalized names (dashes) even when project names use dots
 
 [tool.uv.workspace]
-members = ["mixinv2", "mixinv2-library", "overlay-language", "overlay-library"]
+members = ["packages/*"]
 
 [dependency-groups]
 dev = [
@@ -57,4 +57,4 @@ dev = [
 ]
 
 [tool.pyright]
-include = ["mixinv2/src", "mixinv2-library/src", "tests"]
+include = ["packages/mixinv2/src", "packages/mixinv2-library/src", "tests"]
