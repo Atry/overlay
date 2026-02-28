@@ -1078,6 +1078,65 @@ Successor:
 
 The distinction: `_increasedAddend` is lowerCamelCase because it only **contains** a Successor scope (via inheritance `- [Successor]`) and provides field values (`predecessor: [addend]`). `_OtherVisitor` is UpperCamelCase because it **defines** new nested scopes (`VisitZero`, `VisitSuccessor`, `Visit`).
 
+### Python FFI Naming Conventions
+
+Python FFI modules — files that use MIXINv2 decorators (`@public`, `@resource`, `@extern`) — are part of the MIXINv2 scope tree, not ordinary Python code. Their naming must follow **MIXINv2 conventions**, not Python conventions (PEP 8).
+
+**Module file names** are MIXINv2 scope names and use **UpperCamelCase**:
+
+```
+# ✓ GOOD — MIXINv2 scope naming
+HttpServerCreate.py
+SqliteScalarQuery.py
+FormatResponse.py
+ExtractUserId.py
+
+# ✗ BAD — Python PEP 8 naming
+http_server_create.py
+sqlite_scalar_query.py
+```
+
+**`@extern` and `@public @resource` function names** are MIXINv2 field/resource names and use **lowerCamelCase** — the same casing as in `.oyaml` files. Do NOT convert to Python snake_case:
+
+```python
+# ✓ GOOD — lowerCamelCase, matches oyaml `handlerClass: []`
+@extern
+def handlerClass() -> type: ...
+
+# ✓ GOOD — lowerCamelCase, matches oyaml `serveForever: []`
+@public
+@resource
+def serveForever(server: HTTPServer) -> None:
+    server.serve_forever()
+
+# ✗ BAD — snake_case (Python convention, not MIXINv2)
+@extern
+def handler_class() -> type: ...
+
+# ✗ BAD — UpperCamelCase (scope naming, not resource naming)
+@public
+@resource
+def ServeForever(server: HTTPServer) -> None: ...
+```
+
+**`@extern` function parameters** follow the same rule — they are MIXINv2 field names and use lowerCamelCase:
+
+```python
+# ✓ GOOD — lowerCamelCase parameters
+@public
+@resource
+def server(host: str, port: int, handlerClass: type) -> HTTPServer:
+    return HTTPServer((host, port), handlerClass)
+
+# ✗ BAD — snake_case parameters
+@public
+@resource
+def server(host: str, port: int, handler_class: type) -> HTTPServer:
+    return HTTPServer((host, port), handler_class)
+```
+
+**Summary:** In Python FFI modules, everything visible to the MIXINv2 scope tree (file names, `@extern` names, `@public @resource` names, parameter names) uses MIXINv2 naming (UpperCamelCase for scopes, lowerCamelCase for fields/resources). Only internal Python helpers (private functions, local variables, type aliases) follow standard Python conventions.
+
 ### References: Lexical vs Qualified This
 
 MIXINv2 provides two kinds of references for navigating the scope hierarchy:
