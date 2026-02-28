@@ -17,7 +17,7 @@ equivalent of a pytest fixture parameter. Pass multiple scopes to ``evaluate()``
 compose them; dependencies are resolved by name across scope boundaries. Config
 values are passed as kwargs when calling the evaluated scope.
 
-.. literalinclude:: ../../tests/test_readme_examples.py
+.. literalinclude:: ../../mixinv2-examples/src/mixinv2_examples/app_decorator/step1_services.py
    :language: python
    :start-after: # [docs:step1-define-services]
    :end-before: # [/docs:step1-define-services]
@@ -35,7 +35,7 @@ Step 2 — Layer cross-cutting concerns with ``@patch`` and ``@merge``
 add-on scope modify a value without touching the scope that defined it — the same
 idea as pytest's ``monkeypatch``, but composable.
 
-.. literalinclude:: ../../tests/test_readme_examples.py
+.. literalinclude:: ../../mixinv2-examples/src/mixinv2_examples/app_decorator/step2_patch.py
    :language: python
    :start-after: # [docs:step2-patch]
    :end-before: # [/docs:step2-patch]
@@ -44,7 +44,7 @@ idea as pytest's ``monkeypatch``, but composable.
 When several independent scopes each contribute a piece to the same resource, use
 ``@merge`` to define how the contributions are aggregated:
 
-.. literalinclude:: ../../tests/test_readme_examples.py
+.. literalinclude:: ../../mixinv2-examples/src/mixinv2_examples/app_decorator/step2_merge.py
    :language: python
    :start-after: # [docs:step2-merge]
    :end-before: # [/docs:step2-merge]
@@ -53,7 +53,7 @@ When several independent scopes each contribute a piece to the same resource, us
 A ``@patch`` can itself declare ``@extern`` dependencies, which are injected like any
 other resource:
 
-.. literalinclude:: ../../tests/test_readme_examples.py
+.. literalinclude:: ../../mixinv2-examples/src/mixinv2_examples/app_decorator/step2_patch_extern.py
    :language: python
    :start-after: # [docs:step2-patch-extern]
    :end-before: # [/docs:step2-patch-extern]
@@ -68,7 +68,7 @@ lifetime of the scope. Mark a resource ``@eager`` to evaluate it immediately whe
 ``evaluate()`` returns — useful for schema migrations or connection pre-warming that
 must complete before the application starts serving requests:
 
-.. literalinclude:: ../../tests/test_readme_examples.py
+.. literalinclude:: ../../mixinv2-examples/src/mixinv2_examples/app_decorator/step3_eager.py
    :language: python
    :start-after: # [docs:step3-eager]
    :end-before: # [/docs:step3-eager]
@@ -319,7 +319,7 @@ module equivalent of a nested ``@scope class RequestScope``.
 Use ``@extend`` in a package's ``__init__.py`` to declare the composition, then
 ``evaluate()`` receives the single package:
 
-.. literalinclude:: ../../tests/fixtures/app_di/__init__.py
+.. literalinclude:: ../../mixinv2-examples/src/mixinv2_examples/app_di/__init__.py
    :language: python
    :start-after: # [docs:module-extend]
    :end-before: # [/docs:module-extend]

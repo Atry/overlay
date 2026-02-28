@@ -46,6 +46,7 @@ FFI:
     port: []
     handler_class: []
     server: []
+    serve_forever: []
 # [/docs:ffi-declarations]
 
 # [docs:sqlite-database]

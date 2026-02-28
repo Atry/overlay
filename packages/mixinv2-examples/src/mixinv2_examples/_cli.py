@@ -13,7 +13,12 @@ import mixinv2_library
 from mixinv2._runtime import evaluate
 
 
+_current_value = None  # prevent garbage collection of evaluated scope
+
+
 def main() -> None:
+    global _current_value
+
     path = sys.argv[1:]
     if not path:
         raise SystemExit("Usage: mixinv2-example <path...>")
@@ -23,4 +28,5 @@ def main() -> None:
     for segment in path:
         current = getattr(current, segment)
 
+    _current_value = current
     print(current)

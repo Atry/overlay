@@ -1,7 +1,7 @@
-"""Runnable versions of all code examples shown in README.md.
+"""Runnable versions of all code examples shown in the RST tutorial.
 
-Each test function mirrors a step in the README walkthrough so the examples
-are guaranteed to be correct and up-to-date.
+Each test function mirrors a section in the tutorial walkthrough so the
+examples are guaranteed to be correct and up-to-date.
 
 Examples use standard-library modules only:
 - `sqlite3` for the database layer
@@ -13,14 +13,35 @@ import threading
 import urllib.request
 from concurrent.futures import Future
 from dataclasses import dataclass
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Callable, Iterator, Protocol
-
 from types import ModuleType
-
 from mixinv2 import LexicalReference
-from mixinv2 import eager, extend, extern, merge, patch, public, resource, scope
+from mixinv2 import extend, extern, public, resource, scope
 from mixinv2._runtime import evaluate
+
+from mixinv2_examples.app_decorator.step1_services import (
+    SQLiteDatabase as Step1SQLiteDatabase,
+    UserRepository as Step1UserRepository,
+)
+from mixinv2_examples.app_decorator.step2_patch import Base, HighLoad
+from mixinv2_examples.app_decorator.step2_merge import (
+    ForeignKeys,
+    PragmaBase as MergePragmaBase,
+    WalMode,
+)
+from mixinv2_examples.app_decorator.step2_patch_extern import (
+    PragmaBase as ExternPragmaBase,
+    UserVersionPragma,
+)
+from mixinv2_examples.app_decorator.step3_eager import (
+    SQLiteDatabase as EagerSQLiteDatabase,
+)
+from mixinv2_examples.app_decorator.step4_http_server import (
+    HttpHandlers,
+    NetworkServer,
+    SQLiteDatabase as Step4SQLiteDatabase,
+    UserRepository as Step4UserRepository,
+    app as step4_app,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -29,37 +50,14 @@ from mixinv2._runtime import evaluate
 
 
 class TestStep1BasicServices:
-    """README Step 1: @scope, @resource, @public, @extern, evaluate()."""
+    """Tutorial Step 1: @scope, @resource, @public, @extern, evaluate()."""
 
     def test_extern_and_flat_composition(self) -> None:
         """@extern + multi-scope union-mount: each scope owns its own config."""
 
-        # [docs:step1-define-services]
-        @scope
-        class SQLiteDatabase:
-            @extern
-            def database_path() -> str: ...       # caller must provide this
-
-            @public
-            @resource
-            def connection(database_path: str) -> sqlite3.Connection:
-                return sqlite3.connect(database_path)
-
-        @scope
-        class UserRepository:
-            @public
-            @resource
-            def user_count(connection: sqlite3.Connection) -> int:
-                connection.execute(
-                    "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)"
-                )
-                (count,) = connection.execute("SELECT COUNT(*) FROM users").fetchone()
-                return count
-
-        app = evaluate(SQLiteDatabase, UserRepository)
+        app = evaluate(Step1SQLiteDatabase, Step1UserRepository)
         root = app(database_path=":memory:")
         assert root.user_count == 0
-        # [/docs:step1-define-services]
         root.connection.close()
 
 
@@ -69,84 +67,28 @@ class TestStep1BasicServices:
 
 
 class TestStep2PatchAndMerge:
-    """README Step 2: @patch applies a transformation; @merge sets aggregation."""
+    """Tutorial Step 2: @patch applies a transformation; @merge sets aggregation."""
 
     def test_patch_overrides_resource(self) -> None:
         """A @patch wraps a @resource value with a transformation."""
 
-        # [docs:step2-patch]
-        @scope
-        class Base:
-            @public
-            @resource
-            def max_connections() -> int:
-                return 10
-
-        @scope
-        class HighLoad:
-            """Patch for high-load environments: double the connection limit."""
-
-            @patch
-            def max_connections() -> Callable[[int], int]:
-                return lambda previous: previous * 2
-
         root = evaluate(Base, HighLoad)
         assert root.max_connections == 20         # 10 * 2
-        # [/docs:step2-patch]
 
     def test_merge_collects_patches_into_frozenset(self) -> None:
         """@merge defines the aggregation strategy for collected @patch values."""
 
-        # [docs:step2-merge]
-        @scope
-        class PragmaBase:
-            @public
-            @merge
-            def startup_pragmas() -> Callable[[Iterator[str]], frozenset[str]]:
-                return frozenset                  # aggregation strategy: collect into frozenset
-
-        @scope
-        class WalMode:
-            @patch
-            def startup_pragmas() -> str:
-                return "PRAGMA journal_mode=WAL"
-
-        @scope
-        class ForeignKeys:
-            @patch
-            def startup_pragmas() -> str:
-                return "PRAGMA foreign_keys=ON"
-
-        root = evaluate(PragmaBase, WalMode, ForeignKeys)
+        root = evaluate(MergePragmaBase, WalMode, ForeignKeys)
         assert root.startup_pragmas == frozenset(
             {"PRAGMA journal_mode=WAL", "PRAGMA foreign_keys=ON"}
         )
-        # [/docs:step2-merge]
 
     def test_patch_with_dependency_injection(self) -> None:
         """A @patch can itself declare @extern dependencies, provided as kwargs."""
 
-        # [docs:step2-patch-extern]
-        @scope
-        class PragmaBase:
-            @public
-            @merge
-            def startup_pragmas() -> Callable[[Iterator[str]], frozenset[str]]:
-                return frozenset
-
-        @scope
-        class UserVersionPragma:
-            @extern
-            def schema_version() -> int: ...     # provided as a kwarg at call time
-
-            @patch
-            def startup_pragmas(schema_version: int) -> str:
-                return f"PRAGMA user_version={schema_version}"
-
-        app = evaluate(PragmaBase, UserVersionPragma)
+        app = evaluate(ExternPragmaBase, UserVersionPragma)
         root = app(schema_version=3)
         assert root.startup_pragmas == frozenset({"PRAGMA user_version=3"})
-        # [/docs:step2-patch-extern]
 
 
 # ---------------------------------------------------------------------------
@@ -155,30 +97,16 @@ class TestStep2PatchAndMerge:
 
 
 class TestStep3Eager:
-    """README Step 3: @eager resources are evaluated immediately on scope creation."""
+    """Tutorial Step 3: @eager resources are evaluated immediately on scope creation."""
 
     def test_eager_runs_schema_migration_at_startup(self) -> None:
         """Schema migration runs immediately when evaluate() returns."""
 
-        # [docs:step3-eager]
-        @scope
-        class SQLiteDatabase:
-            @public
-            @eager
-            @resource
-            def connection() -> sqlite3.Connection:
-                db = sqlite3.connect(":memory:")
-                db.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
-                db.commit()
-                return db
-
-        # Schema migration already done by the time evaluate() returns
-        root = evaluate(SQLiteDatabase)
+        root = evaluate(EagerSQLiteDatabase)
         tables = root.connection.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).fetchall()
         assert ("users",) in tables
-        # [/docs:step3-eager]
         root.connection.close()
 
     def test_lazy_connection_not_opened_until_accessed(self) -> None:
@@ -213,167 +141,22 @@ class TestStep3Eager:
 
 
 class TestStep4HttpServer:
-    """README Step 4: app scope vs request scope."""
+    """Tutorial Step 4: app scope vs request scope."""
 
     def test_app_and_request_scope(self) -> None:
         """Three scopes union-mounted flat; each owns its config.
         UserRepository is a @scope providing business-level resources.
         UserRepository.RequestScope provides per-request DB resources.
-        AppServices.RequestScope extracts user_id from the HTTP request.
+        HttpHandlers.RequestScope extracts user_id from the HTTP request.
         The union-mount wires user_id → current_user automatically.
         """
 
-        @scope
-        class SQLiteDatabase:
-            @extern
-            def database_path() -> str: ...    # database owns its own config
-
-            # App-scoped: one connection for the entire process lifetime.
-            # check_same_thread=False: created in main thread, used in handler threads.
-            @public
-            @resource
-            def connection(database_path: str) -> sqlite3.Connection:
-                db = sqlite3.connect(database_path, check_same_thread=False)
-                db.execute(
-                    "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)"
-                )
-                db.execute("INSERT INTO users VALUES (1, 'alice')")
-                db.execute("INSERT INTO users VALUES (2, 'bob')")
-                db.commit()
-                return db
-
-        @scope
-        class UserRepository:
-            @extern
-            def connection() -> sqlite3.Connection: ...
-
-            # @scope as a composable dataclass — fields are @extern, constructed via DI.
-            @public
-            @scope
-            class User:
-                @public
-                @extern
-                def user_id() -> int: ...
-
-                @public
-                @extern
-                def name() -> str: ...
-
-            # App-scoped: total count across all requests.
-            @public
-            @resource
-            def user_count(connection: sqlite3.Connection) -> int:
-                (count,) = connection.execute(
-                    "SELECT COUNT(*) FROM users"
-                ).fetchone()
-                return count
-
-            # Request-scoped: per-request DB resources, wired by overlay union-mount.
-            @public
-            @scope
-            class RequestScope:
-                @extern
-                def user_id() -> int: ...  # provided by AppServices.RequestScope
-
-                @public
-                @resource
-                def current_user(
-                    connection: sqlite3.Connection, user_id: int, User: Callable
-                ) -> object:
-                    row = connection.execute(
-                        "SELECT id, name FROM users WHERE id = ?", (user_id,)
-                    ).fetchone()
-                    assert row is not None, f"no user with id={user_id}"
-                    identifier, name = row
-                    return User(user_id=identifier, name=name)
-
-        @scope
-        class HttpHandlers:
-            @extern
-            def user_count() -> int: ...
-
-            # RequestScope is nested because its lifetime is per-request,
-            # not per-application.
-            @public
-            @scope
-            class RequestScope:
-                class _RequestWithPath(Protocol):
-                    path: str
-
-                @extern
-                def request() -> BaseHTTPRequestHandler: ...
-
-                @extern
-                def current_user() -> object: ...
-
-                # user_id is extracted from the request and injected into
-                # UserRepository.RequestScope.current_user automatically.
-                @public
-                @resource
-                def user_id(request: _RequestWithPath) -> int:
-                    return int(request.path.split("/")[-1])
-
-                @public
-                @resource
-                def response_body(user_count: int, current_user: object) -> bytes:
-                    return (
-                        f"total={user_count} current={current_user.name}"
-                    ).encode()
-
-                # IO resource: sends the HTTP response as a side effect.
-                @public
-                @resource
-                def response_sent(
-                    request: BaseHTTPRequestHandler,
-                    response_body: bytes,
-                ) -> None:
-                    request.send_response(200)
-                    request.end_headers()
-                    request.wfile.write(response_body)
-
-        @scope
-        class NetworkServer:
-            @extern
-            def host() -> str: ...             # network layer owns its own config
-
-            @extern
-            def port() -> int: ...
-
-            @scope
-            class RequestScope:
-                pass
-
-            # RequestScope is injected by name as a Callable (StaticScope).
-            # Calling RequestScope(request=handler) returns a fresh InstanceScope.
-            @public
-            @resource
-            def server(host: str, port: int, RequestScope: Callable) -> HTTPServer:
-                class Handler(BaseHTTPRequestHandler):
-                    def do_GET(self) -> None:
-                        RequestScope(request=self).response_sent
-
-                    def log_message(self, format: str, *arguments: object) -> None:
-                        pass
-
-                return HTTPServer((host, port), Handler)
-
-        @extend(
-            LexicalReference(path=("SQLiteDatabase",)),
-            LexicalReference(path=("UserRepository",)),
-            LexicalReference(path=("HttpHandlers",)),
-            LexicalReference(path=("NetworkServer",)),
-        )
-        @public
-        @scope
-        class app:
-            pass
-
         module = ModuleType("step4_app_module")
-        module.SQLiteDatabase = SQLiteDatabase  # type: ignore[attr-defined]
-        module.UserRepository = UserRepository  # type: ignore[attr-defined]
+        module.SQLiteDatabase = Step4SQLiteDatabase  # type: ignore[attr-defined]
+        module.UserRepository = Step4UserRepository  # type: ignore[attr-defined]
         module.HttpHandlers = HttpHandlers  # type: ignore[attr-defined]
         module.NetworkServer = NetworkServer  # type: ignore[attr-defined]
-        module.app = app  # type: ignore[attr-defined]
+        module.app = step4_app  # type: ignore[attr-defined]
 
         app_instance = evaluate(module, modules_public=True).app(
             database_path=":memory:",

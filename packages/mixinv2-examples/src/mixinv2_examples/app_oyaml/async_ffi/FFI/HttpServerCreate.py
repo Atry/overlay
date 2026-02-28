@@ -1,5 +1,6 @@
 """Starlette app + uvicorn.Server"""
 
+import asyncio
 from collections.abc import Callable
 
 import uvicorn
@@ -31,3 +32,9 @@ def server(host: str, port: int, handler_class: Callable) -> uvicorn.Server:
         application, host=host, port=port, log_level="error",
     )
     return uvicorn.Server(configuration)
+
+
+@public
+@resource
+def serve_forever(server: uvicorn.Server) -> None:
+    asyncio.run(server.serve())

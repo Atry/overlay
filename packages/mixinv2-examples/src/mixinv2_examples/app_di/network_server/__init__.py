@@ -25,3 +25,11 @@ def server(host: str, port: int, request_scope: Callable) -> HTTPServer:
             pass
 
     return HTTPServer((host, port), Handler)
+
+
+@public
+@resource
+def serve_forever(server: HTTPServer) -> None:
+    host, port = server.server_address
+    print(f"Serving on http://{host}:{port}")
+    server.serve_forever()

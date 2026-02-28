@@ -218,122 +218,87 @@
 
             ## Running Examples
 
-            After installation (see above), launch the stdlib HTTP server demo:
+            After installation (see above), start the stdlib HTTP server demo:
 
             ```
-            uv run mixinv2-example app_oyaml Apps memory_app server
+            uv run mixinv2-example app_oyaml Apps memory_app serve_forever
             ```
 
-            Or launch the async (uvicorn/starlette) HTTP server demo:
+            Or start the async (uvicorn/starlette) HTTP server demo:
 
             ```
-            uv run mixinv2-example app_oyaml AsyncApps memory_app server
+            uv run mixinv2-example app_oyaml AsyncApps memory_app serve_forever
             ```
+
+            The server listens on `http://127.0.0.1:<port>` (port is auto-assigned).
+            Press Ctrl-C to stop.
 
             The `mixinv2-example` command evaluates the MIXINv2 examples package and
             navigates the scope tree along the given path.
           '';
 
-          anonymizedSource = pkgs.runCommand "anonymized-source" {
-            nativeBuildInputs = [ pkgs.file ];
-          } ''
-            cp -r ${supplementarySourceFiles} $out
-            chmod -R u+w $out
-
-            # Replace README with reviewer-oriented version
-            cp ${reviewerReadme} $out/README.md
-
-            # Anonymize all text files
-            find $out -type f | while read f; do
-              if file --mime-type "$f" | grep -qE 'text/|application/json'; then
-                sed -i \
-                  -e 's|yang-bo@yang-bo.com|anonymous@example.com|g' \
-                  -e "s|Yang, Bo|Anonymous, Author|g" \
-                  -e 's|Bo Yang|Anonymous Author|g' \
-                  -e 's|Figure AI Inc\.|Anonymous Institution|g' \
-                  -e 's|Figure AI|Anonymous Institution|g' \
-                  -e 's|github\.com/Atry/MIXINv2|github.com/anonymous-author/anonymous-repo|g' \
-                  -e 's|github\.com/Atry/overlay|github.com/anonymous-author/anonymous-repo|g' \
-                  -e 's|github\.com/Atry/MIXIN|github.com/anonymous-author/anonymous-repo|g' \
-                  -e "s|'Atry'|'anonymous-author'|g" \
-                  -e 's|"Atry"|"anonymous-author"|g' \
-                  "$f"
-              fi
-            done
-
-            # Strip overlay-language and overlay-library workspace references
-            sed -i \
-              -e 's|, overlay-language = { workspace = true }||g' \
-              -e 's|, overlay-library = { workspace = true }||g' \
-              "$out/pyproject.toml"
-
-            # Remove overlay packages from uv.lock
-            # 1. Remove member list entries
-            sed -i \
-              -e '/^    "overlay-language",$/d' \
-              -e '/^    "overlay-library",$/d' \
-              "$out/uv.lock"
-            # 2. Remove full [[package]] blocks (from [[package]] header to next [[package]] or EOF)
-            ${pkgs.gawk}/bin/awk '
-              /^\[\[package\]\]/ { header=$0; next_line=1; next }
-              next_line {
-                if ($0 ~ /^name = "overlay-(language|library)"/) {
-                  skip=1
-                } else {
-                  skip=0
-                  print header
-                  print
-                }
-                next_line=0
-                next
-              }
-              skip && /^\[\[package\]\]/ { skip=0; header=$0; next_line=1; next }
-              !skip { print }
-            ' "$out/uv.lock" > "$out/uv.lock.tmp"
-            mv "$out/uv.lock.tmp" "$out/uv.lock"
-          '';
-
-          htmlDocs = pkgs.runCommand "mixinv2-html-docs" {
-            nativeBuildInputs = [ sphinxEnv ];
-          } ''
-            # Mutable copy for sphinx-apidoc output + conf.py patching
-            cp -r ${anonymizedSource}/packages/mixinv2/docs docs-build
-            chmod -R u+w docs-build
-
-            # Patch out git rev-parse call (no git repo in sandbox)
-            # The original is a multiline expression:
-            #   _git_commit = subprocess.check_output(
-            #       ["git", "rev-parse", "HEAD"], text=True
-            #   ).strip()
-            sed -i '/^_git_commit = subprocess/,/\.strip()$/c\_git_commit = "anonymous"' docs-build/conf.py
-
-            # Generate API docs
-            sphinx-apidoc --implicit-namespaces -o docs-build/api ${anonymizedSource}/packages/mixinv2/src/mixinv2
-
-            # Build HTML
-            sphinx-build -b html docs-build $out
-          '';
-
           supplementaryMaterial = pkgs.stdenv.mkDerivation {
             name = "supplementary-material.zip";
-            nativeBuildInputs = [ pkgs.zip pkgs.unzip ];
-            dontUnpack = true;
+            src = supplementarySourceFiles;
+            nativeBuildInputs = [ pkgs.zip pkgs.unzip sphinxEnv ];
 
             buildPhase = ''
-              mkdir -p staging/supplementary-material
+              cd ..
+              mv source supplementary-material
+              cd supplementary-material
 
-              # Copy anonymized source (includes mixinv2/docs/ source)
-              cp -r ${anonymizedSource}/* staging/supplementary-material/
-              chmod -R u+w staging/supplementary-material
+              # Replace README with reviewer-oriented version
+              cp ${reviewerReadme} README.md
 
-              # Add built HTML docs under packages/mixinv2/docs/_build/html/
-              mkdir -p staging/supplementary-material/packages/mixinv2/docs/_build
-              cp -r ${htmlDocs} staging/supplementary-material/packages/mixinv2/docs/_build/html
+              # Anonymize all text files
+              shopt -s globstar nullglob
+              substituteInPlace \
+                **/*.py **/*.toml **/*.lock **/*.json **/*.md **/*.rst \
+                **/*.cfg **/*.txt **/*.yaml **/*.yml **/*.ini \
+                --replace-warn 'yang-bo@yang-bo.com' 'anonymous@example.com' \
+                --replace-warn 'Yang, Bo' 'Anonymous, Author' \
+                --replace-warn 'Bo Yang' 'Anonymous Author' \
+                --replace-warn 'Figure AI Inc.' 'Anonymous Institution' \
+                --replace-warn 'Figure AI' 'Anonymous Institution' \
+                --replace-warn 'github.com/Atry/MIXINv2' 'github.com/anonymous-author/anonymous-repo' \
+                --replace-warn 'github.com/Atry/overlay' 'github.com/anonymous-author/anonymous-repo' \
+                --replace-warn 'github.com/Atry/MIXIN' 'github.com/anonymous-author/anonymous-repo' \
+                --replace-warn "'Atry'" "'anonymous-author'" \
+                --replace-warn '"Atry"' '"anonymous-author"'
+              shopt -u globstar nullglob
+
+              # Strip overlay-language and overlay-library workspace references
+              substituteInPlace pyproject.toml \
+                --replace-fail ', overlay-language = { workspace = true }' "" \
+                --replace-fail ', overlay-library = { workspace = true }' ""
+
+              # Remove overlay packages from uv.lock
+              substituteInPlace uv.lock \
+                --replace-fail $'    "overlay-language",\n' "" \
+                --replace-fail $'    "overlay-library",\n' "" \
+                --replace-fail $'[[package]]\nname = "overlay-language"\nsource = { editable = "packages/overlay-language" }\ndependencies = [\n    { name = "mixinv2" },\n]\n\n[package.metadata]\nrequires-dist = [{ name = "mixinv2", editable = "packages/mixinv2" }]\n' "" \
+                --replace-fail $'[[package]]\nname = "overlay-library"\nsource = { editable = "packages/overlay-library" }\ndependencies = [\n    { name = "mixinv2-library" },\n]\n\n[package.metadata]\nrequires-dist = [{ name = "mixinv2-library", editable = "packages/mixinv2-library" }]\n' ""
+
+              # Patch out git rev-parse call (no git repo in sandbox)
+              substituteInPlace packages/mixinv2/docs/conf.py \
+                --replace-fail \
+                  "_git_commit = subprocess.check_output(
+    [\"git\", \"rev-parse\", \"HEAD\"], text=True
+).strip()" \
+                  '_git_commit = "anonymous"'
+
+              # Generate API docs and build HTML in-place
+              sphinx-apidoc --implicit-namespaces \
+                -o packages/mixinv2/docs/api \
+                packages/mixinv2/src/mixinv2
+              sphinx-build -b html \
+                packages/mixinv2/docs \
+                packages/mixinv2/docs/_build/html
 
               # Copy HTML docs to top-level docs/ directory
-              cp -r staging/supplementary-material/packages/mixinv2/docs/_build/html staging/supplementary-material/docs
+              cp -rl packages/mixinv2/docs/_build/html docs
 
-              cd staging
+              cd ..
               zip -r --latest-time $TMPDIR/supplementary-material.zip supplementary-material
             '';
 
