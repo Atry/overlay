@@ -72,7 +72,7 @@
 \thanks{This work was conducted independently prior to the author's employment at Figure AI.}
 
 \begin{abstract}
-  Just as the $\lambda$-calculus uses three primitives (abstraction, application, variable) as the foundation of functional programming, inheritance-calculus uses three primitives (record, definition, inheritance) as the foundation of declarative programming. It trivially embeds the $\lambda$-calculus, although the entire semantics rests solely on naive set theory; as a consequence, all constructs including inheritance are inherently commutative, idempotent, and associative; the linearization problem of multiple inheritance does not arise. This induces a fully abstract semantics of the lazy $\lambda$-calculus with respect to B\"ohm tree equivalence~\cite{barendregt1984lambda}. Inheritance-calculus is distilled from MIXINv2, a practical implementation in which we observed further emergent phenomena: the same code acts as different function colors~\cite{nystrom2015color}; ordinary arithmetic yields the relational semantics of logic programming~\cite{vanemden1976semantics}; self-reference resolves to multiple targets; and programs are immune to the Expression Problem~\cite{wadler1998expression}. This makes inheritance-calculus strictly more expressive than the $\lambda$-calculus in both common sense and Felleisen's sense~\cite{felleisen1991expressive}. These properties suggest applications to configuration languages, dependency injection, object-oriented programming, composable effect systems, modular software architectures, file-system-as-compiler, general-purpose programming, and no-code development.
+  Just as the $\lambda$-calculus uses three primitives (abstraction, application, variable) as the foundation of functional programming, inheritance-calculus uses three primitives (record, definition, inheritance) as the foundation of declarative programming. It trivially embeds the $\lambda$-calculus, although the entire semantics rests solely on naive set theory; as a consequence, all constructs including inheritance are inherently commutative, idempotent, and associative; the linearization problem of multiple inheritance does not arise. This induces a fully abstract semantics of the lazy $\lambda$-calculus with respect to B\"ohm tree equivalence~\cite{barendregt1984lambda}. Inheritance-calculus is distilled from MIXINv2, a practical implementation in which we observed further emergent phenomena: the same code acts as different function colors~\cite{nystrom2015color}; ordinary arithmetic yields the relational semantics of logic programming~\cite{vanemden1976semantics}; self-reference resolves to multiple targets; and programs are immune to the Expression Problem~\cite{wadler1998expression}. This makes inheritance-calculus strictly more expressive than the $\lambda$-calculus in both common sense and Felleisen's sense~\cite{felleisen1991expressive}.
 \end{abstract}
 
 \begin{CCSXML}
@@ -201,9 +201,9 @@ and inheritance) and no functions or let-bindings.
 
 In developing real programs in MIXINv2, including boolean logic and
 natural number arithmetic (Section~\ref{sec:case-study}) and a web application
-(Section~\ref{sec:practical-function-color}), we found that the
+(Section~\ref{sec:practical-function-color}), the
 linearization problem of mixin-based
-systems~\cite{bracha1990mixin,c3linearization} is structurally absent:
+systems~\cite{bracha1990mixin,c3linearization} did not arise:
 because records are sets, inheritance is inherently commutative,
 idempotent, and associative (Section~\ref{sec:mixin-trees}).
 Self-reference naturally resolves to \emph{multiple objects} rather than
@@ -214,9 +214,9 @@ inheritance tree \emph{is} the call stack, and qualified this resolution
 is a first-order set-theoretic query, not a fixed-point construction.
 We also found that boolean logic and arithmetic, implemented as separate
 MIXINv2 files, extend in both dimensions of the Expression
-Problem~\cite{wadler1998expression} without any dedicated mechanism;
-that Church-encoded values automatically form trie structures; and
-that operations on tries automatically become Cartesian products, so that
+Problem~\cite{wadler1998expression} without any dedicated mechanism.
+Church-encoded values automatically form trie structures, and
+operations on tries automatically become Cartesian products, so that
 adding $\{1,2\}$ to $\{3,4\}$ yields $\{4,5,6\}$, which
 is the relational semantics of logic programming~\cite{vanemden1976semantics}
 (Section~\ref{sec:case-study}); and that the same web
@@ -1270,129 +1270,49 @@ every operation distributes over them.
 \label{sec:reverse-translation}
 \label{sec:emergent-phenomena}
 
-Several features of inheritance-calculus are primitive yet have no
-direct counterpart in the $\lambda$-calculus.  Encoding any one
-of them requires pervasive, non-local changes to program
-structure.
+In developing real programs in MIXINv2, we encountered three
+phenomena that we did not design for.  They can be seen in the
+source code\selfcite{~\cite{mixin2025}}{~(supplementary material)}
+and the Case Study (Section~\ref{sec:case-study}); below we
+explain why they arise from the three primitives.
 
 \begin{description}
-  \item[Self-referential records with lazy evaluation]
-    A mixin's properties can reference other properties and enclosing scopes
-    through qualified this without explicit binding.
-    In the $\lambda$-calculus, encoding such self-referential
-    structures requires explicit allocation of mutable or lazy
-    references~\cite{boudol2004recursive} (e.g., Haskell-style
-    thunks or ML-style \texttt{ref} cells), obscuring the
-    declarative intent.
-
-  \item[Open recursion with symmetric inheritance]
-    Inheritance merges definitions from independent sources,
-    all sharing the same inherited mixin tree.  Encoding this in
-    the $\lambda$-calculus requires maintaining an extensible dictionary
-    of methods that can be merged from multiple directions.  Cook's
-    denotational semantics of inheritance~\cite{cook1989denotational}
-    devoted an entire dissertation to formalizing this pattern in a
-    functional setting.
-
-  \item[Commutative, idempotent merge]
-    The inheritance operation is symmetric:
-    a record's elements form a set, so reordering them produces
-    the same observable result.  In the $\lambda$-calculus, function composition
-    $(f \circ g)$ is neither commutative nor idempotent, and simulating
-    these properties requires additional
-    machinery~\cite{harper1991record,cardelli1992extensible}.
-
   \item[Relational semantics]
-    Every inheritance-calculus operation is defined by recursion on
-    mixin trees, not on individual values.
+    Single-valued computation and set-valued computation are
+    the same mechanism.
+    The semantic equations of Section~\ref{sec:mixin-trees}
+    resolve every property to a set of paths, so operations
+    defined on single values automatically distribute over
+    all combinations of set-valued inputs
+    (Section~\ref{sec:case-study}).
     When a mixin tree is viewed as a trie, the correspondence
-    with relational algebra becomes precise:
-    a path from the root to a leaf encodes a single value
-    (e.g., $\mathrm{Successor} \to \mathrm{predecessor} \to
-    \mathrm{Zero}$ encodes the natural number~$1$);
-    a trie union encodes a \emph{set} of such values, i.e., a
-    unary relation.
-    An operation that takes two trie-union operands traverses
-    every combination of their paths through $\bases$
-    (equation~\ref{eq:bases}), which is a cross-join;
-    the transitive closure $\bases^*$ in $\supers$
-    (equation~\ref{eq:supers}) computes the union of all
-    reachable paths; and $\properties$
-    (equation~\ref{eq:properties}) projects the observable labels.
+    with relational algebra becomes precise.%
+    \footnote{Inheritance-calculus to relational algebra:
+      path from root to leaf $=$ tuple;
+      trie union $=$ relation (set of tuples);
+      $\bases$ (equation~\ref{eq:bases}) $=$ cross-join;
+      $\supers$ (equation~\ref{eq:supers}) $=$ union;
+      $\properties$ (equation~\ref{eq:properties}) $=$ projection.}
     The carrier is a trie rather than a flat relation, and
     observation is coinductive---the observer drives computation
     by querying progressively deeper paths---rather than
     Datalog's bottom-up materialization, but the relational
     structure of the computation is the same.
-    In the Case Study (Section~\ref{sec:case-study}), the
-    $\mathrm{Plus}$ and $\mathrm{Equal}$ operations are defined
-    on single Nat values.  When applied to set-valued mixins
-    $\{1,2\}$ and $\{3,4\}$, the same definitions, without any
-    modification, produce the set of all pairwise sums
-    $\{4,5,6\}$.  This is relational
-    semantics in action: each operation distributes over every
-    combination of its inputs.  The behavior is native: the
-    semantic equations of Section~\ref{sec:mixin-trees}
-    resolve every property to a set of paths, so single-valued
-    and set-valued computation are the same mechanism.  No code
-    change is needed to move from one to the other.
-
-  \item[Function color blindness]
-    \label{sec:practical-function-color}
-    In a web
-    application\selfcite{~\cite{mixin2025}}{~(supplementary material)}
-    initially targeting Python's synchronous \texttt{sqlite3} and
-    \texttt{http.server} modules,
-    the business logic MIXINv2 file contained no async-specific code.
-    When the FFI layer was replaced with one built on
-    \texttt{aiosqlite} and \texttt{starlette}, the business logic
-    MIXINv2 file did not change.
-    This is an instance of function color
-    blindness~\cite{nystrom2015color}: async and sync functions are
-    distinct types in the host language, yet the MIXINv2 file is
-    agnostic to the distinction because its empty property slots
-    are filled at assembly time, with coroutine handlers under
-    \texttt{asyncio}, or with direct implementations under
-    synchronous execution.
-    More generally, empty slots can be filled with effect
-    handlers~\cite{plotkin2003algebraic,pretnar2015introduction}
-    under a CPS interpretation, or with direct implementations
-    under a direct-style interpretation, without explicit monad machinery.
 
   \item[Immunity to nonextensibility]
-    Programming languages typically provide a mix of extensible and
-    nonextensible constructs.
-    In such languages, extensibility is opt-in: frameworks
-    must encode nonextensible constructs into extensible constructs
-    using sophisticated
-    mechanisms~\cite{liang1995monad, lammel2003scrap, loh2006open,
-      swierstra2008data, carette2009finally, oliveira2012extensibility,
-      kiselyov2013extensible, wu2014effect, kiselyov2015freer,
-    wang2016trivially, leijen2017type, poulsen2023hefty},
-    and code that uses nonextensible constructs
-    cannot be extended unless rewritten in the framework.
-    In contrast, every construct of inheritance-calculus
-    (Section~\ref{sec:syntax}) is extensible
-    via deep merge (equation~\ref{eq:overrides}).
-    There is no nonextensible construct, so it is
-    impossible to write a nonextensible program.
-    In the Case Study (Section~\ref{sec:case-study}),
-    new operations and data types are added without
-    modifying existing files.
-    Tree-level inheritance
-    (Section~\ref{sec:discussion-expression-problem}) and
-    multi-path qualified this (equation~\ref{eq:this};
-    Appendix~\ref{app:scala-multi-path}) account for this.
-    The Expressive Asymmetry
-    (Section~\ref{sec:asymmetry};
-    Theorem~\ref{thm:cartesian-non-expressibility}) provides the
-    formal counterpart: the mixin trees in its separating
-    construction are mechanical translations of
-    $\lambda$-terms via $\mathcal{T}$
-    (Section~\ref{sec:forward-translation}), yet a new observable
-    projection is added to them without modification.
-    This is the extensibility that the Expression
-    Problem~\cite{wadler1998expression} demands.%
+    It is structurally impossible to write a nonextensible program.
+    Every construct of inheritance-calculus
+    (Section~\ref{sec:syntax}) is extensible via deep merge
+    (equation~\ref{eq:overrides}); there is no nonextensible
+    construct.
+    The Case Study (Section~\ref{sec:case-study}) and the
+    Expressive Asymmetry (Section~\ref{sec:asymmetry};
+    Theorem~\ref{thm:cartesian-non-expressibility}) demonstrate
+    and formalize this: new operations and data types are added,
+    and new observable projections are introduced, without
+    modifying existing definitions.
+    This is the extensibility that the
+    Expression Problem~\cite{wadler1998expression} demands.%
     \footnote{As an untyped calculus, inheritance-calculus cannot violate
       the extensibility requirement of the Expression Problem but does
       not encounter its type-safety requirement.
@@ -1401,20 +1321,50 @@ structure.
       material)} inherits the immunity to nonextensibility and need
       only ensure that its type system does not introduce
     nonextensible constructs.}
-\end{description}
+    Programming languages typically provide a mix of extensible and
+    nonextensible constructs, where extensibility is opt-in:
+    frameworks must encode nonextensible constructs into extensible
+    constructs using sophisticated
+    mechanisms~\cite{liang1995monad, lammel2003scrap, loh2006open,
+      swierstra2008data, carette2009finally, oliveira2012extensibility,
+      kiselyov2013extensible, wu2014effect, kiselyov2015freer,
+    wang2016trivially, leijen2017type, poulsen2023hefty},
+    and code that uses nonextensible constructs
+    cannot be extended unless rewritten in the framework.
+    Section~\ref{sec:semantic-variants} analyzes why deep merge
 
-\noindent
-Each of these features is primitive in inheritance-calculus.
-In the $\lambda$-calculus, encoding them requires
-pervasive changes to program structure:
-every scope must thread a mutable store for lazy allocation,
-every method invocation must consult a dynamically constructed
-dictionary for open recursion, and every composition must
-be wrapped in order-insensitive infrastructure for commutativity.
-These are global, cascading transformations, not local
-rewrites of individual terms.
-In common sense, inheritance-calculus is strictly more expressive
-than the $\lambda$-calculus.
+  \item[Function color blindness]
+    \label{sec:practical-function-color}
+    Structured effects require no dedicated mechanism.
+    Business logic in MIXINv2 declares abstract property slots;
+    different assemblies fill them with synchronous or
+    asynchronous implementations via inheritance.
+    Because the slot's color varies at assembly time without
+    affecting the code that uses it, the same MIXINv2 file runs
+    under both synchronous and asynchronous
+    runtimes\selfcite{~\cite{mixin2025}}{~(supplementary
+    material)}, an instance of function color
+    blindness~\cite{nystrom2015color}.
+    The mechanism is dependency injection via inheritance:
+    business logic declares empty slots, and the assembly
+    inherits an FFI module that fills them, so the same
+    business logic accepts implementations of any color.%
+    \footnote{Function color~\cite{nystrom2015color} arises when
+      effectful functions have signatures $a \to f\,b$ (Kleisli
+      arrows), requiring monadic bind to compose and making the
+      effect $f$ visible at every call site.
+      Because inheritance-calculus composes program structure
+      rather than executing effects, this type distinction does
+      not arise at the calculus level.
+      The color is determined at assembly time by the choice of
+      inherited implementation, and effect execution is delegated
+      to the host language.
+      Non-structured control flow, such as capturing and resuming
+      continuations as in \texttt{call/cc}, cannot be abstracted
+      this way, as it requires a global CPS transformation that
+      inheritance-calculus does not express.}
+    is the only composition mechanism that achieves this.
+\end{description}
 
 \subsection{Semantic Alternatives}
 \label{sec:semantic-variants}
@@ -1425,8 +1375,35 @@ We now ask whether an alternative design could share this property
 by surveying every candidate known to us.
 
 \paragraph{Degrees of freedom}
-Every language whose programs are tree-structured ASTs with
-references can be characterized by two finite sets:
+The analysis below assumes that the AST is a \emph{named tree}:%
+\footnote{This excludes combinator-based languages such as
+  SKI~\cite{schonfinkel1924,curry1958combinatory},
+  APL~\cite{iverson1962programming}, and
+  J~\cite{hui1991tacit}, whose programs are not
+  definition trees but point-free combinator expressions.}
+every edge from parent to child carries a label, so that every
+node is uniquely identified by the path from the root.
+For configuration languages this is naturally the case: every
+key in a JSON, YAML, or Nix attribute set is a label, and nesting
+produces paths.%
+\footnote{Nix is a functional language with first-class functions;
+  its attribute sets alone do not form a named-tree DSL.
+  The NixOS module system~\cite{nixosmodules}, however,
+  restricts the user-facing interface to nested attribute sets
+  composed by recursive merging, and it is this DSL-level
+  structure that naturally forms a named tree.}
+For mainstream programming languages the AST is not directly a
+named tree---anonymous expression positions and implicit
+scopes lack labels---but after ANF
+transformation~\cite{flanagan1993essence} every intermediate
+result is bound to a name, and the remaining anonymous positions
+(e.g., the body of a $\mathbf{let}$) can be assigned synthetic
+fresh labels (such as $\mathrm{result}$ and $\_\mathrm{tail}$
+in Section~\ref{sec:forward-translation}), yielding a named
+tree.
+
+Under this premise, every language whose programs are such
+named trees with references can be characterized by two finite sets:
 a set~$\mathcal{N}$ of \emph{node types}, each determining how a
 subtree organizes its children, and a set~$\mathcal{R}$ of
 \emph{reference types}, each determining how one position in the
