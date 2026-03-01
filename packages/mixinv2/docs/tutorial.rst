@@ -201,6 +201,6 @@ Use ``@extend`` in a package's ``__init__.py`` to declare the composition, then
    root = evaluate(myapp, modules_public=True).App(databasePath=":memory:")
 
 Runnable module-based equivalents of all tutorial examples are in
-:github:`tests/test_readme_package_examples.py`,
+:github:`packages/mixinv2-examples/tests/test_readme_package_examples.py`,
 using the fixture package at
-:github:`tests/fixtures/app_di/`.
+:github:`packages/mixinv2-examples/src/mixinv2_examples/app_di/`.
