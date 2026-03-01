@@ -237,12 +237,12 @@ The translation reveals an asymmetry: embedding the
 $\lambda$-calculus into inheritance-calculus requires five local,
 syntax-directed rules
 (Section~\ref{sec:forward-translation}), but the reverse is
-not macro-expressible under the equivalence notions fixed in
-Section~\ref{sec:asymmetry} and Appendix~\ref{app:expressiveness}---
-inheritance-calculus enables open extension that changes
-operational equivalence on $\lambda$-terms, establishing a
-strict separation in Felleisen's sense of
-expressiveness~\cite{felleisen1991expressive}
+not macro-expressible.
+Inheritance-calculus enables open extension that changes
+operational equivalence on $\lambda$-terms, establishing that
+inheritance-calculus is strictly more expressive than its
+sublanguage isomorphic to the lazy $\lambda$-calculus, in
+Felleisen's sense~\cite{felleisen1991expressive}
 (Section~\ref{sec:asymmetry}).
 
 Just as the $\lambda$-calculus uses three primitives (abstraction,
@@ -311,7 +311,8 @@ All tests are mechanically verified against expected output snapshots.
   \item Open extension via inheritance changes the operational
     equivalence of $\lambda$-terms, establishing via
     Felleisen's Theorem~3.14~\cite{felleisen1991expressive}
-    that the $\lambda$-calculus cannot macro-express inheritance-calculus
+    that inheritance-calculus is strictly more expressive than
+    its sublanguage isomorphic to the lazy $\lambda$-calculus
     (Section~\ref{sec:asymmetry}).
 \end{itemize}
 
@@ -936,9 +937,12 @@ separated in inheritance-calculus by inheriting new observable
 projections onto an existing definition via open extension.
 By Felleisen's expressiveness
 criterion~\cite{felleisen1991expressive}, inheritance-calculus is
-strictly more expressive than the $\lambda$-calculus:
+strictly more expressive than its sublanguage $\mathscr{L}_0$
+(isomorphic to the lazy $\lambda$-calculus under observational
+equivalence):
 the forward embedding is macro-expressible
-(Theorem~\ref{thm:forward-macro}), but the reverse is not
+(Theorem~\ref{thm:forward-macro}), but $\mathscr{L}_0$
+cannot macro-express inheritance
 (Theorem~\ref{thm:cartesian-non-expressibility}).
 The formal definitions, constructions, and proofs are given in
 Appendix~\ref{app:expressiveness};
@@ -2210,10 +2214,14 @@ that depends only on the construct's immediate subexpressions.
 No rule inspects the surrounding context.
 \end{proof}
 
-\begin{theorem}[Non-expressibility of inheritance-calculus]
+\begin{theorem}[Non-expressibility of inheritance]
 \label{thm:cartesian-non-expressibility}
-There is no macro-expressible translation from
-inheritance-calculus to the $\lambda$-calculus.
+Let $\mathscr{L}_0$ be the sublanguage of
+inheritance-calculus isomorphic to the lazy
+$\lambda$-calculus under Full Abstraction
+(Theorem~\ref{thm:full-abstraction}).
+Then $\mathscr{L}_0$ cannot macro-express the
+inheritance facilities of inheritance-calculus.
 \end{theorem}
 
 \begin{proof}
@@ -2325,9 +2333,9 @@ $e_2 = \mathcal{T}(\mathrm{ANF}(
 where $\mathrm{ANF}$ converts a $\lambda$-term to A-normal
 form by naming every intermediate application
 (Section~\ref{sec:forward-translation}).
-Since both $\mathrm{ANF}$ and $\mathcal{T}$ are
-macro-expressible, their composition is too,
-so $e_1, e_2 \in \mathscr{L}_0$.
+Since $e_1$ and $e_2$ are images of $\lambda$-terms
+under $\mathcal{T}$, they lie in $\mathscr{L}_0$
+by definition.
 Both $e_1.\mathrm{result}$ and $e_2.\mathrm{result}$
 evaluate to Church $\mathrm{true}$.
 By Full Abstraction (Theorem~\ref{thm:full-abstraction}),
@@ -2386,12 +2394,16 @@ $\mathscr{L}_0$ cannot macro-express the inheritance facilities of $\mathscr{L}_
 
 \begin{corollary}
 \label{cor:expressive-asymmetry}
-Inheritance-calculus is strictly more expressive than the
-$\lambda$-calculus in the sense of
+Inheritance-calculus is strictly more expressive than its
+sublanguage $\mathscr{L}_0$ in the sense of
 Felleisen~\cite{felleisen1991expressive}: the forward
 embedding is macro-expressible
-(Theorem~\ref{thm:forward-macro}), but the reverse is not
+(Theorem~\ref{thm:forward-macro}), but $\mathscr{L}_0$
+cannot macro-express inheritance
 (Theorem~\ref{thm:cartesian-non-expressibility}).
+By Full Abstraction (Theorem~\ref{thm:full-abstraction}),
+$\mathscr{L}_0$ is isomorphic to the lazy
+$\lambda$-calculus under observational equivalence.
 \end{corollary}
 
 \section{Multi-Path Self-Reference in Other Systems}
