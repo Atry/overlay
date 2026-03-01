@@ -57,6 +57,13 @@
 \newcommand{\qualifiedthis}[1]{#1.\mathbf{this}}
 \newcommand{\dbi}[1]{\uparrow^{\!#1}}
 
+%% Semantic functions for the direct λ-calculus fixpoint semantics (Appendix E)
+\newcommand{\labels}{\mathtt{labels}}
+\newcommand{\children}{\mathtt{children}}
+\newcommand{\refs}{\mathtt{refs}}
+\newcommand{\callee}{\mathtt{callee}}
+\newcommand{\scope}{\mathtt{scope}}
+
 \begin{document}
 
 \title{A Calculus of Inheritance}
@@ -78,9 +85,9 @@
 \begin{CCSXML}
   <ccs2012>
   <concept>
-  <concept_id>10003752.10010124.10010131.10010133</concept_id>
-  <concept_desc>Theory of computation~Denotational semantics</concept_desc>
-  <concept_significance>100</concept_significance>
+  <concept_id>10003752.10010124.10010131</concept_id>
+  <concept_desc>Theory of computation~Program semantics</concept_desc>
+  <concept_significance>500</concept_significance>
   </concept>
   <concept>
   <concept_id>10003752.10010124.10010125.10010128</concept_id>
@@ -115,7 +122,7 @@
   </ccs2012>
 \end{CCSXML}
 
-\ccsdesc[100]{Theory of computation~Denotational semantics}
+\ccsdesc[500]{Theory of computation~Program semantics}
 \ccsdesc[500]{Theory of computation~Object oriented constructs}
 \ccsdesc[300]{Theory of computation~Functional constructs}
 \ccsdesc[100]{Theory of computation~Program schemes}
@@ -123,7 +130,7 @@
 \ccsdesc[500]{Software and its engineering~Extensible languages}
 \ccsdesc[100]{Software and its engineering~Object oriented languages}
 
-\keywords{declarative programming, inheritance, denotational semantics,
+\keywords{declarative programming, inheritance, fixpoint semantics,
   self-referential records, expression problem,
   \texorpdfstring{$\lambda$-calculus}{lambda-calculus},
 \texorpdfstring{B\"ohm trees}{Bohm trees}, configuration languages}
@@ -139,7 +146,7 @@ Jsonnet~\cite{jsonnet}, Hydra~\cite{hydra2023}, CUE~\cite{cue2019}, Dhall~\cite{
 Kustomize~\cite{kustomize}, and JSON Patch~\cite{rfc6902} all provide mechanisms for composing
 structured data through inheritance or merging. Among these, the NixOS
 module system stands out: its recursive attribute set merging with
-fixed-point semantics and deferred modules~\cite{nixosmodules} achieves
+fixpoint semantics and deferred modules~\cite{nixosmodules} achieves
 considerable expressiveness in practice, and the mechanism has been adopted well beyond NixOS itself: Home
 Manager~\cite{homemanager}, nix-darwin~\cite{nixdarwin},
 disko~\cite{disko}, flake-parts~\cite{flakeparts},
@@ -408,51 +415,38 @@ inherited properties or to bypass variable shadowing.
 \section{Mixin Trees}
 \label{sec:mixin-trees}
 
-Given an AST, what are the \emph{properties} visible at
-each position in the tree? This section answers the question by
-defining a collection of mutually recursive functions over paths.
+In object-oriented programming, a
+\emph{mixin}~\cite{bracha1990mixin} is a fragment of behavior
+that can be composed onto a class via inheritance.
+Inheritance-calculus has a single abstraction, the mixin,
+which can simultaneously serve as field, method, class, and
+object, because there are no opaque methods: every value is
+a transparent record, and inheritance always performs a deep
+merge of subtrees.
+We call the resulting structure a \emph{mixin tree}.
+Its semantics is purely \emph{observational}: given an
+inheritance-calculus program, one queries whether a
+label $\ell$ is a property at a given position $p$.
 
-A mixin tree has a single abstraction, the mixin:
-every mixin can serve as field, method, class, and object
-at the same time in object-oriented terms.
+This section defines the semantics as a
+\emph{fixpoint semantics}~\cite{vanemden1976semantics,aczel1977inductive}:
+six mutually recursive set-comprehension equations over
+paths whose least fixed point on a product of powerset
+lattices is guaranteed by the Knaster--Tarski
+theorem~\cite{tarski1955lattice}.
+The six equations map object-oriented concepts to
+set-theoretic operations: $\properties$ and $\supers$
+generalize member lookup and inheritance chains,
+$\overrides$ and $\bases$ capture method override and
+base classes, and $\resolve$ and $\this$ handle name
+resolution and self-reference.
 
-Unlike the $\lambda$-calculus, which requires $\beta$-reduction
-to specify how terms compute, inheritance-calculus has
-\emph{no reduction steps}: no rewriting of terms, no
-evaluation order, and no notion of a result that a term reduces to.
-Instead, the semantics is purely \emph{observational}: one queries
-whether a label $\ell$ is a property at a path $p$ in the inheritance
-tree. The mutually recursive functions defined below, namely $\properties$,
-$\supers$, $\overrides$, $\bases$, $\resolve$, and $\this$, constitute the
-\emph{entire} semantics.
-
-Each function has an analogue in object-oriented languages:
-$\Path$ identifies a position in the tree,
-$\init$ and $\last$ navigate paths,
-$\defines$ extracts the locally defined members from the AST,
-$\inherits$ extracts the inheritance declarations from the AST,
-$\properties$ computes all visible members at a path including both locally defined and inherited ones,
-$\supers$ computes the transitive inheritance closure,
-$\bases$ collects the direct base classes,
-and $\overrides$ generalizes method override to the tree setting,
-collecting the identity-sharing paths that arise
-when inheritance introduces multiple definitions
-of the same label at the same scope level.
-Two functions, the reference resolution function $\resolve$
-and the qualified this resolution function $\this$,
-have object-oriented analogues whose semantics differ significantly;
-they are discussed in detail below.
-
-All functions are pure and may be cached (memoised) without
-changing semantics.
+\subsection{Definitions}
 
 \paragraph{Path}
 A $\Path$ is a sequence of labels
 $(\ell_1, \ell_2, \ldots, \ell_n)$ that identifies a position in
-the tree.%
-\footnote{Since paths are referentially transparent,
-  an implementation may \emph{intern} paths so that
-structural equality reduces to pointer equality.}
+the tree.
 We write $p$ for a path.
 The \emph{root path} is the empty sequence $()$.
 Given a path $p$ and a label $\ell$,
@@ -549,10 +543,8 @@ $\overrides$ and the one-hop reference targets $\bases$.
 We define $\overrides$ first.
 
 \paragraph{Overrides}
-Because inheritance-calculus has no separate notion of ``method,''
-a mixin simultaneously plays the role of a class and the role
-of a method in object-oriented languages.
-When a mixin is viewed as a method, a child scope should be
+Since a mixin can play the role of a method,
+a child scope should be
 able to find it through the parent's label even if the child
 does not redefine that label---this is method override.
 Concretely, inheritance can introduce multiple
@@ -659,37 +651,49 @@ Since $n$ is a nonnegative integer, the recursion terminates.
 
 This completes the chain of definitions needed to compute $\properties(p)$.
 
-\paragraph{Observational semantics without reduction}
-The definitions above constitute the complete semantics of
-inheritance-calculus. There are no reduction rules, no evaluation contexts,
-and no small-step or big-step judgments. In the $\lambda$-calculus, a term such as
-$(\lambda x.\, x)\; y$ must be \emph{reduced} to $y$ before its
-meaning is apparent; the operational semantics specifies how and in what
-order reductions occur. In inheritance-calculus, an inheritance tree such as
-$\{a \mapsto \{\},\; b \mapsto \{\}\}$ does not reduce to
-anything: it \emph{is} the value. The functions $\properties$,
-$\supers$, etc.\ determine what is observable at each path, and that is
-all. Computation arises not from rewriting terms but from querying an
-inductively deeper path in a lazily constructed tree: the observer
-drives the computation by choosing which path to inspect, and the
-mutually recursive definitions unfold on demand.
-Formally, the mutually recursive equations
-(\ref{eq:properties})--(\ref{eq:this}) define set membership
-\emph{inductively}: $\ell \in \properties(p)$ holds if and only if
-it can be established by a finite chain of applications of these
-equations.  The corresponding operator on the product lattice of
-path sets is monotone, and its least fixed point
-exists by the Knaster--Tarski theorem~\cite{tarski1955lattice}.
-The detailed well-definedness argument, which identifies the lattice,
-verifies positivity of each equation, and handles the transitive
-closure $\bases^*$, is given in Appendix~\ref{app:well-definedness}.
+\subsection{Observational Fixpoint Semantics}
+Recall that fixpoint semantics defines meaning via recursive
+equations on a lattice: one writes a system of equations,
+verifies that the induced operator is monotone,
+and takes the least fixed point guaranteed by the
+Knaster--Tarski theorem~\cite{tarski1955lattice}.
+Meaning is given directly by the fixed point, without
+reduction rules or evaluation contexts.
+The technique originates in logic
+programming~\cite{vanemden1976semantics} and the theory
+of inductive definitions~\cite{aczel1977inductive}.
+
+The six equations
+(\ref{eq:properties})--(\ref{eq:this}) are such a system:
+they define set membership inductively on a product of
+powerset lattices indexed by paths.
+$\ell \in \properties(p)$ holds if and only if it can
+be established by a finite chain of applications of
+these equations.
+The corresponding operator is monotone; the detailed
+well-definedness argument, which identifies the lattice,
+verifies positivity of each equation, and handles the
+transitive closure $\bases^*$, is given in
+Appendix~\ref{app:well-definedness}.
 When no finite derivation exists for a given query, the
-membership is not in this least fixed point and the semantics is
-undefined at that point, analogous to divergence in the
-$\lambda$-calculus, and the expected consequence of Turing
-completeness.
-Identity is determined by observable behavior rather than by internal
-structure.
+membership is absent from the least fixed point and
+the semantics is undefined at that point, analogous to
+divergence in the $\lambda$-calculus.
+
+This completes the semantics of inheritance-calculus:
+the observer drives the computation by choosing which
+path to inspect, and the equations unfold on demand.
+The same equations double as computation rules
+for an interpreter.%
+\footnote{To implement such an interpreter, note that
+  the equations are pure and order-independent: the
+  reflexive-transitive closure $\bases^*$
+  in~(\ref{eq:supers}) may be explored breadth-first or
+  depth-first without affecting the semantics;
+  paths may be \emph{interned} so that structural equality
+  reduces to pointer equality;
+  and the six equations form a memoizable
+dynamic-programming recurrence keyed by paths.}
 
 \section{Embedding the \texorpdfstring{$\lambda$}{λ}-Calculus}
 \label{sec:translation}
@@ -774,80 +778,6 @@ term has an image, and the construction is compositional.
 Since the $\lambda$-calculus is Turing complete, so is
 inheritance-calculus.
 
-\paragraph{An elementary semantics of the $\lambda$-calculus}
-Composing the translation $\mathcal{T}$ with the semantic
-functions of Section~\ref{sec:mixin-trees} induces a semantics
-on the $\lambda$-calculus itself.
-Given a $\lambda$-term $M$, one translates it to
-$\mathcal{T}(M)$ and then determines convergence behavior by
-querying $\ell \in \properties(p)$ via
-equations~(\ref{eq:properties})--(\ref{eq:this}), following the
-$\mathrm{result}$ chain until the abstraction shape appears or
-the fixed point yields the empty set.
-
-This induced semantics is more elementary than traditional
-approaches in the mathematical machinery it requires:
-\begin{description}
-  \item[No function spaces]
-    Scott's denotational semantics~\cite{scott1976data} constructs a
-    reflexive domain $D$ satisfying $D \cong [D \to D]$ via an
-    inverse limit in a category of continuous lattices.
-    Here, the semantic domain is a product of powerset
-    lattices, with no function spaces, no continuity conditions,
-    and no inverse limits.
-    The only fixed-point construction is Knaster--Tarski on
-    powerset lattices
-    (Appendix~\ref{app:well-definedness}), which requires
-    only set-theoretic monotonicity, which is strictly weaker than
-    Scott continuity.
-  \item[No substitution]
-    Operational semantics defines $\beta$-reduction via
-    capture-avoiding substitution, a mechanism whose subtleties
-    motivated de~Bruijn indices~\cite{debruijn1972lambda} and
-    explicit substitution calculi.
-    Here, variable references are resolved by the $\this$
-    function walking the inheritance tree; no substitution
-    occurs at any point.
-  \item[No reduction rules]
-    There are no $\beta$-reduction steps, no evaluation
-    contexts, and no choice between call-by-name and
-    call-by-value~\cite{plotkin1975callbyname}.
-    The semantics is observational: one queries path
-    membership, and the mutually recursive equations unfold
-    on demand.
-\end{description}
-The key step is that function application is
-encoded as record inheritance, and the resulting record is
-observed through path queries rather than applied as a function;
-no function spaces are required.
-Section~\ref{sec:bohm-tree} shows that the convergence behavior
-of the translated mixin tree corresponds exactly to the
-B\"ohm tree~\cite{barendregt1984lambda} of the original term:
-the translation is adequate, meaning a term converges iff it has a head
-normal form, and fully abstract with respect to
-$\lambda$-definable contexts, meaning two $\lambda$-terms are
-equivalent under the translation iff they have the same B\"ohm
-tree.
-
-Combining these two facts, elementary machinery and full
-abstraction, yields a noteworthy consequence:
-\emph{the lazy $\lambda$-calculus admits a fully abstract
-  semantics (w.r.t.\ $\lambda$-definable contexts)
-that lives entirely in naive set theory.}
-The only mathematical prerequisites are powerset lattices,
-set-theoretic monotonicity, and the Knaster--Tarski
-fixed-point theorem.
-No continuous lattices, no inverse limits, no Scott topology,
-no game-theoretic machinery.
-Scott's $D_\infty$ model~\cite{scott1976data} uses heavier
-machinery yet is only adequate, not fully
-abstract~\cite{plotkin1975callbyname};
-Abramsky and McCusker's game semantics~\cite{abramsky1995games} achieves
-full abstraction but at the cost of even greater
-mathematical complexity.
-The mixin tree semantics achieves full abstraction with
-strictly simpler foundations than either.
-
 \subsection{B\"ohm Tree Correspondence}
 \label{sec:bohm-tree}
 
@@ -914,6 +844,18 @@ semantics~\cite{scott1976data,wadsworth1976semantics}, which is
 adequate but not fully abstract, as it identifies terms that
 observational equivalence
 distinguishes~\cite{plotkin1975callbyname}.
+That fixpoint semantics on powerset lattices suffices for
+full abstraction---without continuous lattices, inverse limits,
+or game-theoretic machinery---is the central semantic result
+of this paper.%
+\footnote{Composing $\mathcal{T}$ with the equations of
+  Section~\ref{sec:mixin-trees} yields an elementary semantics
+  of the $\lambda$-calculus in which function application is
+  record inheritance and convergence is determined by path
+  queries.
+  Appendix~\ref{app:lambda-fixpoint} reformulates this
+  semantics directly on ANF, without passing through
+  inheritance-calculus.}
 The full proof, including the Single-Path Lemma,
 Substitution Lemma, and Convergence Preservation, is given
 in Appendix~\ref{app:bohm-tree-proofs}.
@@ -1296,7 +1238,7 @@ explain why they arise from the three primitives.
       trie union $=$ relation (set of tuples);
       $\bases$ (equation~\ref{eq:bases}) $=$ cross-join;
       $\supers$ (equation~\ref{eq:supers}) $=$ union;
-      $\properties$ (equation~\ref{eq:properties}) $=$ projection.}
+    $\properties$ (equation~\ref{eq:properties}) $=$ projection.}
     The carrier is a trie rather than a flat relation, and
     observation is coinductive---the observer drives computation
     by querying progressively deeper paths---rather than
@@ -1366,7 +1308,7 @@ explain why they arise from the three primitives.
       Unstructured control flow, such as capturing and resuming
       continuations as in \texttt{call/cc}, cannot be abstracted
       this way, as it requires a global CPS transformation that
-      inheritance-calculus does not express.}
+    inheritance-calculus does not express.}
     is the only composition mechanism that achieves this.
 \end{description}
 
@@ -1384,7 +1326,7 @@ The analysis below assumes that the AST is a \emph{named tree}:%
   SKI~\cite{schonfinkel1924,curry1958combinatory},
   APL~\cite{iverson1962programming}, and
   J~\cite{hui1991tacit}, whose programs are not
-  definition trees but point-free combinator expressions.}
+definition trees but point-free combinator expressions.}
 every edge from parent to child carries a label, so that every
 node is uniquely identified by the path from the root.
 For configuration languages this is naturally the case: every
@@ -1395,7 +1337,7 @@ produces paths.%
   The NixOS module system~\cite{nixosmodules}, however,
   restricts the user-facing interface to nested attribute sets
   composed by recursive merging, and it is this DSL-level
-  structure that naturally forms a named tree.}
+structure that naturally forms a named tree.}
 For mainstream programming languages the AST is not directly a
 named tree---anonymous expression positions and implicit
 scopes lack labels---but after ANF
@@ -1418,42 +1360,42 @@ structures composition and how each reference type resolves its
 target.
 
 {\small
-\begin{center}
-  \begin{tabular}{lp{0.38\columnwidth}p{0.33\columnwidth}}
-    \textbf{Language}
-    & \textbf{Node types $\mathcal{N}$}
-    & \textbf{Reference types $\mathcal{R}$} \\
-    \hline
-    Java (OOP)
-    & class, interface, method,
+  \begin{center}
+    \begin{tabular}{lp{0.38\columnwidth}p{0.33\columnwidth}}
+      \textbf{Language}
+      & \textbf{Node types $\mathcal{N}$}
+      & \textbf{Reference types $\mathcal{R}$} \\
+      \hline
+      Java (OOP)
+      & class, interface, method,
       block, conditional, loop,
       \texttt{throw}, lambda, \ldots
-    & variable, field access, method call,
+      & variable, field access, method call,
       \texttt{extends}/\texttt{implements},
       \texttt{import}, \ldots \\[3pt]
-    Haskell (FP)
-    & $\lambda$, application, \texttt{let},
+      Haskell (FP)
+      & $\lambda$, application, \texttt{let},
       \texttt{case}, \texttt{data},
       type class, instance, \ldots
-    & variable, constructor,
+      & variable, constructor,
       type class dispatch,
       \texttt{import}, \ldots \\[3pt]
-    Scala (multi-paradigm)
-    & class, trait, object, method,
+      Scala (multi-paradigm)
+      & class, trait, object, method,
       block, conditional, \texttt{match},
       \texttt{while}, \texttt{throw}, \ldots
-    & variable, member access,
+      & variable, member access,
       \texttt{extends}, \texttt{with},
       implicits, \texttt{import}, \ldots \\
-    \hline
-    $\lambda$-calculus
-    & abstraction, application
-    & variable \\
-    Inheritance-calculus
-    & record
-    & inheritance \\
-  \end{tabular}
-\end{center}
+      \hline
+      $\lambda$-calculus
+      & abstraction, application
+      & variable \\
+      Inheritance-calculus
+      & record
+      & inheritance \\
+    \end{tabular}
+  \end{center}
 }
 
 \paragraph{Immunity to nonextensibility}
@@ -1545,7 +1487,7 @@ associativity~(A), and by their extensibility model.
     extensibility is opt-in.
     The frameworks that simulate universal extensibility
     (visitor pattern,
-    object algebras~\cite{oliveira2012extensibility},
+      object algebras~\cite{oliveira2012extensibility},
     finally tagless interpreters~\cite{carette2009finally})
     are the machinery needed to work around this limitation.
 
@@ -1638,7 +1580,7 @@ We examine the three known candidates.
       $\mathrm{argument}$ slot, returning $\mathcal{T}(V_2)$
       instead of $\mathcal{T}(V_1)$.
       This is the classical variable-capture failure of dynamic
-      scoping.}
+    scoping.}
     As with early binding, the mixin cannot serve as a complete
     replacement for functions.
 
@@ -1703,7 +1645,7 @@ alternatives at both levels.
     & Priority merge
     & ordering dependency
     & Jsonnet~\texttt{+}~\cite{jsonnet},
-      Nix~\texttt{//}~\cite{dolstra2010nixos} \\
+    Nix~\texttt{//}~\cite{dolstra2010nixos} \\
     & $\beta$-reduction
     & opt-in extensibility
     & Java, Haskell, Scala, \ldots \\
@@ -1886,6 +1828,48 @@ even host a standard reflexive
 object~\cite{ehrhard2005finiteness}---and none provides a
 fully abstract semantics for the lazy $\lambda$-calculus
 without resorting to game-theoretic machinery.
+
+\paragraph{Fixpoint semantics on powerset lattices}
+Van~Emden and Kowalski~\cite{vanemden1976semantics} showed that
+the semantics of predicate logic as a programming language admits
+three equivalent characterizations:
+operational (SLD resolution), model-theoretic (least Herbrand
+model), and fixed-point (least fixed point of the immediate
+consequence operator~$T_P$ on the powerset of ground atoms).
+The $T_P$ operator is monotone on a complete lattice, exactly as
+our six equations are.
+Our setting differs in that the underlying lattice is a product
+of powerset lattices indexed by \emph{paths}, and in that the
+equations are mutually recursive rather than defined by a single
+operator; but the mathematical machinery is the same.
+Aczel~\cite{aczel1977inductive} gave a systematic treatment of
+inductive definitions via monotone operators on powerset lattices,
+providing the logical foundations that both
+Datalog-style and our semantics rest on.
+Cousot and Cousot~\cite{cousot1977abstract} independently
+developed abstract interpretation, a framework for program
+analysis that computes fixed points on abstract lattices connected
+to concrete semantics by Galois connections.
+While abstract interpretation approximates the behavior of
+programs, our equations \emph{define} the behavior exactly;
+the lattice-theoretic technique, however, is shared.
+Leroy and Grall~\cite{leroy2006coinductive} addressed the
+treatment of divergence in big-step operational semantics by
+passing from inductive to \emph{coinductive} definitions.
+In our setting the analogous distinction is already captured by
+the Knaster--Tarski theorem: the least fixed point contains
+exactly the finitely derivable memberships (convergence), while
+undecidable memberships (divergence) are absent from it---no
+separate coinductive formulation is needed.
+
+Each of these prior frameworks operates on its own domain
+(Herbrand models, abstract domains, evaluation judgments).
+To our knowledge, the present work is the first to show that the
+same powerset-lattice fixed-point technique, applied to a
+tree-structured domain of paths, yields a fully abstract semantics
+of the lazy $\lambda$-calculus without function spaces,
+substitution, or reduction rules, and simultaneously generalizes
+to multi-path inheritance.
 
 \paragraph{Denotational semantics of inheritance}
 Cook~\cite{cook1989denotational} gave the first denotational
@@ -2354,7 +2338,7 @@ a sibling record $\mathrm{repr}$:
   C ={} & \{\mathrm{eq} \mapsto \{
       \mathrm{result} \mapsto \{
         \mathrm{repr} \mapsto \{ \\
-        & \qquad
+          & \qquad
           \mathrm{firstOperand}
           \mapsto \dbi{2}.\mathrm{argument},\;
           \mathrm{secondOperand}
@@ -3354,5 +3338,330 @@ $\lambda$-calculus~\cite{barendregt1984lambda,abramsky1993lazy}.
 The mixin tree semantics inherits full abstraction from the
 $\lambda$-calculus without needing to define or compare
 absolute paths inside mixin trees.
+
+\section{Fixpoint Semantics of the ANF Lazy
+\texorpdfstring{$\lambda$}{λ}-Calculus}
+\label{app:lambda-fixpoint}
+
+This appendix presents a fixpoint semantics of the lazy
+$\lambda$-calculus in A-normal form (ANF) that lives entirely
+in naive set theory.
+The semantic domain is a product of powerset lattices;
+the semantics is the least fixed point of a monotone operator,
+guaranteed by the Knaster--Tarski theorem.
+No function spaces, no substitution, no reduction rules,
+no evaluation order, and no domain theory are needed.
+The central idea is that function application is modeled as
+\emph{tree grafting}: applying a function record to an argument
+splices the function's subtree into the call site, and variable
+references navigate the resulting tree structure.
+
+ANF is essential.
+Traditional $\lambda$-calculus syntax allows anonymous
+subexpressions such as $(f\; x)$ in $(f\; x)\; y$ that
+have no label and cannot form paths.
+ANF restores path-addressability by binding every
+intermediate result to a name, so that every node in the
+evaluation tree has a unique path address.
+
+\paragraph{Syntax}
+Let $M$ denote a computation and $V$ a value.
+\[
+\begin{array}{r@{\;::=\;}l}
+  M & \mathbf{let}\; x = V_1\; V_2 \;\mathbf{in}\; M
+  \mid V_1\; V_2
+  \mid V \\
+  V & x \mid \lambda x.\, M
+\end{array}
+\]
+Every $\lambda$-term can be mechanically converted to ANF by
+naming intermediate results; ANF is neither a restriction nor
+an extension of the $\lambda$-calculus.
+Variables use de~Bruijn indices: $\dbi{n}$ counts the number
+of enclosing \emph{scope levels} (record braces) between the
+reference and its binder, following the same convention as
+inheritance-calculus.
+In particular, a $\lambda$-bound variable that crosses $k$
+intervening $\mathbf{let}$-binding scopes and $n$ intervening
+$\lambda$-abstraction scopes is written $\dbi{n + k}$, not
+$\dbi{n}$.
+Let-bound variables are referenced by their binding name $x$.
+
+\paragraph{Evaluation tree}
+An evaluation tree has a single abstraction: every node can
+serve as function, argument, binding, and result at the same time.
+A $\Path$ is a sequence of labels $(\ell_1, \ldots, \ell_k)$
+identifying a position in the mixin tree.
+We write $p$ for a path, $()$ for the root,
+$p \snoc \ell$ for extension,
+$\init(p)$ for the parent path, and $\last(p)$ for the final label.
+
+\paragraph{AST}
+An ANF term is parsed into an AST that provides two
+functions at each path~$p$:
+\begin{itemize}
+\item $\children(p)$: the set of labels locally defined at~$p$.
+\item $\refs(p)$: the set of reference pairs
+  $(n,\; \ell_*)$, where $n$ is a de~Bruijn index
+  and $\ell_*$ is a list of downward projections.
+\end{itemize}
+
+\noindent
+Each ANF construct populates these as follows.
+
+\smallskip\noindent
+An abstraction $\lambda x.\, M$ at path $p$:
+\begin{align*}
+\children(p) &= \{\mathrm{argument},\; \mathrm{result}\},
+&\refs(p) &= \varnothing.
+\end{align*}
+The subtree at $p \snoc \mathrm{result}$ is determined by $M$;
+the subtree at $p \snoc \mathrm{argument}$ is empty
+($\children = \varnothing$, $\refs = \varnothing$).
+
+\smallskip\noindent
+A let-binding $\mathbf{let}\; x = V_1\; V_2 \;\mathbf{in}\; M$
+at path $p$:
+\begin{align*}
+\children(p) &= \{x,\; \mathrm{result}\},
+&\refs(p) &= \varnothing.
+\end{align*}
+The subtree at $p \snoc \mathrm{result}$ is determined by $M$.
+The subtree at $p \snoc x$ represents the application
+$V_1\; V_2$ and is determined by the form of $V_1$:
+\begin{itemize}
+\item If $V_1$ is a variable (either $\dbi{m}$ or a
+  let-bound name), then
+  \begin{align*}
+    \children(p \snoc x) &= \{\mathrm{argument}\},
+    &\refs(p \snoc x) &= \{(n_1,\; \ell_*)\},
+  \end{align*}
+  where the reference $(n_1,\; \ell_*)$ encodes
+  the translation of $V_1$ (see below).
+\item If $V_1 = \lambda y.\, M'$, the $\lambda$-literal is
+  inlined:
+  \begin{align*}
+    \children(p \snoc x)
+    &= \{\mathrm{argument},\; \mathrm{result}\},
+    &\refs(p \snoc x) &= \varnothing,
+  \end{align*}
+  and the subtree at $p \snoc x \snoc \mathrm{result}$ is
+  determined by $M'$.
+\end{itemize}
+In both cases the subtree at $p \snoc x \snoc \mathrm{argument}$
+is determined by $V_2$.
+
+\smallskip\noindent
+A tail call $V_1\; V_2$ at path $p$:
+\begin{align*}
+\children(p) &= \{\_\mathrm{tail},\; \mathrm{result}\},
+&\refs(p) &= \varnothing.
+\end{align*}
+The subtree at $p \snoc \_\mathrm{tail}$ is analogous to
+the application node $p \snoc x$ above: if $V_1$ is a variable,
+$\children = \{\mathrm{argument}\}$ with
+$\refs = \{(n_1,\; \ell_*)\}$; if $V_1$ is a $\lambda$-literal,
+$\children = \{\mathrm{argument},\; \mathrm{result}\}$ with
+$\refs = \varnothing$ and the $\lambda$-body inlined.
+The subtree at $p \snoc \mathrm{result}$ is a forwarding
+reference:
+\begin{align*}
+\children(p \snoc \mathrm{result})
+&= \varnothing,
+&\refs(p \snoc \mathrm{result})
+&= \{(0,\; (\_\mathrm{tail},\; \mathrm{result}))\}.
+\end{align*}
+Here $(0,\; (\_\mathrm{tail},\; \mathrm{result}))$ navigates to
+the enclosing scope ($p$ itself, since $n = 0$ from
+$p \snoc \mathrm{result}$'s perspective), then projects
+$\_\mathrm{tail}.\mathrm{result}$.
+
+\smallskip\noindent
+A $\lambda$-bound variable $\dbi{n}$ used as an inheritance
+source at an application node $p$ contributes
+$(n,\; (\mathrm{argument}))$ to $\refs(p)$:
+navigate up $n$ scope levels, then project
+$\mathrm{argument}$.
+The same applies when $\dbi{n}$ occurs as a bare value in tail
+position or as an argument value, contributing the reference to
+$\refs$ at the corresponding path.
+
+A let-bound variable $x$ at path $p$ is resolved lexically:
+find the nearest ancestor $p'$ of $p$ such that
+$x \in \children(p')$, let $n = |p| - |p'| - 1$,
+and contribute $(n,\; (x,\; \mathrm{result}))$ to
+$\refs(p)$, projecting
+$x.\mathrm{result}$ from the enclosing scope.
+
+Note that since the de~Bruijn index $n$ counts \emph{all}
+scope levels (not just $\lambda$-abstractions), it accounts
+for intervening $\mathbf{let}$-binding and tail-call scopes.
+For example, in $\lambda.\,\lambda.\,\mathbf{let}\; r =
+\dbi{2}\;\dbi{0}\;\mathbf{in}\;r$, the outer-$\lambda$ variable
+has de~Bruijn index $2$ (crossing the $\mathbf{let}$-scope and
+the inner-$\lambda$ scope), not $1$.
+
+Both $\children$ and $\refs$ are pure data extracted from the AST;
+they are not functions of runtime state.
+
+\paragraph{Labels}
+The labels observable at a path are those locally
+defined at any graft of any transitive callee:
+\begin{equation}\label{eq:lambda-labels}
+\labels(p) =
+\bigl\{\; \ell \;\big|\;
+  p_{\mathrm{step}} \in \callee^*(p),\;
+  p_{\mathrm{graft}} \in \mathtt{grafts}(p_{\mathrm{step}}),\;
+  \ell \in \children(p_{\mathrm{graft}})
+\;\bigr\}
+\end{equation}
+
+\paragraph{Grafts}
+When a function is applied, its subtree is \emph{grafted}
+at the call site.
+A child label $\ell$ of the callee also becomes a
+child of the caller; the child at the callee's
+$\ell$ position and the child at the caller's $\ell$
+position (if any) share the same identity.
+The grafts of $p$ collect all such identity-sharing
+positions:
+\begin{equation}\label{eq:lambda-grafts}
+\mathtt{grafts}(p) =
+\begin{cases}
+  \{p\} & \text{if } p = ()  \\[6pt]
+  \{p\}
+  \;\cup\;
+  \left\{\; p_{\mathrm{callee}} \snoc \last(p) \;\left|\;
+    \begin{aligned}
+      &p_{\mathrm{callee}} \in \callee^*(\init(p)), \\
+      &\text{s.t.}\; \last(p) \in \children(p_{\mathrm{callee}})
+    \end{aligned}
+  \right.\right\}
+  & \text{if } p \neq ()
+\end{cases}
+\end{equation}
+Here $\callee^*$ denotes the reflexive-transitive closure of
+$\callee$, defined next.
+
+\paragraph{Callee}
+The callee of a path $p$ is the set of paths that $p$ is
+grafted from.
+Concretely, $\callee$ resolves every reference in
+$p$'s grafts one step:
+\begin{equation}\label{eq:lambda-callee}
+\callee(p) =
+\left\{\; p_{\mathrm{target}} \;\left|\;
+  \begin{aligned}
+    &p_{\mathrm{graft}} \in \mathtt{grafts}(p), \\
+    &(n,\; \ell_*) \in \refs(p_{\mathrm{graft}}), \\
+    &p_{\mathrm{target}} = \scope(\init(p),\;
+    \init(p_{\mathrm{graft}}),\; n) \snoc
+    \ell_1 \snoc \cdots \snoc \ell_k
+  \end{aligned}
+\right.\right\}
+\end{equation}
+where $\ell_* = (\ell_1, \ldots, \ell_k)$.
+The $\init(p_{\mathrm{graft}})$ passes the reference's
+\emph{enclosing scope} to $\scope$, matching the convention of
+$\resolve$~(\ref{eq:resolve}), which calls
+$\this(\{p_{\mathrm{site}}\},\; \init(p_{\mathrm{def}}),\; n)$.
+
+\paragraph{Scope resolution}
+$\scope$ navigates upward through the evaluation tree
+to find the binding site of a de~Bruijn reference.
+Each ANF construct ($\lambda$-abstraction, $\mathbf{let}$-binding,
+or tail call) introduces one scope level;
+crossing a scope boundary means finding the call site
+that grafted the current subtree.
+
+$\scope$ takes three arguments: an evaluation-site path
+$p_{\mathrm{site}}$ (where the grafted subtree lives),
+a definition-site path $p_{\mathrm{def}}$
+(the position in the original AST),
+and a de~Bruijn index $n$.
+\begin{equation}\label{eq:lambda-scope}
+\scope(p_{\mathrm{site}},\; p_{\mathrm{def}},\; n) =
+\begin{cases}
+  p_{\mathrm{site}} & \text{if } n = 0 \\[6pt]
+  \scope\!\left(
+    p_{\mathrm{caller}},\;
+    \init(p_{\mathrm{def}}),\;
+    n - 1
+  \right)
+  & \text{if } n > 0
+\end{cases}
+\end{equation}
+where $p_{\mathrm{caller}}$ is the unique path satisfying
+$(p_{\mathrm{caller}},\; p_{\mathrm{def}})
+\in \callee^{\mathrm{ctx}}(p_{\mathrm{site}})$,
+and $\callee^{\mathrm{ctx}}$ pairs each element of
+$\callee^*(p_{\mathrm{site}})$ with its provenance:
+\begin{equation}\label{eq:lambda-callee-ctx}
+\callee^{\mathrm{ctx}}(p) =
+\bigl\{\; (\init(p_{\mathrm{step}}),\;
+  p_{\mathrm{graft}}) \;\big|\;
+  p_{\mathrm{step}} \in \callee^*(p),\;
+  p_{\mathrm{graft}} \in \mathtt{grafts}(p_{\mathrm{step}})
+\;\bigr\}
+\end{equation}
+At each step, $\init$ shortens $p_{\mathrm{def}}$ by one label
+and $n$ decreases by one.
+Since $n$ is a nonnegative integer, the recursion terminates.
+
+This completes the chain of definitions needed to compute
+$\labels(p)$.
+
+\paragraph{Observational semantics}
+The definitions above constitute the complete semantics.
+There are no reduction rules, no evaluation contexts, no
+substitution.
+Computation arises from querying progressively deeper paths
+in a lazily constructed tree: the observer drives computation
+by choosing which path to inspect, and the mutually recursive
+definitions unfold on demand.
+
+Formally, the mutually recursive
+equations~(\ref{eq:lambda-labels})--(\ref{eq:lambda-callee-ctx})
+define set membership inductively:
+$\ell \in \labels(p)$ holds if and only if it can be
+established by a finite chain of applications of these
+equations.
+The corresponding operator on the product lattice of
+powerset domains is monotone (every mutually defined function
+appears only in positive position---as the domain of an
+existential quantifier in a set comprehension---and no
+complement, set difference, or negated membership test
+appears).
+Its least fixed point exists by the Knaster--Tarski
+theorem~\cite{tarski1955lattice}.
+When no finite derivation exists for a given query, the
+membership is not in the least fixed point, analogous to
+divergence.
+
+\paragraph{Convergence}
+An ANF term $M$ \emph{converges}, written $M{\Downarrow}$,
+if there exists $n \ge 0$ such that
+$\{\mathrm{argument},\, \mathrm{result}\}
+\subseteq
+\labels(\underbrace{
+  \mathrm{result} \snoc \cdots \snoc \mathrm{result}
+}_{n})$
+in the least fixed point.
+This corresponds exactly to the B\"ohm
+tree~\cite{barendregt1984lambda} of the original term:
+$M$ converges iff it has a head normal form
+(Theorem~\ref{thm:adequacy}), and two terms are equivalent
+under this semantics iff they have the same B\"ohm tree
+(Theorem~\ref{thm:full-abstraction}).
+The proofs, given in Appendix~\ref{app:bohm-tree-proofs},
+apply verbatim: each equation above is the specialization
+of the corresponding mixin tree equation
+(Section~\ref{sec:mixin-trees}) to terms in the image of
+the translation $\mathcal{T}$
+(Section~\ref{sec:forward-translation}), where the
+Single-Path Lemma (Lemma~\ref{lem:single-path}) ensures
+that the set-valued $\this$ function
+(equation~\ref{eq:this}) degenerates to the single-valued
+$\scope$ (equation~\ref{eq:lambda-scope}).
 
 \end{document}
