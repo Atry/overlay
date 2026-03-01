@@ -9,18 +9,18 @@ from mixinv2 import extern, public, resource, scope
 @scope
 class SQLiteDatabase:
     @extern
-    def database_path() -> str: ...       # caller must provide this
+    def databasePath() -> str: ...       # caller must provide this
 
     @public
     @resource
-    def connection(database_path: str) -> sqlite3.Connection:
-        return sqlite3.connect(database_path)
+    def connection(databasePath: str) -> sqlite3.Connection:
+        return sqlite3.connect(databasePath)
 
 @scope
 class UserRepository:
     @public
     @resource
-    def user_count(connection: sqlite3.Connection) -> int:
+    def userCount(connection: sqlite3.Connection) -> int:
         connection.execute(
             "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)"
         )

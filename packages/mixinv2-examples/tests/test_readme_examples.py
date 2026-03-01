@@ -12,10 +12,10 @@ import sqlite3
 import threading
 import urllib.request
 from concurrent.futures import Future
-from dataclasses import dataclass
-from types import ModuleType
-from mixinv2 import LexicalReference
-from mixinv2 import extend, extern, public, resource, scope
+
+import mixinv2_examples.app_decorator.step4_write_op as step4_write_op
+import mixinv2_examples.app_decorator.step4_http_server as step4_http_server
+from mixinv2 import extern, public, resource, scope
 from mixinv2._runtime import evaluate
 
 from mixinv2_examples.app_decorator.step1_services import (
@@ -35,13 +35,6 @@ from mixinv2_examples.app_decorator.step2_patch_extern import (
 from mixinv2_examples.app_decorator.step3_eager import (
     SQLiteDatabase as EagerSQLiteDatabase,
 )
-from mixinv2_examples.app_decorator.step4_http_server import (
-    HttpHandlers,
-    NetworkServer,
-    SQLiteDatabase as Step4SQLiteDatabase,
-    UserRepository as Step4UserRepository,
-    app as step4_app,
-)
 
 
 # ---------------------------------------------------------------------------
@@ -56,8 +49,8 @@ class TestStep1BasicServices:
         """@extern + multi-scope union-mount: each scope owns its own config."""
 
         app = evaluate(Step1SQLiteDatabase, Step1UserRepository)
-        root = app(database_path=":memory:")
-        assert root.user_count == 0
+        root = app(databasePath=":memory:")
+        assert root.userCount == 0
         root.connection.close()
 
 
@@ -73,13 +66,13 @@ class TestStep2PatchAndMerge:
         """A @patch wraps a @resource value with a transformation."""
 
         root = evaluate(Base, HighLoad)
-        assert root.max_connections == 20         # 10 * 2
+        assert root.maxConnections == 20         # 10 * 2
 
     def test_merge_collects_patches_into_frozenset(self) -> None:
         """@merge defines the aggregation strategy for collected @patch values."""
 
         root = evaluate(MergePragmaBase, WalMode, ForeignKeys)
-        assert root.startup_pragmas == frozenset(
+        assert root.startupPragmas == frozenset(
             {"PRAGMA journal_mode=WAL", "PRAGMA foreign_keys=ON"}
         )
 
@@ -87,8 +80,8 @@ class TestStep2PatchAndMerge:
         """A @patch can itself declare @extern dependencies, provided as kwargs."""
 
         app = evaluate(ExternPragmaBase, UserVersionPragma)
-        root = app(schema_version=3)
-        assert root.startup_pragmas == frozenset({"PRAGMA user_version=3"})
+        root = app(schemaVersion=3)
+        assert root.startupPragmas == frozenset({"PRAGMA user_version=3"})
 
 
 # ---------------------------------------------------------------------------
@@ -131,9 +124,9 @@ class TestStep3Eager:
 # ---------------------------------------------------------------------------
 # Step 4 – App scope vs request scope: HTTP server with SQLite
 #
-# SQLiteDatabase owns its own config (database_path) and provides connection.
+# SQLiteDatabase owns its own config (databasePath) and provides connection.
 # AppServices declares @extern connection (its dependency on the DB layer),
-# owns its own config (host, port), and contains RequestScope as a nested
+# owns its own config (host, port), and contains Request as a nested
 # scope because request lifetime differs from app lifetime.
 #
 # Each scope declares only the @extern it needs — no shared Config scope.
@@ -146,20 +139,13 @@ class TestStep4HttpServer:
     def test_app_and_request_scope(self) -> None:
         """Three scopes union-mounted flat; each owns its config.
         UserRepository is a @scope providing business-level resources.
-        UserRepository.RequestScope provides per-request DB resources.
-        HttpHandlers.RequestScope extracts user_id from the HTTP request.
-        The union-mount wires user_id → current_user automatically.
+        UserRepository.Request provides per-request DB resources.
+        HttpHandlers.Request extracts userId from the HTTP request.
+        The union-mount wires userId → currentUser automatically.
         """
 
-        module = ModuleType("step4_app_module")
-        module.SQLiteDatabase = Step4SQLiteDatabase  # type: ignore[attr-defined]
-        module.UserRepository = Step4UserRepository  # type: ignore[attr-defined]
-        module.HttpHandlers = HttpHandlers  # type: ignore[attr-defined]
-        module.NetworkServer = NetworkServer  # type: ignore[attr-defined]
-        module.app = step4_app  # type: ignore[attr-defined]
-
-        app_instance = evaluate(module, modules_public=True).app(
-            database_path=":memory:",
+        app_instance = evaluate(step4_http_server, modules_public=True).App(
+            databasePath=":memory:",
             host="127.0.0.1",
             port=0,  # OS assigns a free port
         )
@@ -179,111 +165,42 @@ class TestStep4HttpServer:
         app_instance.connection.close()
 
     def test_request_scope_created_fresh_per_request(self) -> None:
-        """Each call to RequestScope(...) produces an independent InstanceScope."""
+        """Each call to Request(...) produces an independent InstanceScope."""
 
         @scope
         class AppServices:
             @public
             @scope
-            class RequestScope:
+            class Request:
                 @extern
-                def request_id() -> int: ...
+                def requestId() -> int: ...
 
                 @public
                 @resource
-                def label(request_id: int) -> str:
-                    return f"request-{request_id}"
+                def label(requestId: int) -> str:
+                    return f"request-{requestId}"
 
         app = evaluate(AppServices)
 
-        scope_a = app.RequestScope(request_id=1)
-        scope_b = app.RequestScope(request_id=2)
+        scope_a = app.Request(requestId=1)
+        scope_b = app.Request(requestId=2)
 
         assert scope_a.label == "request-1"
         assert scope_b.label == "request-2"
 
     def test_write_operation_via_future_injection(self) -> None:
         """Write operations: inject a Future at call time; the resource resolves it."""
-
-        @dataclass
-        class User:
-            user_id: int
-            name: str
-
-        @scope
-        class SQLiteDatabase:
-            @extern
-            def database_path() -> str: ...
-
-            @public
-            @resource
-            def connection(database_path: str) -> sqlite3.Connection:
-                db = sqlite3.connect(database_path, check_same_thread=False)
-                db.execute(
-                    "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)"
-                )
-                db.commit()
-                return db
-
-        @scope
-        class UserRepository:
-            @extern
-            def connection() -> sqlite3.Connection: ...
-
-            @public
-            @resource
-            def user_count(connection: sqlite3.Connection) -> int:
-                (count,) = connection.execute(
-                    "SELECT COUNT(*) FROM users"
-                ).fetchone()
-                return count
-
-            @public
-            @scope
-            class RequestScope:
-                # Caller creates a Future and passes it in; this resource resolves it.
-                @extern
-                def user_created_future() -> "Future[User]": ...
-
-                @public
-                @resource
-                def user_created(
-                    connection: sqlite3.Connection,
-                    user_created_future: "Future[User]",
-                ) -> None:
-                    cursor = connection.execute(
-                        "INSERT INTO users (name) VALUES (?)", ("alice",)
-                    )
-                    connection.commit()
-                    user_created_future.set_result(
-                        User(user_id=cursor.lastrowid, name="alice")
-                    )
-
-        @extend(
-            LexicalReference(path=("SQLiteDatabase",)),
-            LexicalReference(path=("UserRepository",)),
-        )
-        @public
-        @scope
-        class app:
-            pass
-
-        module = ModuleType("write_op_module")
-        module.SQLiteDatabase = SQLiteDatabase  # type: ignore[attr-defined]
-        module.UserRepository = UserRepository  # type: ignore[attr-defined]
-        module.app = app  # type: ignore[attr-defined]
-
-        app_instance = evaluate(module, modules_public=True).app(
-            database_path=":memory:",
+        app_instance = evaluate(step4_write_op, modules_public=True).App(
+            databasePath=":memory:",
         )
 
         # Write: caller creates the Future, injects it, accesses the resource.
-        future: Future[User] = Future()
-        request_scope = app_instance.RequestScope(user_created_future=future)
-        request_scope.user_created  # triggers the insert and resolves the future
+        future: Future[step4_write_op.User] = Future()
+        request_scope = app_instance.Request(userCreatedFuture=future)
+        request_scope.userCreated  # triggers the insert and resolves the future
 
         new_user = future.result()
-        assert new_user == User(user_id=1, name="alice")
-        assert app_instance.user_count == 1  # app-scoped count is still cached from before insert
+        assert new_user == step4_write_op.User(user_id=1, name="alice")
+        assert app_instance.userCount == 1  # app-scoped count is still cached from before insert
 
         app_instance.connection.close()

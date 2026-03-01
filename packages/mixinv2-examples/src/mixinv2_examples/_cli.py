@@ -2,8 +2,8 @@
 
 Usage::
 
-    mixinv2-example app_oyaml Apps memory_app server
-    mixinv2-example app_di step1_app
+    mixinv2-example app_mixin Apps memoryApp server
+    mixinv2-example app_di Step1App
 """
 
 import sys

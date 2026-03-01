@@ -1,7 +1,7 @@
 """Tests for Church-encoded natural number arithmetic and equality.
 
-Tests the MIXINv2 definitions in ArithmeticTest.oyaml which compose
-NatPlus and NatEquality from Builtin.oyaml to verify:
+Tests the MIXINv2 definitions in ArithmeticTest.mixin.yaml which compose
+NatPlus and NatEquality from Builtin.mixin.yaml to verify:
 - Church numeral construction
 - Addition (Plus operation)
 - Equality checking (Equal operation)

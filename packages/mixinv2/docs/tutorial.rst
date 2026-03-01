@@ -23,7 +23,7 @@ values are passed as kwargs when calling the evaluated scope.
    :end-before: # [/docs:step1-define-services]
    :dedent:
 
-``SQLiteDatabase`` owns ``database_path``; ``UserRepository`` has no knowledge of the
+``SQLiteDatabase`` owns ``databasePath``; ``UserRepository`` has no knowledge of the
 database layer — it only declares ``connection: sqlite3.Connection`` as a parameter
 and receives it automatically from the composed scope.
 
@@ -91,165 +91,35 @@ framework injects it by name as a ``Callable``; calling
 
 The application below has four scopes, each owning only its own concern:
 
-- **SQLiteDatabase** — owns ``database_path``, provides ``connection``
-- **UserRepository** — business logic; owns ``user_count`` and per-request ``current_user``
-- **HttpHandlers** — HTTP layer; owns per-request ``user_id``, ``response_body``, ``response_sent``
+- **SQLiteDatabase** — owns ``databasePath``, provides ``connection``
+- **UserRepository** — business logic; owns ``userCount`` and per-request ``currentUser``
+- **HttpHandlers** — HTTP layer; owns per-request ``userId``, ``responseBody``, ``responseSent``
 - **NetworkServer** — network layer; owns ``host``/``port``, creates the ``HTTPServer``
 
 ``UserRepository.RequestScope`` and ``HttpHandlers.RequestScope`` are composed into a
-single ``RequestScope`` by the union mount. ``user_id`` (extracted from the HTTP path
-by ``HttpHandlers.RequestScope``) flows automatically into ``current_user`` (looked up
+single ``RequestScope`` by the union mount. ``userId`` (extracted from the HTTP path
+by ``HttpHandlers.RequestScope``) flows automatically into ``currentUser`` (looked up
 in the DB by ``UserRepository.RequestScope``) without any glue code.
 
-``response_sent`` is an IO resource: it sends the HTTP response as a side effect and
+``responseSent`` is an IO resource: it sends the HTTP response as a side effect and
 returns ``None``. The handler body is a single attribute access — all logic lives in
 the DI graph. In an async framework (e.g. FastAPI), return an ``asyncio.Task[None]``
 instead of a coroutine, which cannot be safely awaited in multiple dependents.
 
+.. literalinclude:: ../../mixinv2-examples/src/mixinv2_examples/app_decorator/step4_http_server.py
+   :language: python
+   :start-after: # [docs:step4-http-server]
+   :end-before: # [/docs:step4-http-server]
+   :dedent:
+
+Assemble into a module and evaluate — pass the module directly to ``evaluate()``:
+
 .. code-block:: python
 
-   import threading
-   import urllib.request
-   from http.server import BaseHTTPRequestHandler, HTTPServer
-   from types import ModuleType
+   import mixinv2_examples.app_decorator.step4_http_server as step4_http_server
 
-   from mixinv2 import LexicalReference, extend
-
-   @scope
-   class SQLiteDatabase:
-       @extern
-       def database_path() -> str: ...      # database owns its own config
-
-       # App-scoped: one connection for the entire process lifetime.
-       # check_same_thread=False: created in main thread, used in handler threads.
-       @public
-       @resource
-       def connection(database_path: str) -> sqlite3.Connection:
-           db = sqlite3.connect(database_path, check_same_thread=False)
-           db.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
-           db.execute("INSERT INTO users VALUES (1, 'alice')")
-           db.execute("INSERT INTO users VALUES (2, 'bob')")
-           db.commit()
-           return db
-
-   @scope
-   class UserRepository:
-       @extern
-       def connection() -> sqlite3.Connection: ...
-
-       # @scope as a composable dataclass — fields are @extern, constructed via DI.
-       @public
-       @scope
-       class User:
-           @public
-           @extern
-           def user_id() -> int: ...
-
-           @public
-           @extern
-           def name() -> str: ...
-
-       # App-scoped: total count, computed once.
-       @public
-       @resource
-       def user_count(connection: sqlite3.Connection) -> int:
-           (count,) = connection.execute("SELECT COUNT(*) FROM users").fetchone()
-           return count
-
-       # Request-scoped: per-request DB resources.
-       @public
-       @scope
-       class RequestScope:
-           @extern
-           def user_id() -> int: ...        # provided by HttpHandlers.RequestScope
-
-           @public
-           @resource
-           def current_user(
-               connection: sqlite3.Connection, user_id: int, User: Callable
-           ) -> object:
-               row = connection.execute(
-                   "SELECT id, name FROM users WHERE id = ?", (user_id,)
-               ).fetchone()
-               assert row is not None, f"no user with id={user_id}"
-               identifier, name = row
-               return User(user_id=identifier, name=name)
-
-   @scope
-   class HttpHandlers:
-       # RequestScope is nested because its lifetime is per-request,
-       # not per-application.
-       @public
-       @scope
-       class RequestScope:
-           @extern
-           def request() -> BaseHTTPRequestHandler: ...
-
-           # user_id is extracted from the request and injected into
-           # UserRepository.RequestScope.current_user automatically.
-           @public
-           @resource
-           def user_id(request: BaseHTTPRequestHandler) -> int:
-               return int(request.path.split("/")[-1])
-
-           # current_user and user_count resolved from their respective scopes.
-           @public
-           @resource
-           def response_body(user_count: int, current_user: object) -> bytes:
-               return f"total={user_count} current={current_user.name}".encode()
-
-           # IO resource: sends the HTTP response as a side effect.
-           @public
-           @resource
-           def response_sent(
-               request: BaseHTTPRequestHandler,
-               response_body: bytes,
-           ) -> None:
-               request.send_response(200)
-               request.end_headers()
-               request.wfile.write(response_body)
-
-   @scope
-   class NetworkServer:
-       @extern
-       def host() -> str: ...               # network layer owns its own config
-
-       @extern
-       def port() -> int: ...
-
-       # RequestScope is injected by name as a Callable (StaticScope).
-       # Calling RequestScope(request=handler) returns a fresh InstanceScope.
-       @public
-       @resource
-       def server(host: str, port: int, RequestScope: Callable) -> HTTPServer:
-           class Handler(BaseHTTPRequestHandler):
-               def do_GET(self) -> None:
-                   RequestScope(request=self).response_sent
-
-           return HTTPServer((host, port), Handler)
-
-   # Declare composition via @extend — each scope only knows its own config.
-   @extend(
-       LexicalReference(path=("SQLiteDatabase",)),
-       LexicalReference(path=("UserRepository",)),
-       LexicalReference(path=("HttpHandlers",)),
-       LexicalReference(path=("NetworkServer",)),
-   )
-   @public
-   @scope
-   class app:
-       pass
-
-   # Assemble into a module and evaluate — composition is declared above, not here.
-   myapp = ModuleType("myapp")
-   myapp.SQLiteDatabase = SQLiteDatabase
-   myapp.UserRepository = UserRepository
-   myapp.HttpHandlers = HttpHandlers
-   myapp.NetworkServer = NetworkServer
-   myapp.app = app
-
-   root = evaluate(myapp, modules_public=True).app(
-       database_path="/var/lib/myapp/prod.db",
+   root = evaluate(step4_http_server, modules_public=True).App(
+       databasePath="/var/lib/myapp/prod.db",
        host="127.0.0.1",
        port=8080,
    )
@@ -259,8 +129,8 @@ Swapping to a test configuration is just different kwargs; no scope or compositi
 
 .. code-block:: python
 
-   test_root = evaluate(myapp, modules_public=True).app(
-       database_path=":memory:",  # fresh, isolated database for each test
+   test_root = evaluate(step4_http_server, modules_public=True).App(
+       databasePath=":memory:",  # fresh, isolated database for each test
        host="127.0.0.1",
        port=0,                    # OS assigns a free port
    )
@@ -309,11 +179,11 @@ way:
 
 .. code-block:: python
 
-   import sqlite_database   # sqlite_database.py with @extern / @resource / @public
-   import user_repository   # user_repository/ package
+   import SqliteDatabase   # SqliteDatabase.py with @extern / @resource / @public
+   import UserRepository   # UserRepository/ package
 
 The same decorators work on module-level functions exactly as on class methods. A
-subpackage becomes a nested scope — ``user_repository/request_scope/`` is the
+subpackage becomes a nested scope — ``UserRepository/RequestScope/`` is the
 module equivalent of a nested ``@scope class RequestScope``.
 
 Use ``@extend`` in a package's ``__init__.py`` to declare the composition, then
@@ -328,7 +198,7 @@ Use ``@extend`` in a package's ``__init__.py`` to declare the composition, then
 
    import myapp
 
-   root = evaluate(myapp, modules_public=True).app(database_path=":memory:")
+   root = evaluate(myapp, modules_public=True).App(databasePath=":memory:")
 
 Runnable module-based equivalents of all tutorial examples are in
 :github:`tests/test_readme_package_examples.py`,

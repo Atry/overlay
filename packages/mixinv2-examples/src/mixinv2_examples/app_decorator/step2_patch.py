@@ -10,7 +10,7 @@ from mixinv2 import patch, public, resource, scope
 class Base:
     @public
     @resource
-    def max_connections() -> int:
+    def maxConnections() -> int:
         return 10
 
 @scope
@@ -18,6 +18,6 @@ class HighLoad:
     """Patch for high-load environments: double the connection limit."""
 
     @patch
-    def max_connections() -> Callable[[int], int]:
+    def maxConnections() -> Callable[[int], int]:
         return lambda previous: previous * 2
 # [/docs:step2-patch]

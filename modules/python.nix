@@ -187,25 +187,25 @@
 
             - `docs` — Built HTML documentation
             - `packages/mixinv2/src/mixinv2/` — Python implementation of the MIXINv2 runtime
-            - `packages/mixinv2-library/src/mixinv2_library/Builtin/` — Standard library (`.oyaml` files):
+            - `packages/mixinv2-library/src/mixinv2_library/Builtin/` — Standard library (`.mixin.yaml` files):
               Boolean logic, Nat arithmetic, BinNat arithmetic, visitors, equality
             - `packages/mixinv2-examples/` — Example case studies (Fibonacci, function color blindness, DI)
             - `tests/` — Test suite (see below)
 
             ## Paper Examples in the Test Suite
 
-            The case study examples from the paper are implemented as `.oyaml` files
+            The case study examples from the paper are implemented as `.mixin.yaml` files
             and exercised by `pytest` tests:
 
-            | Paper section | `.oyaml` file(s) | Test file |
+            | Paper section | `.mixin.yaml` file(s) | Test file |
             |---|---|---|
-            | Case Study: Nat arithmetic | `packages/mixinv2-library/.../NatData.oyaml`, `NatPlus.oyaml`, `NatEquality.oyaml`, `NatVisitor.oyaml`, `NatDecrement.oyaml`, `tests/NatConstants.oyaml`, `tests/ArithmeticTest.oyaml` | `tests/test_nat_arithmetic.py` |
-            | Case Study: BinNat arithmetic | `packages/mixinv2-library/.../BinNat*.oyaml`, `tests/BinNatArithmeticTest.oyaml` | `tests/test_bin_nat_arithmetic.py` |
-            | Case Study: Cartesian product (relational semantics) | `tests/CartesianProductTest.oyaml` | `tests/test_cartesian_product.py` |
-            | Boolean logic | `packages/mixinv2-library/.../Boolean*.oyaml`, `tests/ChurchBooleanTest.oyaml` | `tests/test_church_boolean.py` |
-            | Fibonacci | `packages/mixinv2-examples/tests/fixtures/FibonacciTest.oyaml`, `packages/mixinv2-examples/src/mixinv2_examples/FibonacciLibrary.oyaml` | `packages/mixinv2-examples/tests/test_fibonacci.py` |
-            | Function color blindness | `packages/mixinv2-examples/src/mixinv2_examples/app_oyaml/` | `tests/test_stdlib_python_port.py` |
-            | Expression Problem | Composition of separate `.oyaml` files without modification | `tests/test_nat_arithmetic.py`, `tests/test_bin_nat_arithmetic.py` |
+            | Case Study: Nat arithmetic | `packages/mixinv2-library/.../NatData.mixin.yaml`, `NatPlus.mixin.yaml`, `NatEquality.mixin.yaml`, `NatVisitor.mixin.yaml`, `NatDecrement.mixin.yaml`, `tests/NatConstants.mixin.yaml`, `tests/ArithmeticTest.mixin.yaml` | `tests/test_nat_arithmetic.py` |
+            | Case Study: BinNat arithmetic | `packages/mixinv2-library/.../BinNat*.mixin.yaml`, `tests/BinNatArithmeticTest.mixin.yaml` | `tests/test_bin_nat_arithmetic.py` |
+            | Case Study: Cartesian product (relational semantics) | `tests/CartesianProductTest.mixin.yaml` | `tests/test_cartesian_product.py` |
+            | Boolean logic | `packages/mixinv2-library/.../Boolean*.mixin.yaml`, `tests/ChurchBooleanTest.mixin.yaml` | `tests/test_church_boolean.py` |
+            | Fibonacci | `packages/mixinv2-examples/tests/fixtures/FibonacciTest.mixin.yaml`, `packages/mixinv2-examples/src/mixinv2_examples/FibonacciLibrary.mixin.yaml` | `packages/mixinv2-examples/tests/test_fibonacci.py` |
+            | Function color blindness | `packages/mixinv2-examples/src/mixinv2_examples/app_mixin/` | `tests/test_stdlib_python_port.py` |
+            | Expression Problem | Composition of separate `.mixin.yaml` files without modification | `tests/test_nat_arithmetic.py`, `tests/test_bin_nat_arithmetic.py` |
 
             ## Running Tests
 
@@ -221,13 +221,13 @@
             After installation (see above), start the stdlib HTTP server demo:
 
             ```
-            uv run mixinv2-example app_oyaml Apps memory_app serve_forever
+            uv run mixinv2-example app_mixin Apps memory_app serve_forever
             ```
 
             Or start the async (uvicorn/starlette) HTTP server demo:
 
             ```
-            uv run mixinv2-example app_oyaml AsyncApps memory_app serve_forever
+            uv run mixinv2-example app_mixin AsyncApps memory_app serve_forever
             ```
 
             The server listens on `http://127.0.0.1:<port>` (port is auto-assigned).

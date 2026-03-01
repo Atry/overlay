@@ -709,6 +709,8 @@ def fetch(url: str, policy: CachePolicy) -> Response:
 
 MIXINv2 adopts C#-like naming conventions. The UpperCamelCase/lowerCamelCase distinction is not merely stylistic — it carries semantic meaning for the totality checker: UpperCamelCase symbols are **scopes** (instantiable at runtime), while lowerCamelCase symbols are written as if they are **resources** (lazily evaluated values, no new UpperCamelCase children defined within them). This naming convention enables automatic totality verification without manual proofs (see `mixin_totality.tex`). Note that the scope/resource distinction is a design intent, not yet enforced by the compiler — currently all symbols compile to scopes regardless of casing.
 
+For initialisms/acronyms, follow C#-style casing: keep the acronym uppercase in PascalCase names (for example, `AsyncFFI`, `StdlibFFI`, `HTTPRequest`) rather than mixed forms like `AsyncFfi`.
+
 ### Naming Convention Summary
 
 | Element                             | Casing         | Examples                                 | C# Analogy          | Math Analogy                    |
@@ -773,7 +775,7 @@ The result is then exposed via a projection field (e.g. `sum`, `decreased`, `inc
 The entity **name** is its identity — it persists across compositions. Each individual **definition** of that entity within a category is a component. When categories are composed, components with the same entity name merge onto the same entity. For example, `NatData.Zero`, `NatVisitor.Zero`, and `NatPlus.Zero` are three separate components that all merge onto the entity `Zero`:
 
 ```yaml
-# In NatData.oyaml: Zero is defined as a data variant
+# In NatData.mixin.yaml: Zero is defined as a data variant
 NatFactory:
   Product: []
   Zero:
@@ -782,7 +784,7 @@ NatFactory:
     - [Product]
     - predecessor: [Product]
 
-# In NatPlus.oyaml: Zero gets a Plus component overlaid
+# In NatPlus.mixin.yaml: Zero gets a Plus component overlaid
 - [NatData]
 - NatFactory:
     Zero:
@@ -799,7 +801,7 @@ NatFactory:
 Borrowed from C#'s partial class concept. An algebraic structure adds operations to an existing sort, like a partial class adds methods to an existing class. It corresponds to an **endomorphism** (Sort → Sort) in multi-sorted algebra.
 
 ```yaml
-# NatPlus.oyaml — adds Plus operation to Nat
+# NatPlus.mixin.yaml — adds Plus operation to Nat
 - [NatData]              # Inherit the sort data definition
 - NatFactory:            # Extend the factory
     Product:
@@ -824,10 +826,10 @@ Examples: `NatPlus` (Nat × Nat → Nat), `BooleanNegation` (Boolean → Boolean
 
 ### Category — cross-sort morphism (UpperCamelCase)
 
-A category encodes operations across different sorts (Sort₁ → Sort₂). Categories are defined as `.oyaml` files that inherit all relevant sort data files and extend the factory:
+A category encodes operations across different sorts (Sort₁ → Sort₂). Categories are defined as `.mixin.yaml` files that inherit all relevant sort data files and extend the factory:
 
 ```yaml
-# NatEquality.oyaml — encodes the morphism Nat × Nat → Boolean
+# NatEquality.mixin.yaml — encodes the morphism Nat × Nat → Boolean
 - [NatVisitor]       # Inherit Nat visitor infrastructure
 - NatFactory:        # Extend the Nat factory with equality
     - Product:
@@ -856,7 +858,7 @@ Key points:
 - Operations are defined within the input sort's factory (`NatFactory:`)
 - Cross-sort references use qualified this: `[NatEquality, ~, Boolean]` navigates to the Boolean sort within the composed scope
 
-Each `.oyaml` file is a **category** (multi-sorted algebra) that can be composed with other categories — a file may involve multiple sorts and multiple algebraic structures. This is how MIXINv2 natively solves the **expression problem**: composing `NatEquality` with `BooleanNegation` (by inheriting both) automatically gives the returned booleans a `not` field — without modifying either category.
+Each `.mixin.yaml` file is a **category** (multi-sorted algebra) that can be composed with other categories — a file may involve multiple sorts and multiple algebraic structures. This is how MIXINv2 natively solves the **expression problem**: composing `NatEquality` with `BooleanNegation` (by inheriting both) automatically gives the returned booleans a `not` field — without modifying either category.
 
 ### Abstract Factory Pattern with Declarations
 
@@ -885,7 +887,7 @@ To make an abstract factory work with multiple concrete factories, use inheritan
 
 ```yaml
 # Step 1: Define abstract base in each concrete factory's data file
-# In NatData.oyaml:
+# In NatData.mixin.yaml:
 NumberFactory: []          # Abstract base factory
 NatFactory:
   - [NumberFactory]        # NatFactory inherits from NumberFactory
@@ -893,7 +895,7 @@ NatFactory:
     Zero: [Product]
     Successor: [Product]
 
-# In BinNatData.oyaml:
+# In BinNatData.mixin.yaml:
 NumberFactory: []          # Same abstract base
 BinNatFactory:
   - [NumberFactory]        # BinNatFactory inherits from NumberFactory
@@ -910,7 +912,7 @@ Now `NumberFactory` is a common base class that both `NatFactory` and `BinNatFac
 Once the abstract base exists, you can write operations that work for **any** factory inheriting from `NumberFactory`:
 
 ```yaml
-# NumberIsZero.oyaml — works for both Nat and BinNat
+# NumberIsZero.mixin.yaml — works for both Nat and BinNat
 - NumberFactory:
     Zero: [Product]        # Declare abstract Zero projection (satisfied by concrete factories)
     Product:
@@ -926,7 +928,7 @@ Once the abstract base exists, you can write operations that work for **any** fa
 ```
 
 **How this works:**
-- `NumberFactory.Zero` is a declaration for lexical references within `NumberIsZero.oyaml`
+- `NumberFactory.Zero` is a declaration for lexical references within `NumberIsZero.mixin.yaml`
 - When composed with `NatFactory`, `[Zero]` resolves to `NatFactory.Zero` (the Nat constructor)
 - When composed with `BinNatFactory`, `[Zero]` resolves to `BinNatFactory.Zero` (the BinNat constructor)
 - `Equal` is an abstract operation that concrete factories must provide (via NatEquality/BinNatEquality)
@@ -1084,6 +1086,8 @@ Python FFI modules — files that use MIXINv2 decorators (`@public`, `@resource`
 
 **Module file names** are MIXINv2 scope names and use **UpperCamelCase**:
 
+For names that include initialisms/acronyms, use C#-style acronym casing (for example, `FFI`, not `Ffi`).
+
 ```
 # ✓ GOOD — MIXINv2 scope naming
 HttpServerCreate.py
@@ -1096,14 +1100,14 @@ http_server_create.py
 sqlite_scalar_query.py
 ```
 
-**`@extern` and `@public @resource` function names** are MIXINv2 field/resource names and use **lowerCamelCase** — the same casing as in `.oyaml` files. Do NOT convert to Python snake_case:
+**`@extern` and `@public @resource` function names** are MIXINv2 field/resource names and use **lowerCamelCase** — the same casing as in `.mixin.yaml` files. Do NOT convert to Python snake_case:
 
 ```python
-# ✓ GOOD — lowerCamelCase, matches oyaml `handlerClass: []`
+# ✓ GOOD — lowerCamelCase, matches .mixin.yaml `handlerClass: []`
 @extern
 def handlerClass() -> type: ...
 
-# ✓ GOOD — lowerCamelCase, matches oyaml `serveForever: []`
+# ✓ GOOD — lowerCamelCase, matches .mixin.yaml `serveForever: []`
 @public
 @resource
 def serveForever(server: HTTPServer) -> None:
@@ -1181,7 +1185,7 @@ A **qualified this reference** (essentially "qualified super") navigates through
 - [Builtin, BooleanData]  # BooleanData provides the Boolean definition
 ```
 
-**Variable shadowing example (from NatEquality.oyaml):**
+**Variable shadowing example (from NatEquality.mixin.yaml):**
 
 ```yaml
 Equal:
@@ -1275,9 +1279,9 @@ RequestScope:
 
 ### Known Limitations
 
-#### oyaml files cannot be a bare scalar
+#### .mixin.yaml files cannot be a bare scalar
 
-An `.oyaml` file whose entire content is a single scalar value (string, number, etc.) is **not currently supported**. The top-level structure of an `.oyaml` file must be a mapping (dict) or a list.
+A `.mixin.yaml` file whose entire content is a single scalar value (string, number, etc.) is **not currently supported**. The top-level structure of a `.mixin.yaml` file must be a mapping (dict) or a list.
 
 ```yaml
 # ✗ NOT SUPPORTED - entire file is a bare scalar
@@ -1295,7 +1299,7 @@ count: 42
 - key: value
 ```
 
-This is a known bug tracked for future fix. When you need to provide a scalar configuration value via oyaml, wrap it in a mapping instead of using a bare scalar file.
+This is a known bug tracked for future fix. When you need to provide a scalar configuration value via `.mixin.yaml`, wrap it in a mapping instead of using a bare scalar file.
 
 
 ## Nix Commands

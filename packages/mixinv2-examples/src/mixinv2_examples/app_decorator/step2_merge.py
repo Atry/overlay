@@ -10,18 +10,18 @@ from mixinv2 import merge, patch, public, scope
 class PragmaBase:
     @public
     @merge
-    def startup_pragmas() -> Callable[[Iterator[str]], frozenset[str]]:
+    def startupPragmas() -> Callable[[Iterator[str]], frozenset[str]]:
         return frozenset                  # aggregation strategy: collect into frozenset
 
 @scope
 class WalMode:
     @patch
-    def startup_pragmas() -> str:
+    def startupPragmas() -> str:
         return "PRAGMA journal_mode=WAL"
 
 @scope
 class ForeignKeys:
     @patch
-    def startup_pragmas() -> str:
+    def startupPragmas() -> str:
         return "PRAGMA foreign_keys=ON"
 # [/docs:step2-merge]

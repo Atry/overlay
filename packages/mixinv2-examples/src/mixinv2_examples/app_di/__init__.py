@@ -1,15 +1,15 @@
 """app_di: package-based DI example mirroring the README @scope examples.
 
 Modules mirror the README step-by-step walkthrough:
-- sqlite_database    → SQLiteDatabase scope  (Step 1)
-- pragmas/           → @patch / @merge examples (Step 2)
-- user_repository/   → UserRepository scope  (Step 4)
-- app_services/      → AppServices scope     (Step 4)
+- SqliteDatabase    → SQLiteDatabase scope  (Step 1)
+- Pragmas/          → @patch / @merge examples (Step 2)
+- UserRepository/   → UserRepository scope  (Step 4)
+- app_services/     → AppServices scope     (Step 4)
 
 Composite scopes declared via @extend:
-- step1_app          → sqlite_database + user_repository (Step 1)
-- step4_request_app  → sqlite_database + user_repository + http_handlers (Step 4, no server)
-- step4_app          → all four modules (Step 4, full stack)
+- Step1App          → SqliteDatabase + UserRepository (Step 1)
+- Step4RequestApp   → SqliteDatabase + UserRepository + HttpHandlers (Step 4, no server)
+- Step4App          → all four modules (Step 4, full stack)
 """
 
 from mixinv2 import LexicalReference
@@ -18,34 +18,34 @@ from mixinv2 import extend, public, scope
 
 # [docs:module-extend]
 @extend(
-    LexicalReference(path=("sqlite_database",)),
-    LexicalReference(path=("user_repository",)),
+    LexicalReference(path=("SqliteDatabase",)),
+    LexicalReference(path=("UserRepository",)),
 )
 @public
 @scope
-class step1_app:
+class Step1App:
     pass
 # [/docs:module-extend]
 
 
 @extend(
-    LexicalReference(path=("sqlite_database",)),
-    LexicalReference(path=("user_repository",)),
-    LexicalReference(path=("http_handlers",)),
+    LexicalReference(path=("SqliteDatabase",)),
+    LexicalReference(path=("UserRepository",)),
+    LexicalReference(path=("HttpHandlers",)),
 )
 @public
 @scope
-class step4_request_app:
+class Step4RequestApp:
     pass
 
 
 @extend(
-    LexicalReference(path=("sqlite_database",)),
-    LexicalReference(path=("user_repository",)),
-    LexicalReference(path=("http_handlers",)),
-    LexicalReference(path=("network_server",)),
+    LexicalReference(path=("SqliteDatabase",)),
+    LexicalReference(path=("UserRepository",)),
+    LexicalReference(path=("HttpHandlers",)),
+    LexicalReference(path=("NetworkServer",)),
 )
 @public
 @scope
-class step4_app:
+class Step4App:
     pass

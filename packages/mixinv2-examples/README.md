@@ -13,35 +13,35 @@ different composition style.
 Declarative OYAML composition with synchronous stdlib FFI adapters:
 
 ```
-uv run mixinv2-example app_oyaml Apps memory_app serve_forever
+uv run mixinv2-example app_mixin Apps memoryApp serveForever
 ```
 
 ### MIXIN async (OYAML + Starlette/uvicorn)
 
 Same declarative OYAML composition, but with async FFI adapters — the
-business logic (`Library.oyaml`) is identical:
+business logic (`Library.mixin.yaml`) is identical:
 
 ```
-uv run mixinv2-example app_oyaml AsyncApps memory_app serve_forever
+uv run mixinv2-example app_mixin AsyncApps memoryApp serveForever
 ```
 
 ### Module version (Python packages + `@extend`)
 
 Python package-based composition using `@scope`, `@resource`, and `@extend`
-decorators. Each concern lives in its own Python package (`sqlite_database`,
-`user_repository`, `http_handlers`, `network_server`) and they are composed
+decorators. Each concern lives in its own Python package (`SqliteDatabase`,
+`UserRepository`, `HttpHandlers`, `NetworkServer`) and they are composed
 via `@extend`. Requires passing `@extern` parameters at instantiation:
 
 ```python
 import mixinv2_examples.app_di as app_di
 from mixinv2._runtime import evaluate
 
-app = evaluate(app_di, modules_public=True).step4_app(
-    database_path=":memory:",
+app = evaluate(app_di, modules_public=True).Step4App(
+    databasePath=":memory:",
     host="127.0.0.1",
     port=0,
 )
-app.serve_forever
+app.serveForever
 ```
 
 ### Decorator version (inline `@scope` classes)
@@ -52,20 +52,11 @@ composed via `@extend`. See
 definitions. Requires passing `@extern` parameters at instantiation:
 
 ```python
-from types import ModuleType
-
-import mixinv2_examples.app_decorator.step4_http_server as step4
+import mixinv2_examples.app_decorator.step4_http_server as step4_http_server
 from mixinv2._runtime import evaluate
 
-module = ModuleType("step4")
-module.SQLiteDatabase = step4.SQLiteDatabase
-module.UserRepository = step4.UserRepository
-module.HttpHandlers = step4.HttpHandlers
-module.NetworkServer = step4.NetworkServer
-module.app = step4.app
-
-app_instance = evaluate(module, modules_public=True).app(
-    database_path=":memory:",
+app_instance = evaluate(step4_http_server, modules_public=True).App(
+    databasePath=":memory:",
     host="127.0.0.1",
     port=0,
 )

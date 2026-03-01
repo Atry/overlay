@@ -1,0 +1,145 @@
+# Library.mixin.yaml — business logic, decoupled from any specific FFI implementation.
+# All FFI references use [FFI, Xxx] which resolves to abstract declarations below.
+# Concrete FFI implementations are provided at composition time (e.g. StdlibFFI/FFI.py).
+
+# [docs:ffi-declarations]
+FFI:
+  SqliteConnectAndExecuteScript:
+    databasePath: []
+    setupSql: []
+    connection: []
+  SqliteScalarQuery:
+    connection: []
+    sql: []
+    scalar: []
+  SqliteRowQuery:
+    connection: []
+    sql: []
+    parameters: []
+    row: []
+  TupleWrap:
+    element: []
+    wrapped: []
+  GetItem:
+    sequence: []
+    index: []
+    element: []
+  ExtractUserId:
+    request: []
+    pathSeparator: []
+    userId: []
+  FormatResponse:
+    responseTemplate: []
+    userCount: []
+    currentUserName: []
+    responseBody: []
+  HttpSendResponse:
+    request: []
+    statusCode: []
+    body: []
+    written: []
+  HttpHandlerClass:
+    Request: []
+    handlerClass: []
+  HttpServerCreate:
+    host: []
+    port: []
+    handlerClass: []
+    server: []
+    serveForever: []
+# [/docs:ffi-declarations]
+
+# [docs:sqlite-database]
+SQLiteDatabase:
+  databasePath: []                         # extern: caller must provide this
+  setupSql: []                             # extern: caller must provide this
+  _db:
+    - [FFI, SqliteConnectAndExecuteScript]  # inherit the FFI adapter
+    - databasePath: [databasePath]        # wire extern → adapter input
+      setupSql: [setupSql]
+  connection: [_db, connection]             # projection: expose _db.connection
+# [/docs:sqlite-database]
+
+# [docs:user-repository-app]
+UserRepository:
+  connection: []                            # extern: from SQLiteDatabase
+  userCountSql: []                        # extern: provided by app
+
+  User:                                     # scope-as-dataclass
+    userId: []
+    name: []
+
+  _count:
+    - [FFI, SqliteScalarQuery]
+    - connection: [connection]
+      sql: [userCountSql]
+  userCount: [_count, scalar]
+# [/docs:user-repository-app]
+# [docs:user-repository-request-scope]
+  Request:
+    userId: []                             # extern: from HttpHandlers
+    userQuerySql: []                      # extern: from app.Request
+
+    _params:
+      - [FFI, TupleWrap]
+      - element: [userId]
+
+    _row:
+      - [FFI, SqliteRowQuery]
+      - connection: [connection]            # lexical: finds UserRepository.connection
+        sql: [userQuerySql]
+        parameters: [_params, wrapped]
+
+    _identifier:
+      - [FFI, GetItem]
+      - sequence: [_row, row]
+        index: 0
+    _name:
+      - [FFI, GetItem]
+      - sequence: [_row, row]
+        index: 1
+
+    currentUser:
+      userId: [_identifier, element]
+      name: [_name, element]
+
+    currentUserName: [currentUser, name]
+# [/docs:user-repository-request-scope]
+
+# [docs:http-handlers]
+HttpHandlers:
+  userCount: []                            # extern: from UserRepository
+
+  Request:
+    - [FFI, ExtractUserId]                  # provides: userId
+    - [FFI, HttpSendResponse]              # provides: written
+    - request: []                           # extern: injected per-request
+      pathSeparator: []                    # extern: from app.Request
+      responseTemplate: []                 # extern: from app.Request
+      statusCode: 200                      # inline scalar
+      currentUserName: []                 # extern: from UserRepository.Request
+
+      _format:
+        - [FFI, FormatResponse]
+        - responseTemplate: [responseTemplate]
+          userCount: [userCount]
+          currentUserName: [currentUserName]
+      responseBody: [_format, responseBody]
+      body: [responseBody]
+
+      # Qualified this: fails loudly if HttpSendResponse is not composed,
+      # unlike `written: []` which silently creates an empty scope.
+      response: [Request, ~, written]
+# [/docs:http-handlers]
+
+# [docs:network-server]
+NetworkServer:
+  - [FFI, HttpServerCreate]
+  - host: []
+    port: []
+    Request: []
+    _handler:
+      - [FFI, HttpHandlerClass]
+      - Request: [Request]
+    handlerClass: [_handler, handlerClass]
+# [/docs:network-server]

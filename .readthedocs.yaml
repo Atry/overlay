@@ -4,9 +4,6 @@ build:
   os: ubuntu-24.04
   tools:
     python: "3.13"
-  jobs:
-    pre_build:
-      - sphinx-apidoc --implicit-namespaces -o packages/mixinv2/docs/api packages/mixinv2/src/mixinv2
 
 sphinx:
   configuration: packages/mixinv2/docs/conf.py

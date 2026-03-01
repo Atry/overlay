@@ -8,17 +8,18 @@ from mixinv2 import LexicalReference
 from mixinv2 import extend, extern, public, resource, scope
 
 
+# [docs:step4-http-server]
 @scope
 class SQLiteDatabase:
     @extern
-    def database_path() -> str: ...    # database owns its own config
+    def databasePath() -> str: ...    # database owns its own config
 
     # App-scoped: one connection for the entire process lifetime.
     # check_same_thread=False: created in main thread, used in handler threads.
     @public
     @resource
-    def connection(database_path: str) -> sqlite3.Connection:
-        db = sqlite3.connect(database_path, check_same_thread=False)
+    def connection(databasePath: str) -> sqlite3.Connection:
+        db = sqlite3.connect(databasePath, check_same_thread=False)
         db.execute(
             "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)"
         )
@@ -38,7 +39,7 @@ class UserRepository:
     class User:
         @public
         @extern
-        def user_id() -> int: ...
+        def userId() -> int: ...
 
         @public
         @extern
@@ -47,7 +48,7 @@ class UserRepository:
     # App-scoped: total count across all requests.
     @public
     @resource
-    def user_count(connection: sqlite3.Connection) -> int:
+    def userCount(connection: sqlite3.Connection) -> int:
         (count,) = connection.execute(
             "SELECT COUNT(*) FROM users"
         ).fetchone()
@@ -56,32 +57,32 @@ class UserRepository:
     # Request-scoped: per-request DB resources, wired by overlay union-mount.
     @public
     @scope
-    class RequestScope:
+    class Request:
         @extern
-        def user_id() -> int: ...  # provided by HttpHandlers.RequestScope
+        def userId() -> int: ...  # provided by HttpHandlers.Request
 
         @public
         @resource
-        def current_user(
-            connection: sqlite3.Connection, user_id: int, User: Callable
+        def currentUser(
+            connection: sqlite3.Connection, userId: int, User: Callable
         ) -> object:
             row = connection.execute(
-                "SELECT id, name FROM users WHERE id = ?", (user_id,)
+                "SELECT id, name FROM users WHERE id = ?", (userId,)
             ).fetchone()
-            assert row is not None, f"no user with id={user_id}"
+            assert row is not None, f"no user with id={userId}"
             identifier, name = row
-            return User(user_id=identifier, name=name)
+            return User(userId=identifier, name=name)
 
 @scope
 class HttpHandlers:
     @extern
-    def user_count() -> int: ...
+    def userCount() -> int: ...
 
-    # RequestScope is nested because its lifetime is per-request,
+    # Request is nested because its lifetime is per-request,
     # not per-application.
     @public
     @scope
-    class RequestScope:
+    class Request:
         class _RequestWithPath(Protocol):
             path: str
 
@@ -89,32 +90,32 @@ class HttpHandlers:
         def request() -> BaseHTTPRequestHandler: ...
 
         @extern
-        def current_user() -> object: ...
+        def currentUser() -> object: ...
 
-        # user_id is extracted from the request and injected into
-        # UserRepository.RequestScope.current_user automatically.
+        # userId is extracted from the request and injected into
+        # UserRepository.Request.currentUser automatically.
         @public
         @resource
-        def user_id(request: _RequestWithPath) -> int:
+        def userId(request: _RequestWithPath) -> int:
             return int(request.path.split("/")[-1])
 
         @public
         @resource
-        def response_body(user_count: int, current_user: object) -> bytes:
+        def responseBody(userCount: int, currentUser: object) -> bytes:
             return (
-                f"total={user_count} current={current_user.name}"
+                f"total={userCount} current={currentUser.name}"
             ).encode()
 
         # IO resource: sends the HTTP response as a side effect.
         @public
         @resource
-        def response_sent(
+        def responseSent(
             request: BaseHTTPRequestHandler,
-            response_body: bytes,
+            responseBody: bytes,
         ) -> None:
             request.send_response(200)
             request.end_headers()
-            request.wfile.write(response_body)
+            request.wfile.write(responseBody)
 
 @scope
 class NetworkServer:
@@ -125,17 +126,17 @@ class NetworkServer:
     def port() -> int: ...
 
     @scope
-    class RequestScope:
+    class Request:
         pass
 
-    # RequestScope is injected by name as a Callable (StaticScope).
-    # Calling RequestScope(request=handler) returns a fresh InstanceScope.
+    # Request is injected by name as a Callable (StaticScope).
+    # Calling Request(request=handler) returns a fresh InstanceScope.
     @public
     @resource
-    def server(host: str, port: int, RequestScope: Callable) -> HTTPServer:
+    def server(host: str, port: int, Request: Callable) -> HTTPServer:
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:
-                RequestScope(request=self).response_sent
+                Request(request=self).responseSent
 
             def log_message(self, format: str, *arguments: object) -> None:
                 pass
@@ -150,5 +151,6 @@ class NetworkServer:
 )
 @public
 @scope
-class app:
+class App:
     pass
+# [/docs:step4-http-server]

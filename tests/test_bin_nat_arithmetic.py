@@ -1,7 +1,7 @@
 """Tests for binary natural number arithmetic and equality.
 
-Tests the MIXINv2 definitions in BinNatArithmeticTest.oyaml which compose
-BinNatPlus and BinNatEquality from Builtin.oyaml to verify:
+Tests the MIXINv2 definitions in BinNatArithmeticTest.mixin.yaml which compose
+BinNatPlus and BinNatEquality from Builtin.mixin.yaml to verify:
 - Binary numeral construction (Zero, Even, Odd)
 - Increment operation
 - Addition (Plus operation)

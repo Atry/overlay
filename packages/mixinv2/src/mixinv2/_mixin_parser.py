@@ -217,7 +217,7 @@ def _make_scalar_resource(
 ) -> EndofunctionMergerDefinition[object]:
     """Create an EndofunctionMergerDefinition that returns a scalar value.
 
-    This is the oyaml equivalent of ``@resource def field(): return scalar_value``.
+    This is the .mixin.yaml equivalent of ``@resource def field(): return scalar_value``.
     """
     return EndofunctionMergerDefinition(
         inherits=(),

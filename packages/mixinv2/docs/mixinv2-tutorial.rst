@@ -21,7 +21,7 @@ MIXINv2 solves this by separating the application into three layers:
   per operation (``sqlite3.connect``, ``str.split``, ``wfile.write``). Each adapter
   declares its inputs as ``@extern`` and exposes a single ``@public @resource``
   output. The adapter contains **zero business logic**.
-- **``.oyaml`` files** contain all application logic, written in MIXINv2. MIXINv2 is not just a configuration format — it is a
+- **``.mixin.yaml`` files** contain all application logic, written in MIXINv2. MIXINv2 is not just a configuration format — it is a
   complete language with lexical scoping, nested scopes, deep-merge composition,
   and lazy evaluation. These features make it more natural than Python for
   expressing business logic, which is inherently declarative ("the user ID is
@@ -30,8 +30,8 @@ MIXINv2 solves this by separating the application into three layers:
 - **Configuration values** (SQL queries, format strings, host/port) are pure
   YAML scalars, gathered in one place.
 
-Business logic written in ``.oyaml`` is **portable**: it is decoupled from the
-Python FFI layer. Swap the FFI adapters and the same ``.oyaml`` logic runs against
+Business logic written in ``.mixin.yaml`` is **portable**: it is decoupled from the
+Python FFI layer. Swap the FFI adapters and the same ``.mixin.yaml`` logic runs against
 a different runtime — mock adapters for unit testing, a different language's
 stdlib for cross-platform deployment, or instrumented adapters for profiling.
 With Python ``@scope`` decorators, business logic is locked to the Python runtime
@@ -45,57 +45,57 @@ Python FFI adapters
 
 Each ``@scope`` class wraps exactly one stdlib operation. Below are three
 representative adapters; the full module
-(:github:`tests/fixtures/app_oyaml/stdlib_ffi/FFI.py`)
+(:github:`packages/mixinv2-examples/src/mixinv2_examples/app_mixin/StdlibFFI/FFI/`)
 contains 10 more following the same pattern.
 
 ``SqliteConnectAndExecuteScript`` — multiple inputs, single output:
 
-.. literalinclude:: ../../tests/fixtures/app_oyaml/stdlib_ffi/FFI/SqliteConnectAndExecuteScript.py
+.. literalinclude:: ../../mixinv2-examples/src/mixinv2_examples/app_mixin/StdlibFFI/FFI/SqliteConnectAndExecuteScript.py
    :language: python
 
 ``GetItem`` — generic ``sequence[index]`` operation:
 
-.. literalinclude:: ../../tests/fixtures/app_oyaml/stdlib_ffi/FFI/GetItem.py
+.. literalinclude:: ../../mixinv2-examples/src/mixinv2_examples/app_mixin/StdlibFFI/FFI/GetItem.py
    :language: python
 
 ``HttpSendResponse`` — chained I/O, send status + headers + body:
 
-.. literalinclude:: ../../tests/fixtures/app_oyaml/stdlib_ffi/FFI/HttpSendResponse.py
+.. literalinclude:: ../../mixinv2-examples/src/mixinv2_examples/app_mixin/StdlibFFI/FFI/HttpSendResponse.py
    :language: python
 
 Notice what is *not* here: no SQL queries, no ``"/"`` separator, no format string,
 no ``:memory:`` path, no port number. Those are all business decisions that live
-in the ``.oyaml``.
+in the ``.mixin.yaml``.
 
 
-``.oyaml`` composition
-----------------------
+``.mixin.yaml`` composition
+---------------------------
 
-An ``.oyaml`` file describes a **dependency graph**, not an execution sequence.
+A ``.mixin.yaml`` file describes a **dependency graph**, not an execution sequence.
 There is no top-to-bottom control flow — the runtime evaluates resources lazily,
 on demand. Think spreadsheet cells, not shell scripts.
 
-The business logic lives in ``Library.oyaml``, which references FFI adapters
+The business logic lives in ``Library.mixin.yaml``, which references FFI adapters
 through abstract declarations (``FFI:`` scope with ``[]`` slots). A concrete FFI
-module (``stdlib_ffi/FFI.py``) overrides these slots at composition time. This
+module (``StdlibFFI/FFI/``) overrides these slots at composition time. This
 separation means the business logic is portable — swap ``stdlib_ffi`` for a
-different FFI implementation and the ``.oyaml`` files need no changes.
+different FFI implementation and the ``.mixin.yaml`` files need no changes.
 
-The following sections walk through ``Library.oyaml`` one scope at a time,
+The following sections walk through ``Library.mixin.yaml`` one scope at a time,
 introducing new language concepts as they appear.
 
 
 ``SQLiteDatabase`` — extern, inheritance, wiring, projection
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. literalinclude:: ../../tests/fixtures/app_oyaml/Library.oyaml
+.. literalinclude:: ../../mixinv2-examples/src/mixinv2_examples/app_mixin/Library.mixin.yaml
    :language: yaml
    :start-after: # [docs:sqlite-database]
    :end-before: # [/docs:sqlite-database]
 
 Four new concepts:
 
-- **``field: []``** — an **extern declaration**, the ``.oyaml`` equivalent of
+- **``field: []``** — an **extern declaration**, the ``.mixin.yaml`` equivalent of
   ``@extern``. The value must come from a parent scope or the caller.
 - **``- [FFI, SqliteConnectAndExecuteScript]``** — **inheritance**. ``_db`` inherits
   the FFI adapter, gaining all of its resources (``connection``).
@@ -110,12 +110,12 @@ Four new concepts:
 ``UserRepository`` (app-scoped part) — nested scope, scope-as-dataclass
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. literalinclude:: ../../tests/fixtures/app_oyaml/Library.oyaml
+.. literalinclude:: ../../mixinv2-examples/src/mixinv2_examples/app_mixin/Library.mixin.yaml
    :language: yaml
    :start-after: # [docs:user-repository-app]
    :end-before: # [/docs:user-repository-app]
 
-- **``User:``** is a **nested scope** with two extern fields — the ``.oyaml``
+- **``User:``** is a **nested scope** with two extern fields — the ``.mixin.yaml``
   equivalent of ``@scope class User`` with ``@public @extern`` fields. It acts as a
   dataclass constructor: ``current_user`` (below) will supply values for
   ``user_id`` and ``name``.
@@ -128,7 +128,7 @@ Four new concepts:
 ``UserRepository.RequestScope`` — ANF style, cross-scope references
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. literalinclude:: ../../tests/fixtures/app_oyaml/Library.oyaml
+.. literalinclude:: ../../mixinv2-examples/src/mixinv2_examples/app_mixin/Library.mixin.yaml
    :language: yaml
    :start-after: # [docs:user-repository-request-scope]
    :end-before: # [/docs:user-repository-request-scope]
@@ -146,7 +146,7 @@ searches outward through parent, grandparent, etc. No import statement is
 needed; the scope hierarchy *is* the namespace.
 
 **Constructing ``current_user``:** Instead of calling ``User(user_id=..., name=...)``,
-the ``.oyaml`` directly defines ``current_user`` as a scope with two fields. The
+the ``.mixin.yaml`` directly defines ``current_user`` as a scope with two fields. The
 ``User`` scope-as-dataclass above establishes the field names; here those same
 names are filled with concrete values.
 
@@ -154,7 +154,7 @@ names are filled with concrete values.
 ``HttpHandlers`` — flat inheritance, qualified this
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. literalinclude:: ../../tests/fixtures/app_oyaml/Library.oyaml
+.. literalinclude:: ../../mixinv2-examples/src/mixinv2_examples/app_mixin/Library.mixin.yaml
    :language: yaml
    :start-after: # [docs:http-handlers]
    :end-before: # [/docs:http-handlers]
@@ -180,26 +180,26 @@ composed, this fails with an error instead of silently creating an empty scope.
 ``NetworkServer`` — deep merge, config scoping
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. literalinclude:: ../../tests/fixtures/app_oyaml/Library.oyaml
+.. literalinclude:: ../../mixinv2-examples/src/mixinv2_examples/app_mixin/Library.mixin.yaml
    :language: yaml
    :start-after: # [docs:network-server]
    :end-before: # [/docs:network-server]
 
-All the scopes above live in ``Library.oyaml``. They reference ``[FFI, Xxx]`` which
+All the scopes above live in ``Library.mixin.yaml``. They reference ``[FFI, Xxx]`` which
 resolves to abstract declarations at the top of the file — no concrete Python
 code is involved yet.
 
 
-``Apps.oyaml`` — integration entry point
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``Apps.mixin.yaml`` — integration entry point
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``Apps.oyaml`` is a separate file that inherits the real FFI implementation and
+``Apps.mixin.yaml`` is a separate file that inherits the real FFI implementation and
 the Library, then defines concrete application entries:
 
-.. literalinclude:: ../../tests/fixtures/app_oyaml/Apps.oyaml
+.. literalinclude:: ../../mixinv2-examples/src/mixinv2_examples/app_mixin/Apps.mixin.yaml
    :language: yaml
-   :start-after: # [docs:apps-oyaml]
-   :end-before: # [/docs:apps-oyaml]
+   :start-after: # [docs:apps-mixin-yaml]
+   :end-before: # [/docs:apps-mixin-yaml]
 
 **Library/FFI separation:** ``- [stdlib_ffi]`` makes the real ``FFI`` module
 (Python ``@scope`` classes) visible. ``- [Library]`` makes the business logic
@@ -208,21 +208,21 @@ with ``Library.FFI`` (abstract declarations), and the real ``@resource`` methods
 override the ``[]`` slots. The business logic never imports Python directly.
 
 **Portability:** To run the same business logic on a different runtime, replace
-``- [stdlib_ffi]`` with a different FFI package — the ``Library.oyaml`` file needs
+``- [stdlib_ffi]`` with a different FFI package — the ``Library.mixin.yaml`` file needs
 no changes. To test with mocks, provide a mock FFI module instead of
 ``stdlib_ffi``.
 
 **"What Color Is Your Function?"** (`blog post <https://journal.stuffwithstuff.com/2015/02/01/what-color-is-your-function/>`_):
-The same ``Library.oyaml`` runs unchanged on both synchronous and asynchronous
+The same ``Library.mixin.yaml`` runs unchanged on both synchronous and asynchronous
 runtimes. Replacing ``- [stdlib_ffi]`` with ``- [async_ffi]`` swaps the FFI layer
 to one built on ``aiosqlite`` + ``starlette``
-(:github:`implementation <tests/fixtures/app_oyaml/async_ffi/FFI/>`) — the business
+(:github:`implementation <packages/mixinv2-examples/src/mixinv2_examples/app_mixin/AsyncFFI/FFI/>`) — the business
 logic never knows whether it is sync or async. Function color is confined
-entirely to the FFI boundary; ``Library.oyaml`` itself is *colorless*.
+entirely to the FFI boundary; ``Library.mixin.yaml`` itself is *colorless*.
 
 **Composition via inheritance:** ``memory_app`` inherits four scopes via
 qualified this (``[Apps, ~, SQLiteDatabase]`` etc.) because these scopes are
-inherited properties, not own properties of ``Apps.oyaml``. This is not four
+inherited properties, not own properties of ``Apps.mixin.yaml``. This is not four
 separate instances — it is a single scope with all four merged together. The
 last list item supplies concrete values for every ``[]`` extern.
 
@@ -281,7 +281,7 @@ Python vs MIXINv2
 
    * - Aspect
      - Python ``@scope``
-     - MIXINv2 (``.oyaml``)
+     - MIXINv2 (``.mixin.yaml``)
    * - Composition
      - Manual ``@extend`` + ``RelativeReference``
      - Inheritance list: ``- [Parent]``
@@ -299,7 +299,7 @@ Python vs MIXINv2
      - Qualified this: ``[Scope, ~, symbol]``
    * - Business logic location
      - Mixed with I/O in Python
-     - Separate ``.oyaml`` file, portable across FFI
+     - Separate ``.mixin.yaml`` file, portable across FFI
    * - Configuration
      - Kwargs at call site
      - Scalar values in ``memory_app:`` scope
@@ -310,13 +310,13 @@ Evaluation
 
 .. code-block:: python
 
-   import tests.fixtures.app_oyaml as app_oyaml
+   import tests.fixtures.app_mixin as app_mixin
    from mixinv2 import evaluate
 
-   # evaluate() auto-discovers stdlib_ffi/, Library.oyaml, and Apps.oyaml.
-   root = evaluate(app_oyaml, modules_public=True)
+   # evaluate() auto-discovers stdlib_ffi/, Library.mixin.yaml, and Apps.mixin.yaml.
+   root = evaluate(app_mixin, modules_public=True)
 
-   # Access the composed app — Apps is the .oyaml file name.
+   # Access the composed app — Apps is the .mixin.yaml file name.
    composed_app = root.Apps.memory_app
 
    composed_app.server               # HTTPServer on 127.0.0.1:<assigned port>
@@ -328,14 +328,14 @@ Evaluation
    scope.current_user.name           # "alice"
    scope.response                    # sends HTTP response as side effect
 
-Swapping configuration is just a different entry in ``Apps.oyaml`` — the Python
-FFI adapters and ``Library.oyaml`` never change. Swapping the FFI layer is just a
-different ``@scope`` module — the ``.oyaml`` business logic never changes.
+Swapping configuration is just a different entry in ``Apps.mixin.yaml`` — the Python
+FFI adapters and ``Library.mixin.yaml`` never change. Swapping the FFI layer is just a
+different ``@scope`` module — the ``.mixin.yaml`` business logic never changes.
 
 Runnable tests for this example are in
-:github:`tests/test_readme_package_examples.py`,
+:github:`packages/mixinv2-examples/tests/test_readme_package_examples.py`,
 using the fixture package at
-:github:`tests/fixtures/app_oyaml/`.
+:github:`packages/mixinv2-examples/src/mixinv2_examples/app_mixin/`.
 
 The full language specification is in :doc:`specification`.
 

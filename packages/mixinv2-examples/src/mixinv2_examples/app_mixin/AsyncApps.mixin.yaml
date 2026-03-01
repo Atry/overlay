@@ -1,0 +1,20 @@
+# AsyncApps.mixin.yaml — async integration entry points: Library + async FFI + configuration values.
+- [AsyncFFI]
+- [Library]
+- memoryApp:
+    - [AsyncApps, ~, SQLiteDatabase]
+    - [AsyncApps, ~, UserRepository]
+    - [AsyncApps, ~, HttpHandlers]
+    - [AsyncApps, ~, NetworkServer]
+    - databasePath: ":memory:"
+      setupSql: |
+        CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
+        INSERT INTO users VALUES (1, 'alice');
+        INSERT INTO users VALUES (2, 'bob');
+      userCountSql: "SELECT COUNT(*) FROM users"
+      host: "127.0.0.1"
+      port: 0
+      Request:
+        userQuerySql: "SELECT id, name FROM users WHERE id = ?"
+        pathSeparator: "/"
+        responseTemplate: "total={total} current={current}"

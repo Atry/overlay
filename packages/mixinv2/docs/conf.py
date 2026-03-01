@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from sphinx.ext import apidoc
+
 # -- Path setup --------------------------------------------------------------
 # Add mixinv2/src to sys.path so autodoc can import the modules.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
@@ -37,7 +39,7 @@ autodoc_default_options = {
 }
 
 templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'api/modules.rst', 'api/mixinv2.rst']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'api/modules.rst']
 
 
 
@@ -72,3 +74,20 @@ extlinks = {
         '%s',
     ),
 }
+
+
+def _generate_api_docs(app: object) -> None:
+    docs_directory = Path(__file__).resolve().parent
+    package_directory = docs_directory.parent / "src" / "mixinv2"
+    output_directory = docs_directory / "api"
+
+    apidoc.main([
+        "--implicit-namespaces",
+        "-o",
+        str(output_directory),
+        str(package_directory),
+    ])
+
+
+def setup(app: object) -> None:
+    app.connect("builder-inited", _generate_api_docs)

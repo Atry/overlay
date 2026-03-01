@@ -91,7 +91,7 @@ As a configuration language, MIXINv2 excels in defining complex systems with int
 The following example demonstrates how to use MIXINv2 to define a basic arithmetic operation represented as an AST:
 
 ```yaml
-# math_operations.oyaml
+# math_operations.mixin.yaml
 
 Number:
   - {} # An overlay that represents a number type.
@@ -108,7 +108,7 @@ multiply:
 ```
 
 ```yaml
-# test.oyaml
+# test.mixin.yaml
 
 example_calculation:
   - [add]
@@ -124,7 +124,7 @@ example_calculation:
 1. The `Number` overlay represents a basic number type with no initial value, aligning with MIXINv2's immutable and lazy-evaluated nature.
 2. The `add` overlay inherits from `Number` and defines two properties, `addend1` and `addend2`, both of which are also `Number`.
 3. The `multiply` overlay defines a multiplication operation with two properties: `multiplicand` and `multiplier`.
-4. In `test.oyaml`, the `example_calculation` overlay uses the `add` operation to add two numbers:
+4. In `test.mixin.yaml`, the `example_calculation` overlay uses the `add` operation to add two numbers:
    - `addend1` is a multiplication of `2` and `3`, represented using the `multiply` overlay.
    - `addend2` is the constant `4`.
 
@@ -286,7 +286,7 @@ In this example, `my_number` has both a scalar value `42` and inherits the `Numb
 In MIXINv2, properties with the same name defined in multiple parent overlays are always automatically merged:
 
 ```yaml
-# basic_features.oyaml
+# basic_features.mixin.yaml
 Vehicle:
   - wheels: [Number]
   - engine: {}
@@ -295,7 +295,7 @@ Motor:
   - engine:
       gasoline: true # Defines a default scalar value for 'engine'
 
-# advanced_features.oyaml
+# advanced_features.mixin.yaml
 hybrid_car:
   - ["basic_features", Vehicle]
   - ["basic_features", Motor]
@@ -464,17 +464,17 @@ MIXINv2 allows inheriting overlays defined in different files. The rules for cro
 project/
 │
 ├── module/
-│   ├── vehicle.oyaml
-│   ├── electric.oyaml
-│   └── car.oyaml
+│   ├── vehicle.mixin.yaml
+│   ├── electric.mixin.yaml
+│   └── car.mixin.yaml
 │
 ├── config/
-│   └── settings.oyaml
+│   └── settings.mixin.yaml
 └── test/
-    └── test_car.oyaml
+    └── test_car.mixin.yaml
 ```
 
-**vehicle.oyaml**:
+**vehicle.mixin.yaml**:
 
 ```yaml
 Vehicle:
@@ -482,7 +482,7 @@ Vehicle:
   wheels: [Number]
 ```
 
-**electric.oyaml**:
+**electric.mixin.yaml**:
 
 ```yaml
 Electric:
@@ -491,7 +491,7 @@ Electric:
   - battery_capacity: [Number]
 ```
 
-**car.oyaml**:
+**car.mixin.yaml**:
 
 ```yaml
 Car:
@@ -500,11 +500,11 @@ Car:
   - model: [String]
 ```
 
-**test_car.oyaml**:
+**test_car.mixin.yaml**:
 
 ```yaml
 test_car:
-  - [module, Car] # Cross-directory inheritance to Car in module/car.oyaml
+  - [module, Car] # Cross-directory inheritance to Car in module/car.mixin.yaml
   - model: "Test Model"
   - test_battery:
       - [module, Electric, battery_capacity] # Inheritance to battery_capacity in Electric
@@ -512,7 +512,7 @@ test_car:
 
 In this example:
 
-- The `test_car` overlay in `test_car.oyaml` inherits `Car` and `Electric` from the `module` directory using the format `[module, Car]` and `[module, Electric, battery_capacity]`.
+- The `test_car` overlay in `test_car.mixin.yaml` inherits `Car` and `Electric` from the `module` directory using the format `[module, Car]` and `[module, Electric, battery_capacity]`.
 - The first segment of the inheritance (`module`) indicates the directory in which the target overlays are located.
 - The inheritance format and scope rules ensure that overlays are correctly resolved based on the file and directory structure.
 
@@ -704,7 +704,7 @@ When an overlay inherits from multiple parent overlays, the properties from all 
 **Example:**
 
 ```yaml
-# basic_features.oyaml
+# basic_features.mixin.yaml
 Vehicle:
   - wheels: [Number]
   - engine: {}
@@ -713,7 +713,7 @@ Motor:
   - engine:
       gasoline: true # Scalar value for 'engine'
 
-# advanced_features.oyaml
+# advanced_features.mixin.yaml
 hybrid_car:
   - ["basic_features", Vehicle]
   - ["basic_features", Motor]
@@ -740,15 +740,15 @@ Scalar values (e.g., strings, numbers, booleans) can coexist with properties wit
 **Example:**
 
 ```yaml
-# number.oyaml
+# number.mixin.yaml
 Number:
   - {} # Represents a number type overlay
 
-# value.oyaml
+# value.mixin.yaml
 value_42:
   - 42 # Defines scalar value 42
 
-# my_number.oyaml
+# my_number.mixin.yaml
 my_number:
   - [Number]
   - [value_42]
@@ -770,15 +770,15 @@ An overlay can have both scalar values and properties, and these can be inherite
 **Example:**
 
 ```yaml
-# person.oyaml
+# person.mixin.yaml
 PersonDetails:
   name: [String]
   age: [Number]
 
-# height.oyaml
+# height.mixin.yaml
 height_value: 180 # Scalar value representing height
 
-# combined_person.oyaml
+# combined_person.mixin.yaml
 combined_person:
   - [PersonDetails]
   - name: "John Doe"
@@ -806,7 +806,7 @@ MIXINv2's approach to inheritance ensures that properties and scalar values from
 **Example of Conflict-Free Inheritance:**
 
 ```yaml
-# basic_features.oyaml
+# basic_features.mixin.yaml
 Vehicle:
   - wheels: [Number]
   - engine:
@@ -815,7 +815,7 @@ Vehicle:
 Motor:
   - engine: {} # Defines 'engine' property
 
-# advanced_features.oyaml
+# advanced_features.mixin.yaml
 hybrid_car:
   - ["basic_features", Vehicle]
   - ["basic_features", Motor]

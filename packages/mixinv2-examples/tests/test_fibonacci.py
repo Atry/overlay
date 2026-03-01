@@ -1,6 +1,6 @@
 """Tests for generic Fibonacci on both Nat and BinNat.
 
-Tests the abstract Fibonacci definition from Builtin/Fibonacci.oyaml,
+Tests the abstract Fibonacci definition from Builtin/Fibonacci.mixin.yaml,
 instantiated with both Church numerals (Nat) and binary naturals (BinNat).
 Verifies that both the direct double-recursion version and the
 pair-accumulator version produce identical results.

@@ -19,7 +19,7 @@ from mixinv2._runtime import evaluate
 
 def test_circular_reference_parsing():
     """Test that circular reference MIXINv2 file can be parsed."""
-    fixture_path = Path(__file__).parent / "fixtures" / "CircularLazy.oyaml"
+    fixture_path = Path(__file__).parent / "fixtures" / "CircularLazy.mixin.yaml"
     parsed = parse_mixin_file(fixture_path)
 
     # Should have three top-level mixins
@@ -39,7 +39,7 @@ def test_circular_reference_lazy_evaluation():
     - But each finite access should terminate
     - This demonstrates totality with circular references
     """
-    fixture_path = Path(__file__).parent / "fixtures" / "CircularLazy.oyaml"
+    fixture_path = Path(__file__).parent / "fixtures" / "CircularLazy.mixin.yaml"
     parsed = parse_mixin_file(fixture_path)
 
     # Get the root definitions
@@ -94,7 +94,7 @@ def test_circular_reference_eager_evaluation_fails():
     This test is skipped because it would hang the test suite, but it
     demonstrates why lazy evaluation is necessary for circular references.
     """
-    fixture_path = Path(__file__).parent / "fixtures" / "CircularLazy.oyaml"
+    fixture_path = Path(__file__).parent / "fixtures" / "CircularLazy.mixin.yaml"
     parsed = parse_mixin_file(fixture_path)
 
     foo_defs = parsed["foo"]

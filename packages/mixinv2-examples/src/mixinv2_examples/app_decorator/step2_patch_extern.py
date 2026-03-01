@@ -10,15 +10,15 @@ from mixinv2 import extern, merge, patch, public, scope
 class PragmaBase:
     @public
     @merge
-    def startup_pragmas() -> Callable[[Iterator[str]], frozenset[str]]:
+    def startupPragmas() -> Callable[[Iterator[str]], frozenset[str]]:
         return frozenset
 
 @scope
 class UserVersionPragma:
     @extern
-    def schema_version() -> int: ...     # provided as a kwarg at call time
+    def schemaVersion() -> int: ...     # provided as a kwarg at call time
 
     @patch
-    def startup_pragmas(schema_version: int) -> str:
-        return f"PRAGMA user_version={schema_version}"
+    def startupPragmas(schemaVersion: int) -> str:
+        return f"PRAGMA user_version={schemaVersion}"
 # [/docs:step2-patch-extern]
