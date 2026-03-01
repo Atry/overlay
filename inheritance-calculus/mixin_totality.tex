@@ -63,11 +63,11 @@ Totality has two levels of guarantees:
   \item This is similar to Haskell's infinite lists or Coq's coinductive types
 \end{itemize}
 
-Totality is desirable because total programs never get stuck, never produce runtime errors due to non-termination, and their behavior at any finite depth is always well-defined.
+Totality is desirable because total programs never get stuck, never produce runtime errors due to nontermination, and their behavior at any finite depth is always well-defined.
 
 \subsection{The Challenge}
 
-Most programming languages are \textbf{non-total}. For example:
+Most programming languages are \textbf{nontotal}. For example:
 \begin{itemize}
   \item Haskell allows infinite loops: \texttt{let x = x in x}
   \item Python allows unbounded recursion without guarantees
@@ -453,7 +453,7 @@ Haskell & \checkmark & $\times$ & \checkmark & \checkmark \\
   \item[--] \textbf{Not total}: Allows infinite loops
 \end{itemize}
 
-\textbf{Example of non-totality:}
+\textbf{Example of nontotality:}
 \begin{lstlisting}[style=haskell]
 loop :: a
 loop = loop  -- Infinite loop allowed!
@@ -601,7 +601,7 @@ MIXINv2 achieves automatic totality through:
       \item $\Rightarrow$ Infinite paths allowed, but each access terminates
     \end{itemize}
 
-  \item \textbf{Same-level DAG check} prevents non-termination:
+  \item \textbf{Same-level DAG check} prevents nontermination:
     \begin{itemize}
       \item Resources at the same level must form a DAG
       \item Cycles at the same level → compile error
@@ -658,7 +658,7 @@ This is accomplished through:
 \begin{itemize}
   \item Tree-based symbol structure (provides foundation for structural recursion)
   \item Instantiation levels (enables infinite structures while maintaining safety)
-  \item Same-level DAG check (prevents non-terminating cycles)
+  \item Same-level DAG check (prevents nonterminating cycles)
   \item Naming convention (determines evaluation strategy)
   \item Lazy evaluation (ensures finite accesses to infinite structures terminate)
 \end{itemize}
