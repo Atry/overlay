@@ -1,14 +1,16 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
 name = "mixinv2-examples"
 version = "0.0.0.dev0"
 description = "Example case studies for MIXINv2"
 license = "MIT"
 requires-python = ">=3.13"
-dependencies = ["mixinv2", "mixinv2-library", "starlette", "uvicorn", "aiosqlite"]
+dependencies = [
+  "mixinv2",
+  "mixinv2-library",
+  "starlette",
+  "uvicorn",
+  "aiosqlite",
+]
 
 [project.scripts]
 mixinv2-example = "mixinv2_examples._cli:main"
