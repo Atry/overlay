@@ -21,7 +21,7 @@ MIXINv2 solves this by separating the application into three layers:
   per operation (``sqlite3.connect``, ``str.split``, ``wfile.write``). Each adapter
   declares its inputs as ``@extern`` and exposes a single ``@public @resource``
   output. The adapter contains **zero business logic**.
-- **``.mixin.yaml`` files** contain all application logic, written in MIXINv2. MIXINv2 is not just a configuration format — it is a
+- ``.mixin.yaml`` files contain all application logic, written in MIXINv2. MIXINv2 is not just a configuration format — it is a
   complete language with lexical scoping, nested scopes, deep-merge composition,
   and lazy evaluation. These features make it more natural than Python for
   expressing business logic, which is inherently declarative ("the user ID is
@@ -95,14 +95,14 @@ introducing new language concepts as they appear.
 
 Four new concepts:
 
-- **``field: []``** — an **extern declaration**, the ``.mixin.yaml`` equivalent of
+- ``field: []`` — an **extern declaration**, the ``.mixin.yaml`` equivalent of
   ``@extern``. The value must come from a parent scope or the caller.
-- **``- [FFI, SqliteConnectAndExecuteScript]``** — **inheritance**. ``_db`` inherits
+- ``- [FFI, SqliteConnectAndExecuteScript]`` — **inheritance**. ``_db`` inherits
   the FFI adapter, gaining all of its resources (``connection``).
-- **``database_path: [database_path]``** — **wiring**. The reference ``[database_path]``
+- ``database_path: [database_path]`` — **wiring**. The reference ``[database_path]``
   is a lexical lookup: search outward through enclosing scopes until a field
   named ``database_path`` is found.
-- **``connection: [_db, connection]``** — **path navigation**. Access the
+- ``connection: [_db, connection]`` — **path navigation**. Access the
   ``connection`` resource on the child scope ``_db``. The leading underscore on
   ``_db`` makes it private; ``connection`` is the public-facing projection.
 
@@ -115,11 +115,11 @@ Four new concepts:
    :start-after: # [docs:user-repository-app]
    :end-before: # [/docs:user-repository-app]
 
-- **``User:``** is a **nested scope** with two extern fields — the ``.mixin.yaml``
+- ``User:`` is a **nested scope** with two extern fields — the ``.mixin.yaml``
   equivalent of ``@scope class User`` with ``@public @extern`` fields. It acts as a
   dataclass constructor: ``current_user`` (below) will supply values for
   ``user_id`` and ``name``.
-- **``connection: []``** declares that ``UserRepository`` expects a ``connection``
+- ``connection: []`` declares that ``UserRepository`` expects a ``connection``
   from outside. When composed with ``SQLiteDatabase`` inside ``app``, this extern
   is satisfied by ``SQLiteDatabase.connection`` — resolved by name through
   lexical scoping.
@@ -170,7 +170,7 @@ namespace. The last list item (the mapping starting with ``request: []``) define
 point ``user_count`` is just an extern ``[]`` — its actual value comes from
 ``UserRepository`` after deep merge (explained below).
 
-**Qualified this: ``[RequestScope, ~, written]``** — instead of declaring
+**Qualified this:** ``[RequestScope, ~, written]`` — instead of declaring
 ``written: []`` and writing ``response: [written]``, this navigates the runtime
 composition graph to access the ``written`` property inherited from
 ``HttpSendResponse``. The advantage: if ``HttpSendResponse`` is accidentally not
