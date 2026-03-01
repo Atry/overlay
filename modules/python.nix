@@ -340,6 +340,9 @@
               if grep -rl "Atry" $TMPDIR/verify/supplementary-material/; then
                 echo "FAIL: Found 'Atry'" >&2; exit 1
               fi
+              if grep -rl "2602.16291" $TMPDIR/verify/supplementary-material/; then
+                echo "FAIL: Found arxiv self-reference '2602.16291'" >&2; exit 1
+              fi
 
               # HTML docs present
               test -d $TMPDIR/verify/supplementary-material/docs
