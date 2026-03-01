@@ -264,7 +264,9 @@
                 --replace-warn 'github.com/Atry/overlay' 'github.com/anonymous-author/anonymous-repo' \
                 --replace-warn 'github.com/Atry/MIXIN' 'github.com/anonymous-author/anonymous-repo' \
                 --replace-warn "'Atry'" "'anonymous-author'" \
-                --replace-warn '"Atry"' '"anonymous-author"'
+                --replace-warn '"Atry"' '"anonymous-author"' \
+                --replace-warn '`inheritance-calculus <https://arxiv.org/abs/2602.16291>`_' 'inheritance-calculus' \
+                --replace-warn '[inheritance-calculus](https://arxiv.org/abs/2602.16291)' 'inheritance-calculus'
               shopt -u globstar nullglob
 
               # Strip overlay-language and overlay-library workspace references
