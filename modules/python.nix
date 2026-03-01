@@ -287,6 +287,15 @@
 ).strip()" \
                   '_git_commit = "anonymous"'
 
+              # Replace GitHub extlinks with relative paths into the archive
+              # (absolute GitHub URLs become dead links after anonymization)
+              substituteInPlace packages/mixinv2/docs/conf.py \
+                --replace-fail \
+                  "f'https://github.com/anonymous-author/anonymous-repo/tree/{_git_commit}/%s'" \
+                  "'../%s'" \
+                --replace-fail "'github_banner': True" "'github_banner': False" \
+                --replace-fail "'github_button': True" "'github_button': False"
+
               # Remove installation page (contains PyPI link that leaks identity)
               rm packages/mixinv2/docs/installation.rst
               substituteInPlace packages/mixinv2/docs/index.rst \
