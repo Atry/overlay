@@ -287,6 +287,12 @@
 ).strip()" \
                   '_git_commit = "anonymous"'
 
+              # Remove installation page (contains PyPI link that leaks identity)
+              rm packages/mixinv2/docs/installation.rst
+              substituteInPlace packages/mixinv2/docs/index.rst \
+                --replace-fail $':doc:`installation`\n   Install the package from PyPI.\n\n' "" \
+                --replace-fail $'   installation\n' ""
+
               # Generate API docs and build HTML in-place
               sphinx-apidoc --implicit-namespaces \
                 -o packages/mixinv2/docs/api \
@@ -328,6 +334,11 @@
               test -d $TMPDIR/verify/supplementary-material/docs
               test -f $TMPDIR/verify/supplementary-material/docs/index.html
               test -f $TMPDIR/verify/supplementary-material/packages/mixinv2/docs/_build/html/index.html
+
+              # Installation page absent (PyPI link leaks identity)
+              if find $TMPDIR/verify/supplementary-material -name 'installation.*' | grep -q .; then
+                echo "FAIL: Found installation page" >&2; exit 1
+              fi
 
               # Excluded items absent
               if find $TMPDIR/verify/supplementary-material -path '*inheritance-calculus*' \
