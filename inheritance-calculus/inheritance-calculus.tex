@@ -2226,17 +2226,17 @@ Define the operational equivalence $\cong_0$ on
 $\mathscr{L}_0$ via B\"ohm trees:
 $\mathcal{T}(M) \cong_0 \mathcal{T}(N)$ iff
 $\mathrm{BT}(M) = \mathrm{BT}(N)$.
+By Full Abstraction (Theorem~\ref{thm:full-abstraction}),
+$\cong_0$ coincides with the contextual equivalence of
+$\mathscr{L}_0$ under $\lambda$-definable contexts;
+$\mathscr{L}_0$ is therefore the lazy $\lambda$-calculus
+as a programming language in the sense of
+Felleisen~\cite{felleisen1991expressive} (Definition~3.1),
+and $\mathscr{L}_1$ is its conservative extension.
 Define $\cong_1$ on $\mathscr{L}_1$ as inheritance-contextual
 equivalence:
 $S \cong_1 S'$ iff for every inheritance-calculus context $C[\cdot]$,
 $C[S]{\Downarrow} \Leftrightarrow C[S']{\Downarrow}$.
-
-By the B\"ohm Tree Correspondence
-(Theorems~\ref{thm:adequacy} and~\ref{thm:full-abstraction}),
-$\mathscr{L}_1$ conservatively extends $\mathscr{L}_0$:
-for closed $\lambda$-terms $M$,
-$\mathcal{T}(M){\Downarrow}$ if and only if $M$ has a
-head normal form.
 
 Define Church booleans via the translation $\mathcal{T}$
 (Section~\ref{sec:forward-translation}):
