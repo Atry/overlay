@@ -126,6 +126,23 @@
         "type": "github"
       }
     },
+    "ratarmount": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1765312622,
+        "narHash": "sha256-CZGErNhtjBchplUNOttuvu5WOXni/iTEHrtARAlXtp0=",
+        "owner": "Atry",
+        "repo": "ratarmount",
+        "rev": "3ae943d980b248c8e5d15fabeed85079be514434",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Atry",
+        "ref": "resolve-symbolic-links",
+        "repo": "ratarmount",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "devenv-root": "devenv-root",
@@ -134,6 +151,7 @@
         "nixpkgs": "nixpkgs",
         "pyproject-build-systems": "pyproject-build-systems",
         "pyproject-nix": "pyproject-nix",
+        "ratarmount": "ratarmount",
         "systems": "systems",
         "uv2nix": "uv2nix",
         "uv2nix_hammer_overrides": "uv2nix_hammer_overrides"
