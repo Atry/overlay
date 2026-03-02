@@ -417,7 +417,7 @@ Inheritance-calculus has a single abstraction, the
 \footnote{Where no ambiguity arises, we write simply ``mixin.''
   The distinction from the Bracha--Cook
   mixin~\cite{bracha1990mixin} is detailed in
-  Section~\ref{sec:related-work}.}
+Section~\ref{sec:related-work}.}
 which can simultaneously serve as field, method, class, and
 object, because there are no opaque methods: every value is
 a transparent record, and inheritance always performs a deep
@@ -427,12 +427,14 @@ Its semantics is purely \emph{observational}: given an
 inheritance-calculus program, one queries whether a
 label $\ell$ is a property at a given position $p$.
 
-This section defines the semantics as a
-\emph{fixpoint semantics}~\cite{vanemden1976semantics,aczel1977inductive}:
+This section defines the semantics via
 six mutually recursive set-comprehension equations over
-paths whose least fixed point on a product of powerset
-lattices is guaranteed by the Knaster--Tarski
-theorem~\cite{tarski1955lattice}.
+paths~\cite{vanemden1976semantics,aczel1977inductive}.
+The equations are well-defined for every query whose
+recursive evaluation terminates: the reachable dependency
+subgraph is necessarily finite and acyclic, so the equations
+have a unique solution
+(Appendix~\ref{app:well-definedness}).
 The six equations map object-oriented concepts to
 set-theoretic operations: $\properties$ and $\supers$
 generalize member lookup and inheritance chains,
@@ -650,52 +652,34 @@ Since $n$ is a nonnegative integer, the recursion terminates.
 
 This completes the chain of definitions needed to compute $\properties(p)$.
 
-\subsection{Observational Fixpoint Semantics}
-Recall that fixpoint semantics defines meaning via recursive
-equations on a lattice: one writes a system of equations,
-verifies that the induced operator is monotone,
-and takes the least fixed point guaranteed by the
-Knaster--Tarski theorem~\cite{tarski1955lattice}.
-Meaning is given directly by the fixed point, without
-reduction rules or evaluation contexts.
-The technique originates in logic
-programming~\cite{vanemden1976semantics} and the theory
-of inductive definitions~\cite{aczel1977inductive}.
-
+\subsection{Recursive Evaluation}
 The six equations
-(\ref{eq:properties})--(\ref{eq:this}) are such a system:
-they define set membership inductively on a product of
-powerset lattices indexed by paths.
+(\ref{eq:properties})--(\ref{eq:this}) define set membership
+recursively:
 $\ell \in \properties(p)$ holds if and only if it can
 be established by a finite chain of applications of
 these equations.
-The corresponding operator is monotone; the detailed
-well-definedness argument, which identifies the lattice,
-verifies positivity of each equation, and handles the
-transitive closure $\bases^*$, is given in
-Appendix~\ref{app:well-definedness}.
+Well-definedness follows from a termination argument:
+if the recursive evaluation terminates, the reachable
+dependency subgraph is finite and acyclic, and the equations
+have a unique solution
+(Appendix~\ref{app:well-definedness}).
 When no finite derivation exists for a given query, the
-membership is absent from the least fixed point and
-the semantics is undefined at that point, analogous to
+recursive evaluation does not terminate, analogous to
 divergence in the $\lambda$-calculus.
 
-This completes the semantics of inheritance-calculus:
-the observer drives the computation by choosing which
-path to inspect, and the equations unfold on demand.
-The same equations double as computation rules
-for an interpreter:
-the equations are pure and order-independent, so the
+The equations \emph{are} the interpreter: the observer
+drives the computation by choosing which path to inspect,
+and the equations unfold on demand.
+The equations are pure and order-independent, so the
 reflexive-transitive closure $\bases^*$
 in~(\ref{eq:supers}) may be explored breadth-first or
-depth-first without affecting the semantics;
+depth-first without affecting the result;
 paths may be \emph{interned} so that structural equality
 reduces to pointer equality;
 and the six equations form a memoizable
 dynamic-programming recurrence keyed by paths.
-No separate operational semantics is needed:
-every execution strategy (eager or lazy, with or without
-memoization) yields the same result, so the gap between
-semantics and execution is trivial.
+No separate operational semantics is needed.
 
 \section{Embedding the \texorpdfstring{$\lambda$}{λ}-Calculus}
 \label{sec:translation}
@@ -742,9 +726,9 @@ in the translated mixin tree.
       \mathrm{argument} \mapsto \mathcal{T}(V_2)\},\;
     \mathrm{result} \mapsto \mathcal{T}(M)\}$ \\[4pt]
     $V_1\; V_2$ \text{\small(tail call)} &
-    $\{\_\mathrm{tail} \mapsto \{\mathcal{T}(V_1),\;
+    $\{\_\mathrm{tailCall} \mapsto \{\mathcal{T}(V_1),\;
       \mathrm{argument} \mapsto \mathcal{T}(V_2)\},\;
-    \mathrm{result} \mapsto \_\mathrm{tail}.\mathrm{result}\}$
+    \mathrm{result} \mapsto \_\mathrm{tailCall}.\mathrm{result}\}$
   \end{tabular}
 \end{center}
 \medskip
@@ -767,7 +751,7 @@ inherited record $\{\mathcal{T}(V_1),\;
 \mathrm{argument} \mapsto \mathcal{T}(V_2)\}$, and
 $\mathcal{T}(M)$ may reference $x.\mathrm{result}$ to obtain
 the value of the application.
-In the tail-call rule, the fresh label $\_\mathrm{tail}$ serves
+In the tail-call rule, the fresh label $\_\mathrm{tailCall}$ serves
 the same purpose, and $\mathrm{result}$ projects the answer.
 In both cases the inheritance that performs the application is
 \emph{encapsulated} behind a named property, so its internal
@@ -806,7 +790,7 @@ We write $T{\Uparrow}$ if no such depth exists.
       \snoc \cdots \snoc \mathrm{result}}_{n}
     \,\bigr)
   \]
-  in the least fixed point of
+  in the semantics of
   Section~\ref{sec:mixin-trees}.
 \end{definition}
 
@@ -839,17 +823,18 @@ the translation $\mathcal{T}$ is a fully abstract embedding of the
 lazy $\lambda$-calculus into inheritance-calculus
 with respect to B\"ohm tree
 equivalence~\cite{barendregt1984lambda}, using only
-powerset lattices and the Knaster--Tarski fixed-point theorem,
-without the topological infrastructure of domain theory.
+elementary recursive evaluation on finite mixin trees,
+without lattices, continuous domains, or the topological
+infrastructure of domain theory.
 This is stronger than Scott's denotational
 semantics~\cite{scott1972continuous,wadsworth1976semantics}, which is
 adequate but not fully abstract, as it identifies terms that
 observational equivalence
 distinguishes~\cite{plotkin1975callbyname}.
-That fixpoint semantics on powerset lattices suffices for
-full abstraction---without continuous lattices, inverse limits,
-or game-theoretic machinery---is the central semantic result
-of this paper.%
+That recursive evaluation of set-comprehension equations
+suffices for full abstraction---without lattices,
+inverse limits, or game-theoretic machinery---is the central
+semantic result of this paper.%
 \footnote{Composing $\mathcal{T}$ with the equations of
   Section~\ref{sec:mixin-trees} yields an elementary semantics
   of the $\lambda$-calculus in which function application is
@@ -1353,7 +1338,7 @@ scopes lack labels---but after ANF
 transformation~\cite{flanagan1993essence} every intermediate
 result is bound to a name, and the remaining anonymous positions
 (e.g., the body of a $\mathbf{let}$) can be assigned synthetic
-fresh labels (such as $\mathrm{result}$ and $\_\mathrm{tail}$
+fresh labels (such as $\mathrm{result}$ and $\_\mathrm{tailCall}$
 in Section~\ref{sec:forward-translation}), yielding a named
 tree.
 
@@ -1452,7 +1437,7 @@ associativity~(A), and by their extensibility model.
     & $\times$ & $\times$ & $\times$
     & opt-in & Java, Haskell, Scala, \ldots \\
     Conditional
-    & \multicolumn{3}{c}{breaks monotonicity}
+    & \multicolumn{3}{c}{causes divergence}
     & --- & --- \\
   \end{tabular}
 \end{center}
@@ -1501,10 +1486,10 @@ associativity~(A), and by their extensibility model.
     are the machinery needed to work around this limitation.
 
   \item[Conditional incorporation]
-    Removing or conditionally including definitions breaks
-    monotonicity, so the semantic equations
-    (Appendix~\ref{app:well-definedness}) may have no
-    fixed point~\cite{tarski1955lattice}.
+    Removing or conditionally including definitions can
+    introduce cycles in the dependency graph, causing the
+    recursive evaluation
+    (Appendix~\ref{app:well-definedness}) to diverge.
 \end{description}
 
 \noindent
@@ -1512,7 +1497,7 @@ Among the candidates above, deep merge is the only one we found
 that is commutative, idempotent, associative, and
 immune to nonextensibility.
 The other candidates each introduce a vulnerability to
-nonextensibility or break monotonicity.
+nonextensibility or cause divergence.
 
 \subsubsection*{The reference resolution}
 
@@ -1659,7 +1644,7 @@ alternatives at both levels.
     & opt-in extensibility
     & Java, Haskell, Scala, \ldots \\
     & Conditional
-    & breaks monotonicity
+    & causes divergence
     & --- \\
     \hline
     \multirow{3}{*}{\rotatebox[origin=c]{90}{\scriptsize resolution}}
@@ -1868,7 +1853,7 @@ and none provides a fully abstract \emph{denotational
 semantics} of the lazy $\lambda$-calculus without
 game-theoretic machinery.
 
-\paragraph{Fixpoint semantics on powerset lattices}
+\paragraph{Recursive equations and fixpoint semantics}
 Van~Emden and Kowalski~\cite{vanemden1976semantics} showed that
 the semantics of predicate logic as a programming language admits
 three equivalent characterizations:
@@ -1896,8 +1881,8 @@ the lattice-theoretic technique, however, is shared.
 Leroy and Grall~\cite{leroy2006coinductive} addressed the
 treatment of divergence in big-step operational semantics by
 passing from inductive to \emph{coinductive} definitions;
-when the inductive fixed point already captures divergence as
-the absence of finite derivations, no separate coinductive
+when divergence already emerges as
+non-termination of recursive evaluation, no separate coinductive
 formulation is needed.
 Each of these prior frameworks operates on its own domain
 (Herbrand models, abstract domains, evaluation judgments);
@@ -2345,11 +2330,11 @@ Applying $\mathcal{T}$ (Section~\ref{sec:forward-translation}):
         \mathrm{argument} \mapsto
       \dbi{0}.\mathrm{argument}\}, \\
       & \quad
-      \_\mathrm{tail} \mapsto \{x_3.\mathrm{result},\;
+      \_\mathrm{tailCall} \mapsto \{x_3.\mathrm{result},\;
       \mathrm{argument} \mapsto x_2.\mathrm{result}\}, \\
       & \quad
       \mathrm{result} \mapsto
-      \_\mathrm{tail}.\mathrm{result}
+      \_\mathrm{tailCall}.\mathrm{result}
   \}\}
 \end{align*}
 Here $\dbi{1}.\mathrm{argument}$ in $x_3$ reaches the outer
@@ -2366,21 +2351,21 @@ $\mathrm{eq}$ to its two arguments via this mechanism:
     \mathrm{eqFalse} \mapsto
     \{\mathrm{eq},\;
     \mathrm{argument} \mapsto \mathrm{false}\}, \\
-    & \mathrm{applied} \mapsto
+    & \_\mathrm{tailCall} \mapsto
     \{\mathrm{eqFalse}.\mathrm{result},\;
     \mathrm{argument} \mapsto \mathrm{false}\}, \\
     & \mathrm{result} \mapsto
-    \mathrm{applied}.\mathrm{result}
+    \_\mathrm{tailCall}.\mathrm{result}
   \;\} \\[6pt]
   e_2 \;=\; \{&
     \mathrm{eqTrue} \mapsto
     \{\mathrm{eq},\;
     \mathrm{argument} \mapsto \mathrm{true}\}, \\
-    & \mathrm{applied} \mapsto
+    & \_\mathrm{tailCall} \mapsto
     \{\mathrm{eqTrue}.\mathrm{result},\;
     \mathrm{argument} \mapsto \mathrm{true}\}, \\
     & \mathrm{result} \mapsto
-    \mathrm{applied}.\mathrm{result}
+    \_\mathrm{tailCall}.\mathrm{result}
   \;\}
 \end{align*}
 That is,
@@ -2436,9 +2421,9 @@ $\dbi{1}.\mathrm{argument}$ resolve through the same scope
 chain as the existing let-bindings.
 Since $e_1$ and $e_2$ inherit $\mathrm{eq}$, they also
 inherit the newly added $\mathrm{repr}$:
-$e_1.\mathrm{repr}.\mathrm{firstOperand} = \mathrm{false}$
+$e_1.\_\mathrm{tailCall}.\mathrm{repr}.\mathrm{firstOperand} = \mathrm{false}$
 and
-$e_2.\mathrm{repr}.\mathrm{firstOperand} = \mathrm{true}$.
+$e_2.\_\mathrm{tailCall}.\mathrm{repr}.\mathrm{firstOperand} = \mathrm{true}$.
 These produce structurally distinct mixin trees
 (one converges to an abstraction selecting its first argument,
 the other to an abstraction selecting its second),
@@ -2660,223 +2645,92 @@ contexts without duplication.
 \label{app:well-definedness}
 
 This appendix proves that the mutually recursive equations
-(\ref{eq:properties})--(\ref{eq:this}) have a unique least
-fixed point, and therefore the semantics of
-Section~\ref{sec:mixin-trees} is well-defined.
+(\ref{eq:properties})--(\ref{eq:this}) are well-defined:
+for every query whose recursive evaluation terminates, the
+result is uniquely determined.
+The proof proceeds by contrapositive: both a cycle and an
+infinite acyclic chain in the dependency graph force
+divergence, so termination implies that the reachable
+subgraph is finite and acyclic, which in turn implies
+uniqueness.
 
-\subsection{The Product Lattice}
-
+\begin{definition}[Dependency graph]\label{def:dependency-graph}
 Fix an AST with its primitive functions $\defines$ and
 $\inherits$.
-Let $\mathcal{L}$ denote the set of all labels and
-$\mathcal{P}$ the set of all paths (finite sequences of labels).
-Define the following domains, one for each semantic function:
-\begin{align*}
-D_{\properties} &= \mathcal{P} \to \mathcal{P}(\mathcal{L})
-& &\text{(sets of labels)} \\
-D_{\supers} &= \mathcal{P} \to \mathcal{P}(\mathcal{P} \times \mathcal{P})
-& &\text{(sets of site--override pairs)} \\
-D_{\overrides} &= \mathcal{P} \to \mathcal{P}(\mathcal{P})
-& &\text{(sets of paths)} \\
-D_{\bases} &= \mathcal{P} \to \mathcal{P}(\mathcal{P})
-& &\text{(sets of paths)} \\
-D_{\resolve} &= (\mathcal{P} \times \mathcal{P} \times \mathbb{N}
-\times \mathcal{L}^*) \to \mathcal{P}(\mathcal{P})
-& &\text{(sets of paths)} \\
-D_{\this} &= (\mathcal{P}(\mathcal{P}) \times \mathcal{P} \times \mathbb{N})
-\to \mathcal{P}(\mathcal{P})
-& &\text{(sets of paths)}
-\end{align*}
-Each $D_i$ is a complete lattice under the pointwise subset
-ordering: $f \sqsubseteq g$ iff $f(x) \subseteq g(x)$ for all $x$.
-The product
-$D = D_{\properties} \times D_{\supers} \times D_{\overrides}
-\times D_{\bases} \times D_{\resolve} \times D_{\this}$
-is a complete lattice under the componentwise ordering, with
-bottom element $\bot = (\lambda x.\,\varnothing, \ldots,
-\lambda x.\,\varnothing)$.
+The \emph{dependency graph} $G$ has as vertices all
+semantic-function applications
+($\properties(p)$, $\supers(p)$, $\overrides(p)$,
+$\bases(p)$, $\resolve(\ldots)$, $\this(\ldots)$)
+that arise from the AST\@.
+There is a directed edge from vertex $u$ to vertex $v$
+whenever computing $u$ via
+equations~(\ref{eq:properties})--(\ref{eq:this})
+requires the value of $v$.
+\end{definition}
 
-\subsection{The Operator}
-
-Equations~(\ref{eq:properties})--(\ref{eq:this}) define a
-function
-$F : D \to D$
-that takes a tuple of candidate interpretations
-$(\properties, \supers, \overrides, \bases, \resolve, \this)$
-and produces a new tuple by evaluating the right-hand side of
-each equation.
-The transitive closure $\bases^*$ appearing in
-equation~(\ref{eq:supers}) is derived from $\bases$: for
-any fixed $\bases$, the set $\bases^*(p)$ is defined as the
-least fixed point of the monotone operator
-$X \mapsto \{p\} \cup \bigcup_{q \in X} \bases(q)$
-on $\mathcal{P}(\mathcal{P})$.
-If $\bases \sqsubseteq \bases'$ (pointwise), then
-$\bases^* \sqsubseteq \bases'^*$ (pointwise), since enlarging the
-one-step relation can only enlarge the transitive closure.
-
-The $\this$ function involves a recursion on the de~Bruijn
-index~$n$.
-Since $n$ decreases by one at each step and is a nonnegative
-integer, this recursion terminates for any fixed interpretation
-of $\supers$.
-The result of $\this(S, p_{\mathrm{def}}, n)$ for all valid
-$(S, p_{\mathrm{def}}, n)$ is therefore well-defined as a
-function of $\supers$, and it remains to show that it is monotone
-in $\supers$.
-
-\subsection{Monotonicity}
-
-\begin{proposition}\label{prop:monotone}
-The operator $F$ is monotone:
-if $\vec{d} \sqsubseteq \vec{d}'$ in $D$,
-then $F(\vec{d}) \sqsubseteq F(\vec{d}')$.
-\end{proposition}
+\begin{lemma}[Termination implies finite acyclic subgraph]%
+\label{lem:termination-acyclicity}
+If the memoized recursive evaluation of a query $q$
+terminates, then the subgraph of $G$ reachable from $q$
+is finite and acyclic.
+\end{lemma}
 
 \begin{proof}
-It suffices to show that each component of $F$ is monotone in every
-argument, i.e., that enlarging any of the input interpretations
-(in the $\subseteq$ ordering) can only enlarge the output.
-We verify this by inspecting the right-hand side of each equation
-and confirming that every occurrence of a mutually defined function
-appears in a \emph{positive} position---%
-as the domain of an existential quantifier in a set
-comprehension~\cite{aczel1977inductive}.
-
-\paragraph{Equation~(\ref{eq:properties}): $\properties$}
-\[
-  \properties(p) =
-  \bigl\{\, \ell \bigm|
-    (\_, p_{\mathrm{override}}) \in \supers(p),\;
-    \ell \in \defines(p_{\mathrm{override}})
-  \,\bigr\}.
-\]
-The function $\supers$ appears as the set being iterated
-over ($\in \supers(p)$).
-The predicate $\ell \in \defines(\cdot)$ involves only
-the AST primitive $\defines$, not any mutually defined
-function.
-Enlarging $\supers(p)$ can only add pairs, hence can only add
-labels to the result.
-\emph{Positive in $\supers$.}
-
-\paragraph{Equation~(\ref{eq:supers}): $\supers$}
-$\supers(p) =
-\bigl\{\, (\init(p_{\mathrm{base}}), p_{\mathrm{override}}) \bigm|
-  p_{\mathrm{base}} \in \bases^*(p),\;
-  p_{\mathrm{override}} \in \overrides(p_{\mathrm{base}})
-\,\bigr\}$.
-Both $\bases^*$ and $\overrides$ appear as sets being iterated
-over.
-As noted above, $\bases^*$ is monotone in $\bases$.
-Enlarging either $\bases$ or $\overrides$ can only add elements to the
-result.
-\emph{Positive in $\bases$ and $\overrides$.}
-
-\paragraph{Equation~(\ref{eq:overrides}): $\overrides$}
-For $p \neq ()$:
-\begin{multline*}
-  \overrides(p) = \{p\} \cup
-  \bigl\{\, p_{\mathrm{branch}} \snoc \last(p) \bigm| {} \\
-    (\_, p_{\mathrm{branch}}) \in \supers(\init(p)),\;
-    \last(p) \in \defines(p_{\mathrm{branch}})
-  \,\bigr\}.
-\end{multline*}
-The function $\supers$ appears as the set being iterated over.
-The filtering condition $\last(p) \in \defines(\cdot)$
-involves only the AST primitive.
-Enlarging $\supers$ can only add branches, hence can only add paths
-to the result.
-\emph{Positive in $\supers$.}
-
-\paragraph{Equation~(\ref{eq:bases}): $\bases$}
-\begin{multline*}
-  \bases(p) =
-  \bigl\{\, p_{\mathrm{target}} \bigm|
-    p_{\mathrm{override}} \in \overrides(p),\\
-    (n, \ell_{\mathrm{down},*}) \in \inherits(p_{\mathrm{override}}),\;
-    p_{\mathrm{target}} \in \resolve(\ldots)
-  \,\bigr\}.
-\end{multline*}
-Both $\overrides$ and $\resolve$ appear as sets being iterated
-over.
-The function $\inherits$ is an AST primitive.
-Enlarging either $\overrides$ or $\resolve$ can only add targets to
-the result.
-\emph{Positive in $\overrides$ and $\resolve$.}
-
-\paragraph{Equation~(\ref{eq:resolve}): $\resolve$}
-\[
-  \resolve(\ldots) =
-  \bigl\{\,
-    p_{\mathrm{current}} \snoc \ell_{\mathrm{down},1} \snoc \cdots
-    \bigm|
-    p_{\mathrm{current}} \in
-    \this(\{p_{\mathrm{site}}\}, \init(p_{\mathrm{def}}), n)
-  \,\bigr\}.
-\]
-The function $\this$ appears as the set being iterated over.
-Enlarging $\this$ can only add paths to the result.
-\emph{Positive in $\this$.}
-
-\paragraph{Equation~(\ref{eq:this}): $\this$}
-For $n > 0$:
-$\this(S, p_{\mathrm{def}}, n) =
-\this(S', \init(p_{\mathrm{def}}), n - 1)$
-where
-$S' = \bigl\{\, p_{\mathrm{site}} \bigm|
-  p_{\mathrm{current}} \in S,\;
-  (p_{\mathrm{site}}, p_{\mathrm{override}}) \in
-  \supers(p_{\mathrm{current}}),\;
-  p_{\mathrm{override}} = p_{\mathrm{def}}
-\,\bigr\}$.
-The function $\supers$ appears as the set being iterated over.
-The filtering condition $p_{\mathrm{override}} = p_{\mathrm{def}}$
-is an equality test on path data, not involving any mutually
-defined function.
-Enlarging $\supers$ can only enlarge $S'$, and by induction on~$n$
-(the base case $n = 0$ returns $S$ unchanged), the recursive call
-is monotone in $S'$.
-\emph{Positive in $\supers$.}
-
-\medskip\noindent
-In summary, every mutually defined function appears on the
-right-hand side of every equation only inside the pattern
-$x \in f(\ldots)$ within a set comprehension, i.e., as the
-domain of an existential quantifier.
-No complement, set difference, or negated membership test
-appears in any equation.
-Therefore $F$ is a monotone operator on the complete lattice $D$.
+Contrapositive.  A terminating computation visits finitely
+many vertices, so the reachable subgraph is finite.
+For acyclicity, suppose the reachable subgraph contains a
+cycle $v_0 \to v_1 \to \cdots \to v_k = v_0$.
+In a recursive evaluation, computing $v_0$ eventually
+requires the value of $v_0$ before it has been determined.
+Without a pre-assigned default value, this is infinite
+recursion; hence the evaluation does not terminate.
 \end{proof}
 
-\subsection{Existence of the Least Fixed Point}
+\begin{lemma}[Unique solution on acyclic graphs]%
+\label{lem:unique-solution-dag}
+If the subgraph of $G$ reachable from a query $q$ is a
+finite directed acyclic graph, then the six equations
+determine a unique value for every vertex in this subgraph.
+\end{lemma}
 
-\begin{theorem}\label{thm:well-defined}
+\begin{proof}
+By induction on the DAG in reverse topological order.
+Leaves---vertices with no outgoing edges---have their
+values determined directly by the AST primitives
+$\defines$ and $\inherits$.
+Each non-leaf vertex's value is uniquely determined by its
+children's values via the corresponding equation.
+\end{proof}
+
+\begin{theorem}[Well-definedness]\label{thm:well-defined}
 The semantic functions
 $\properties$, $\supers$, $\overrides$, $\bases$, $\resolve$,
-$\this$ are well-defined as the least fixed point of~$F$.
+$\this$ are well-defined: for every query whose recursive
+evaluation terminates, the result is the unique solution of
+equations~(\ref{eq:properties})--(\ref{eq:this}) on the
+reachable dependency subgraph.
 \end{theorem}
 
 \begin{proof}
-By Proposition~\ref{prop:monotone}, $F$ is monotone on the
-complete lattice~$D$.
-By the Knaster--Tarski theorem~\cite{tarski1955lattice}, $F$ has
-a least fixed point $\vec{d}^* = \bigsqcup_{n \ge 0} F^n(\bot)$,
-where $\bot$ assigns the empty set to every input.
-The components of $\vec{d}^*$ are the semantic functions of
-Section~\ref{sec:mixin-trees}.
-
-Concretely, the least fixed point is the union of the finite
-approximation chain:
-$\bot \sqsubseteq F(\bot) \sqsubseteq F^2(\bot) \sqsubseteq \cdots$.
-A membership $\ell \in \properties(p)$ holds in $\vec{d}^*$
-if and only if it appears at some finite stage $F^k(\bot)$,
-which corresponds to a finite derivation tree using the
-equations.
-When no finite derivation exists, the membership is absent from
-the least fixed point and the query is undefined, the
-analogue of divergence.
+By Lemma~\ref{lem:termination-acyclicity}, termination
+implies that the reachable subgraph is a finite DAG\@.
+By Lemma~\ref{lem:unique-solution-dag}, the equations have
+a unique solution on this finite DAG\@.
+Memoized recursive evaluation computes exactly this solution,
+visiting each vertex at most once in reverse topological
+order.
 \end{proof}
+
+\paragraph{Divergence}
+The recursive evaluation diverges in two cases:
+(1)~the dependency graph contains a cycle (circular
+inheritance), causing infinite recursion; or
+(2)~the reachable subgraph is an infinite acyclic chain
+(an infinite inheritance hierarchy whose paths grow without
+bound).
+This is the analogue of divergence in the $\lambda$-calculus.
+No separate treatment of divergence is needed; it emerges
+from the recursive evaluation itself.
 
 \section{B\"ohm Tree Correspondence: Proofs}
 \label{app:bohm-tree-proofs}
@@ -2934,10 +2788,10 @@ $\lambda$-term, the resulting mixin tree has a specific shape:
   $\{\mathcal{T}(V_1),\; \mathrm{argument} \mapsto
   \mathcal{T}(V_2)\}$.
 \item A tail call $V_1\; V_2$ translates to a record with own
-  properties $\{\_\mathrm{tail}, \mathrm{result}\}$, where
-  $\_\mathrm{tail}$ holds the encapsulated application and
+  properties $\{\_\mathrm{tailCall}, \mathrm{result}\}$, where
+  $\_\mathrm{tailCall}$ holds the encapsulated application and
   $\mathrm{result}$ projects
-  $\_\mathrm{tail}.\mathrm{result}$.
+  $\_\mathrm{tailCall}.\mathrm{result}$.
 \item A variable $x$ with de~Bruijn index $n$ translates to
   an indexed reference $\dbi{n}.\mathrm{argument}$.
 \end{itemize}
@@ -3022,15 +2876,15 @@ Inside $\mathcal{T}(M)$, the induction hypothesis applies
 directly.
 
 \paragraph{Case $\mathcal{T}(V_1\; V_2) =
-  \{\_\mathrm{tail} \mapsto
+  \{\_\mathrm{tailCall} \mapsto
     \{\mathcal{T}(V_1),\; \mathrm{argument} \mapsto
     \mathcal{T}(V_2)\},\;
     \mathrm{result} \mapsto
-\_\mathrm{tail}.\mathrm{result}\}$}
+\_\mathrm{tailCall}.\mathrm{result}\}$}
 Identical to the $\mathbf{let}$-binding case: the outer record
-has own properties $\{\_\mathrm{tail}, \mathrm{result}\}$
+has own properties $\{\_\mathrm{tailCall}, \mathrm{result}\}$
 with no inheritance sources at the outer level, and the
-$\_\mathrm{tail}$ subtree contains exactly one inheritance
+$\_\mathrm{tailCall}$ subtree contains exactly one inheritance
 source.
 
 \paragraph{Case $\mathcal{T}(x)
@@ -3046,7 +2900,7 @@ The key structural invariant is that the translation
 $\mathcal{T}$ never produces two independent inheritance sources
 at the same scope level that both define the same label.
 In every case, application inheritances are \emph{encapsulated}
-inside a named property ($x$ or $\_\mathrm{tail}$), and each
+inside a named property ($x$ or $\_\mathrm{tailCall}$), and each
 such encapsulated inheritance has exactly one inheritance
 source.
 This prevents diamond inheritance and ensures single-path
@@ -3091,7 +2945,7 @@ to the binding $\lambda$, where the inheritance
 $\{\mathcal{T}(\lambda x.\, x),\;
 \mathrm{argument} \mapsto \mathcal{T}(V)\}$ inherits into the
 $\mathrm{argument}$ slot, providing $\mathcal{T}(V)$.
-Since $C$ is the $\_\mathrm{tail}$ subtree of
+Since $C$ is the $\_\mathrm{tailCall}$ subtree of
 $\mathcal{T}\bigl((\lambda x.\, M)\; V\bigr)$, which is a
 closed ANF term, Lemma~\ref{lem:single-path} applies and
 $\this$ finds exactly one path,
@@ -3146,7 +3000,7 @@ $\mathcal{T}(V)$ via the same $\this$ mechanism.
 
 \paragraph{Inductive case: $M = V_1\; V_2$ (tail call)}
 Analogous to the $\mathbf{let}$-binding case with
-$\_\mathrm{tail}$ in place of $z$.
+$\_\mathrm{tailCall}$ in place of $z$.
 \end{proof}
 
 \subsection{Convergence Preservation}
@@ -3178,21 +3032,21 @@ root of the reduct's mixin tree.
 The translation gives:
 \[
   \mathcal{T}\bigl((\lambda x.\, M)\; V\bigr) =
-  \{\_\mathrm{tail} \mapsto
+  \{\_\mathrm{tailCall} \mapsto
     \{\mathcal{T}(\lambda x.\, M),\;
     \mathrm{argument} \mapsto \mathcal{T}(V)\},\;
     \mathrm{result} \mapsto
-  \_\mathrm{tail}.\mathrm{result}\}
+  \_\mathrm{tailCall}.\mathrm{result}\}
 \]
 The $\mathrm{result}$ label at the root is defined as
-$\_\mathrm{tail}.\mathrm{result}$, so
+$\_\mathrm{tailCall}.\mathrm{result}$, so
 $\text{root} \snoc \mathrm{result}$ resolves to the
 $\mathrm{result}$ path inside the inheritance
-$\_\mathrm{tail} = \{\mathcal{T}(\lambda x.\, M),\;
+$\_\mathrm{tailCall} = \{\mathcal{T}(\lambda x.\, M),\;
 \mathrm{argument} \mapsto \mathcal{T}(V)\}$.
 This inheritance is exactly the inherited tree $C$ of
 Lemma~\ref{lem:substitution}, and
-$\_\mathrm{tail} \snoc \mathrm{result}$ is
+$\_\mathrm{tailCall} \snoc \mathrm{result}$ is
 $C \snoc \mathrm{result}$.
 By Lemma~\ref{lem:substitution}, the properties under
 $C \snoc \mathrm{result}$ coincide with those of
@@ -3270,7 +3124,7 @@ call).
 An abstraction translates to a record whose root immediately
 has the abstraction shape; a computation's root has the form
 $\{x, \mathrm{result}\}$ or
-$\{\_\mathrm{tail}, \mathrm{result}\}$, and one must follow
+$\{\_\mathrm{tailCall}, \mathrm{result}\}$, and one must follow
 the $\mathrm{result}$ chain to find the eventual value.
 
 \begin{proof}[Proof of Theorem~\ref{thm:adequacy}]
@@ -3287,8 +3141,9 @@ Then $\mathcal{T}(M) =
 \mathrm{result} \mapsto \mathcal{T}(M')\}$,
 whose root has
 $\defines = \{\mathrm{argument}, \mathrm{result}\}$.
-These labels appear at stage $F^1(\bot)$ of the approximation
-chain, so $\mathcal{T}(M)$ converges at depth $n = 0$.
+These labels are directly in $\defines$ of the root, so
+the recursive evaluation returns them without further
+recursion, and $\mathcal{T}(M)$ converges at depth $n = 0$.
 
 \emph{Inductive step} ($k \ge 1$): $M$ is not an abstraction,
 so $M$ is either a tail call or a $\mathbf{let}$-binding,
@@ -3315,7 +3170,7 @@ $\{\mathrm{argument}, \mathrm{result}\}$.
 Only the abstraction rule $\mathcal{T}(\lambda x.\, M')$
 produces a root with own property $\mathrm{argument}$.
 (For tail calls and $\mathbf{let}$-bindings, the root has
-  $\defines = \{\_\mathrm{tail}, \mathrm{result}\}$
+  $\defines = \{\_\mathrm{tailCall}, \mathrm{result}\}$
   or $\{x, \mathrm{result}\}$, and $\mathrm{argument}$ cannot
   appear via $\supers$ because
   $\inherits = \varnothing$ at the root, giving
@@ -3414,16 +3269,17 @@ The mixin tree semantics inherits full abstraction from the
 $\lambda$-calculus without needing to define or compare
 absolute paths inside mixin trees.
 
-\section{Fixpoint Semantics of the ANF Lazy
+\section{Set-Theoretic Semantics of the ANF Lazy
 \texorpdfstring{$\lambda$}{λ}-Calculus}
 \label{app:lambda-fixpoint}
 
-This appendix presents a fixpoint semantics of the lazy
+This appendix presents a semantics of the lazy
 $\lambda$-calculus in A-normal form (ANF) that lives entirely
 in set theory.
-The semantic domain is a product of powerset lattices;
-the semantics is the least fixed point of a monotone operator,
-guaranteed by the Knaster--Tarski theorem.
+The semantics is given by mutually recursive set-comprehension
+equations whose well-definedness follows from the same
+termination argument as in
+Appendix~\ref{app:well-definedness}.
 No function spaces, no substitution, no reduction rules,
 no evaluation order, and no domain theory are needed.
 The central idea is that function application is modeled as
@@ -3529,10 +3385,10 @@ is determined by $V_2$.
 \smallskip\noindent
 A tail call $V_1\; V_2$ at path $p$:
 \begin{align*}
-\children(p) &= \{\_\mathrm{tail},\; \mathrm{result}\},
+\children(p) &= \{\_\mathrm{tailCall},\; \mathrm{result}\},
 &\refs(p) &= \varnothing.
 \end{align*}
-The subtree at $p \snoc \_\mathrm{tail}$ is analogous to
+The subtree at $p \snoc \_\mathrm{tailCall}$ is analogous to
 the application node $p \snoc x$ above: if $V_1$ is a variable,
 $\children = \{\mathrm{argument}\}$ with
 $\refs = \{(n_1,\; \ell_*)\}$; if $V_1$ is a $\lambda$-literal,
@@ -3544,12 +3400,12 @@ reference:
 \children(p \snoc \mathrm{result})
 &= \varnothing,
 &\refs(p \snoc \mathrm{result})
-&= \{(0,\; (\_\mathrm{tail},\; \mathrm{result}))\}.
+&= \{(0,\; (\_\mathrm{tailCall},\; \mathrm{result}))\}.
 \end{align*}
-Here $(0,\; (\_\mathrm{tail},\; \mathrm{result}))$ navigates to
+Here $(0,\; (\_\mathrm{tailCall},\; \mathrm{result}))$ navigates to
 the enclosing scope ($p$ itself, since $n = 0$ from
 $p \snoc \mathrm{result}$'s perspective), then projects
-$\_\mathrm{tail}.\mathrm{result}$.
+$\_\mathrm{tailCall}.\mathrm{result}$.
 
 \smallskip\noindent
 A $\lambda$-bound variable $\dbi{n}$ used as an inheritance
@@ -3697,20 +3553,17 @@ definitions unfold on demand.
 
 Formally, the mutually recursive
 equations~(\ref{eq:lambda-labels})--(\ref{eq:lambda-callee-ctx})
-define set membership inductively:
+define set membership recursively:
 $\ell \in \labels(p)$ holds if and only if it can be
 established by a finite chain of applications of these
 equations.
-The corresponding operator on the product lattice of
-powerset domains is monotone (every mutually defined function
-appears only in positive position---as the domain of an
-existential quantifier in a set comprehension---and no
-complement, set difference, or negated membership test
-appears).
-Its least fixed point exists by the Knaster--Tarski
-theorem~\cite{tarski1955lattice}.
+Well-definedness follows from the same termination argument
+as for the mixin tree equations
+(Appendix~\ref{app:well-definedness}): if the recursive
+evaluation terminates, the reachable dependency subgraph is
+finite and acyclic, and the equations have a unique solution.
 When no finite derivation exists for a given query, the
-membership is not in the least fixed point, analogous to
+recursive evaluation does not terminate, analogous to
 divergence.
 
 \paragraph{Convergence}
@@ -3721,7 +3574,7 @@ $\{\mathrm{argument},\, \mathrm{result}\}
 \labels(\underbrace{
   \mathrm{result} \snoc \cdots \snoc \mathrm{result}
 }_{n})$
-in the least fixed point.
+in the semantics defined by the equations above.
 This corresponds exactly to the B\"ohm
 tree~\cite{barendregt1984lambda} of the original term:
 $M$ converges iff it has a head normal form
