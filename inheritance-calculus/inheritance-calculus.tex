@@ -713,8 +713,8 @@ in the translated mixin tree.
 \medskip
 \begin{center}
   \begin{tabular}{l@{\qquad$\longrightarrow$\qquad}l}
-    $x$ \text{\small($\lambda$-bound, index $n$)} &
-    $\dbi{n}.\mathrm{argument}$ \\[4pt]
+    $x$ \text{\small($\lambda$-bound, index $n'$)} &
+    $\dbi{n'}.\mathrm{argument}$ \\[4pt]
     $x$ \text{\small(let-bound)} &
     $x.\mathrm{result}$ \\[4pt]
     $\lambda x.\, M$ &
@@ -726,9 +726,9 @@ in the translated mixin tree.
       \mathrm{argument} \mapsto \mathcal{T}(V_2)\},\;
     \mathrm{result} \mapsto \mathcal{T}(M)\}$ \\[4pt]
     $V_1\; V_2$ \text{\small(tail call)} &
-    $\{\_\mathrm{tailCall} \mapsto \{\mathcal{T}(V_1),\;
+    $\{\mathrm{tailCall} \mapsto \{\mathcal{T}(V_1),\;
       \mathrm{argument} \mapsto \mathcal{T}(V_2)\},\;
-    \mathrm{result} \mapsto \_\mathrm{tailCall}.\mathrm{result}\}$
+    \mathrm{result} \mapsto \mathrm{tailCall}.\mathrm{result}\}$
   \end{tabular}
 \end{center}
 \medskip
@@ -736,9 +736,27 @@ in the translated mixin tree.
 A $\lambda$-bound variable $x$ with de~Bruijn index $n$
 (the number of enclosing $\lambda$s between
 the reference and its binder) becomes
-$\dbi{n}.\mathrm{argument}$,
+$\dbi{n'}.\mathrm{argument}$,
 which reaches the abstraction that binds $x$ and
-accesses its $\mathrm{argument}$ slot.
+accesses its $\mathrm{argument}$ slot.%
+\footnote{In the $\lambda$-calculus, de~Bruijn
+  indices count only $\lambda$-abstractions.
+  In inheritance-calculus, de~Bruijn indices count all
+  enclosing scope levels, including those introduced by
+  $\mathbf{let}$-bindings and tail calls.
+  The translation therefore adjusts the index:
+  if a $\lambda$-bound variable crosses $k$ intervening
+  $\mathbf{let}$-binding or tail-call scopes in the ANF
+  term, its inheritance-calculus index is $n' = n + k$,
+  not~$n$.
+  Let-bound variables are unaffected, as they use
+  lexical references ($x.\mathrm{result}$) rather than
+  de~Bruijn indices.
+  We assume that the synthetic labels introduced by the
+  translation ($\mathrm{argument}$, $\mathrm{result}$,
+  $\mathrm{tailCall}$) and the user-defined labels
+  (let-bound names such as~$x$) are drawn from disjoint
+  alphabets, so no collision can arise.}
 A let-bound variable $x$ becomes the lexical reference
 $x.\mathrm{result}$, projecting the application result
 from the sibling property $x$ in the enclosing record.
@@ -751,7 +769,7 @@ inherited record $\{\mathcal{T}(V_1),\;
 \mathrm{argument} \mapsto \mathcal{T}(V_2)\}$, and
 $\mathcal{T}(M)$ may reference $x.\mathrm{result}$ to obtain
 the value of the application.
-In the tail-call rule, the fresh label $\_\mathrm{tailCall}$ serves
+In the tail-call rule, the fresh label $\mathrm{tailCall}$ serves
 the same purpose, and $\mathrm{result}$ projects the answer.
 In both cases the inheritance that performs the application is
 \emph{encapsulated} behind a named property, so its internal
@@ -1338,7 +1356,7 @@ scopes lack labels---but after ANF
 transformation~\cite{flanagan1993essence} every intermediate
 result is bound to a name, and the remaining anonymous positions
 (e.g., the body of a $\mathbf{let}$) can be assigned synthetic
-fresh labels (such as $\mathrm{result}$ and $\_\mathrm{tailCall}$
+fresh labels (such as $\mathrm{result}$ and $\mathrm{tailCall}$
 in Section~\ref{sec:forward-translation}), yielding a named
 tree.
 
@@ -2330,11 +2348,11 @@ Applying $\mathcal{T}$ (Section~\ref{sec:forward-translation}):
         \mathrm{argument} \mapsto
       \dbi{0}.\mathrm{argument}\}, \\
       & \quad
-      \_\mathrm{tailCall} \mapsto \{x_3.\mathrm{result},\;
+      \mathrm{tailCall} \mapsto \{x_3.\mathrm{result},\;
       \mathrm{argument} \mapsto x_2.\mathrm{result}\}, \\
       & \quad
       \mathrm{result} \mapsto
-      \_\mathrm{tailCall}.\mathrm{result}
+      \mathrm{tailCall}.\mathrm{result}
   \}\}
 \end{align*}
 Here $\dbi{1}.\mathrm{argument}$ in $x_3$ reaches the outer
@@ -2351,21 +2369,21 @@ $\mathrm{eq}$ to its two arguments via this mechanism:
     \mathrm{eqFalse} \mapsto
     \{\mathrm{eq},\;
     \mathrm{argument} \mapsto \mathrm{false}\}, \\
-    & \_\mathrm{tailCall} \mapsto
+    & \mathrm{tailCall} \mapsto
     \{\mathrm{eqFalse}.\mathrm{result},\;
     \mathrm{argument} \mapsto \mathrm{false}\}, \\
     & \mathrm{result} \mapsto
-    \_\mathrm{tailCall}.\mathrm{result}
+    \mathrm{tailCall}.\mathrm{result}
   \;\} \\[6pt]
   e_2 \;=\; \{&
     \mathrm{eqTrue} \mapsto
     \{\mathrm{eq},\;
     \mathrm{argument} \mapsto \mathrm{true}\}, \\
-    & \_\mathrm{tailCall} \mapsto
+    & \mathrm{tailCall} \mapsto
     \{\mathrm{eqTrue}.\mathrm{result},\;
     \mathrm{argument} \mapsto \mathrm{true}\}, \\
     & \mathrm{result} \mapsto
-    \_\mathrm{tailCall}.\mathrm{result}
+    \mathrm{tailCall}.\mathrm{result}
   \;\}
 \end{align*}
 That is,
@@ -2421,9 +2439,9 @@ $\dbi{1}.\mathrm{argument}$ resolve through the same scope
 chain as the existing let-bindings.
 Since $e_1$ and $e_2$ inherit $\mathrm{eq}$, they also
 inherit the newly added $\mathrm{repr}$:
-$e_1.\_\mathrm{tailCall}.\mathrm{repr}.\mathrm{firstOperand} = \mathrm{false}$
+$e_1.\mathrm{tailCall}.\mathrm{repr}.\mathrm{firstOperand} = \mathrm{false}$
 and
-$e_2.\_\mathrm{tailCall}.\mathrm{repr}.\mathrm{firstOperand} = \mathrm{true}$.
+$e_2.\mathrm{tailCall}.\mathrm{repr}.\mathrm{firstOperand} = \mathrm{true}$.
 These produce structurally distinct mixin trees
 (one converges to an abstraction selecting its first argument,
 the other to an abstraction selecting its second),
@@ -2788,10 +2806,10 @@ $\lambda$-term, the resulting mixin tree has a specific shape:
   $\{\mathcal{T}(V_1),\; \mathrm{argument} \mapsto
   \mathcal{T}(V_2)\}$.
 \item A tail call $V_1\; V_2$ translates to a record with own
-  properties $\{\_\mathrm{tailCall}, \mathrm{result}\}$, where
-  $\_\mathrm{tailCall}$ holds the encapsulated application and
+  properties $\{\mathrm{tailCall}, \mathrm{result}\}$, where
+  $\mathrm{tailCall}$ holds the encapsulated application and
   $\mathrm{result}$ projects
-  $\_\mathrm{tailCall}.\mathrm{result}$.
+  $\mathrm{tailCall}.\mathrm{result}$.
 \item A variable $x$ with de~Bruijn index $n$ translates to
   an indexed reference $\dbi{n}.\mathrm{argument}$.
 \end{itemize}
@@ -2876,15 +2894,15 @@ Inside $\mathcal{T}(M)$, the induction hypothesis applies
 directly.
 
 \paragraph{Case $\mathcal{T}(V_1\; V_2) =
-  \{\_\mathrm{tailCall} \mapsto
+  \{\mathrm{tailCall} \mapsto
     \{\mathcal{T}(V_1),\; \mathrm{argument} \mapsto
     \mathcal{T}(V_2)\},\;
     \mathrm{result} \mapsto
-\_\mathrm{tailCall}.\mathrm{result}\}$}
+\mathrm{tailCall}.\mathrm{result}\}$}
 Identical to the $\mathbf{let}$-binding case: the outer record
-has own properties $\{\_\mathrm{tailCall}, \mathrm{result}\}$
+has own properties $\{\mathrm{tailCall}, \mathrm{result}\}$
 with no inheritance sources at the outer level, and the
-$\_\mathrm{tailCall}$ subtree contains exactly one inheritance
+$\mathrm{tailCall}$ subtree contains exactly one inheritance
 source.
 
 \paragraph{Case $\mathcal{T}(x)
@@ -2900,7 +2918,7 @@ The key structural invariant is that the translation
 $\mathcal{T}$ never produces two independent inheritance sources
 at the same scope level that both define the same label.
 In every case, application inheritances are \emph{encapsulated}
-inside a named property ($x$ or $\_\mathrm{tailCall}$), and each
+inside a named property ($x$ or $\mathrm{tailCall}$), and each
 such encapsulated inheritance has exactly one inheritance
 source.
 This prevents diamond inheritance and ensures single-path
@@ -2945,7 +2963,7 @@ to the binding $\lambda$, where the inheritance
 $\{\mathcal{T}(\lambda x.\, x),\;
 \mathrm{argument} \mapsto \mathcal{T}(V)\}$ inherits into the
 $\mathrm{argument}$ slot, providing $\mathcal{T}(V)$.
-Since $C$ is the $\_\mathrm{tailCall}$ subtree of
+Since $C$ is the $\mathrm{tailCall}$ subtree of
 $\mathcal{T}\bigl((\lambda x.\, M)\; V\bigr)$, which is a
 closed ANF term, Lemma~\ref{lem:single-path} applies and
 $\this$ finds exactly one path,
@@ -3000,7 +3018,7 @@ $\mathcal{T}(V)$ via the same $\this$ mechanism.
 
 \paragraph{Inductive case: $M = V_1\; V_2$ (tail call)}
 Analogous to the $\mathbf{let}$-binding case with
-$\_\mathrm{tailCall}$ in place of $z$.
+$\mathrm{tailCall}$ in place of $z$.
 \end{proof}
 
 \subsection{Convergence Preservation}
@@ -3032,21 +3050,21 @@ root of the reduct's mixin tree.
 The translation gives:
 \[
   \mathcal{T}\bigl((\lambda x.\, M)\; V\bigr) =
-  \{\_\mathrm{tailCall} \mapsto
+  \{\mathrm{tailCall} \mapsto
     \{\mathcal{T}(\lambda x.\, M),\;
     \mathrm{argument} \mapsto \mathcal{T}(V)\},\;
     \mathrm{result} \mapsto
-  \_\mathrm{tailCall}.\mathrm{result}\}
+  \mathrm{tailCall}.\mathrm{result}\}
 \]
 The $\mathrm{result}$ label at the root is defined as
-$\_\mathrm{tailCall}.\mathrm{result}$, so
+$\mathrm{tailCall}.\mathrm{result}$, so
 $\text{root} \snoc \mathrm{result}$ resolves to the
 $\mathrm{result}$ path inside the inheritance
-$\_\mathrm{tailCall} = \{\mathcal{T}(\lambda x.\, M),\;
+$\mathrm{tailCall} = \{\mathcal{T}(\lambda x.\, M),\;
 \mathrm{argument} \mapsto \mathcal{T}(V)\}$.
 This inheritance is exactly the inherited tree $C$ of
 Lemma~\ref{lem:substitution}, and
-$\_\mathrm{tailCall} \snoc \mathrm{result}$ is
+$\mathrm{tailCall} \snoc \mathrm{result}$ is
 $C \snoc \mathrm{result}$.
 By Lemma~\ref{lem:substitution}, the properties under
 $C \snoc \mathrm{result}$ coincide with those of
@@ -3124,7 +3142,7 @@ call).
 An abstraction translates to a record whose root immediately
 has the abstraction shape; a computation's root has the form
 $\{x, \mathrm{result}\}$ or
-$\{\_\mathrm{tailCall}, \mathrm{result}\}$, and one must follow
+$\{\mathrm{tailCall}, \mathrm{result}\}$, and one must follow
 the $\mathrm{result}$ chain to find the eventual value.
 
 \begin{proof}[Proof of Theorem~\ref{thm:adequacy}]
@@ -3170,7 +3188,7 @@ $\{\mathrm{argument}, \mathrm{result}\}$.
 Only the abstraction rule $\mathcal{T}(\lambda x.\, M')$
 produces a root with own property $\mathrm{argument}$.
 (For tail calls and $\mathbf{let}$-bindings, the root has
-  $\defines = \{\_\mathrm{tailCall}, \mathrm{result}\}$
+  $\defines = \{\mathrm{tailCall}, \mathrm{result}\}$
   or $\{x, \mathrm{result}\}$, and $\mathrm{argument}$ cannot
   appear via $\supers$ because
   $\inherits = \varnothing$ at the root, giving
@@ -3385,10 +3403,10 @@ is determined by $V_2$.
 \smallskip\noindent
 A tail call $V_1\; V_2$ at path $p$:
 \begin{align*}
-\children(p) &= \{\_\mathrm{tailCall},\; \mathrm{result}\},
+\children(p) &= \{\mathrm{tailCall},\; \mathrm{result}\},
 &\refs(p) &= \varnothing.
 \end{align*}
-The subtree at $p \snoc \_\mathrm{tailCall}$ is analogous to
+The subtree at $p \snoc \mathrm{tailCall}$ is analogous to
 the application node $p \snoc x$ above: if $V_1$ is a variable,
 $\children = \{\mathrm{argument}\}$ with
 $\refs = \{(n_1,\; \ell_*)\}$; if $V_1$ is a $\lambda$-literal,
@@ -3400,12 +3418,12 @@ reference:
 \children(p \snoc \mathrm{result})
 &= \varnothing,
 &\refs(p \snoc \mathrm{result})
-&= \{(0,\; (\_\mathrm{tailCall},\; \mathrm{result}))\}.
+&= \{(0,\; (\mathrm{tailCall},\; \mathrm{result}))\}.
 \end{align*}
-Here $(0,\; (\_\mathrm{tailCall},\; \mathrm{result}))$ navigates to
+Here $(0,\; (\mathrm{tailCall},\; \mathrm{result}))$ navigates to
 the enclosing scope ($p$ itself, since $n = 0$ from
 $p \snoc \mathrm{result}$'s perspective), then projects
-$\_\mathrm{tailCall}.\mathrm{result}$.
+$\mathrm{tailCall}.\mathrm{result}$.
 
 \smallskip\noindent
 A $\lambda$-bound variable $\dbi{n}$ used as an inheritance
