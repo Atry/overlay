@@ -412,7 +412,12 @@ inherited properties or to bypass variable shadowing.
 In object-oriented programming, a
 \emph{mixin}~\cite{bracha1990mixin} is a fragment of behavior
 that can be composed onto a class via inheritance.
-Inheritance-calculus has a single abstraction, the mixin,
+Inheritance-calculus has a single abstraction, the
+\emph{deep-mergeable mixin},%
+\footnote{Where no ambiguity arises, we write simply ``mixin.''
+  The distinction from the Bracha--Cook
+  mixin~\cite{bracha1990mixin} is detailed in
+  Section~\ref{sec:related-work}.}
 which can simultaneously serve as field, method, class, and
 object, because there are no opaque methods: every value is
 a transparent record, and inheritance always performs a deep
@@ -678,16 +683,19 @@ This completes the semantics of inheritance-calculus:
 the observer drives the computation by choosing which
 path to inspect, and the equations unfold on demand.
 The same equations double as computation rules
-for an interpreter.%
-\footnote{To implement such an interpreter, note that
-  the equations are pure and order-independent: the
-  reflexive-transitive closure $\bases^*$
-  in~(\ref{eq:supers}) may be explored breadth-first or
-  depth-first without affecting the semantics;
-  paths may be \emph{interned} so that structural equality
-  reduces to pointer equality;
-  and the six equations form a memoizable
-dynamic-programming recurrence keyed by paths.}
+for an interpreter:
+the equations are pure and order-independent, so the
+reflexive-transitive closure $\bases^*$
+in~(\ref{eq:supers}) may be explored breadth-first or
+depth-first without affecting the semantics;
+paths may be \emph{interned} so that structural equality
+reduces to pointer equality;
+and the six equations form a memoizable
+dynamic-programming recurrence keyed by paths.
+No separate operational semantics is needed:
+every execution strategy (eager or lazy, with or without
+memoization) yields the same result, so the gap between
+semantics and execution is trivial.
 
 \section{Embedding the \texorpdfstring{$\lambda$}{λ}-Calculus}
 \label{sec:translation}
@@ -1689,6 +1697,8 @@ remained.
 \section{Related Work}
 \label{sec:related-work}
 
+\subsection{Computational Models and $\lambda$-Calculus Semantics}
+
 \paragraph{Minimal Turing-complete models}
 Sch\"onfinkel~\cite{schonfinkel1924} and
 Curry~\cite{curry1958combinatory} showed that the
@@ -1752,6 +1762,16 @@ theory and is fully abstract: Scott's $D_\infty$ is adequate
 but not fully abstract, and game semantics is fully abstract
 but requires machinery (arenas, strategies, innocence
 conditions) far beyond set theory.
+In all three approaches the semantic objects are not directly
+computable: Scott's denotations are elements of an uncountable
+continuous lattice, game-semantic strategies are infinite trees
+over move sequences, and the function space $[D \to D]$ has no
+effective enumeration.
+Each framework therefore requires a separate operational
+semantics to define how computation proceeds; the denotational or
+game-semantic model then serves as a mathematical proxy whose
+adequacy with respect to the operational semantics must be proved
+separately.
 None of them eliminates the function space from the semantic
 domain; none avoids capture-avoiding substitution; and none
 dispenses with reduction rules or evaluation strategies.
@@ -1772,13 +1792,10 @@ the function space $[D \to D]$ is not constructed
 explicitly but encoded inside $D$ via~$\iota$.
 The construction uses only powerset lattices, no Scott
 topology or continuity conditions.
-Graph models are sensible (they equate all unsolvable
-terms) but not fully abstract:
+Graph models are sensible (they equate all unsolvable terms):
 Bucciarelli and Salibra~\cite{bucciarelli2008graph}
 proved that the greatest sensible graph theory equals the
-B\"ohm tree theory~$\mathcal{B}$, which is
-strictly coarser than observational equivalence for the lazy
-$\lambda$-calculus.
+B\"ohm tree theory~$\mathcal{B}$.
 \emph{Filter models}~\cite{barendregt1983filter,coppo1978type}
 interpret a term as the filter (upward-closed,
 intersection-closed set) of all intersection types derivable
@@ -1793,10 +1810,12 @@ showed that the $\lambda$-theory of the BCD filter model
 coincides exactly with B\"ohm tree equality: two terms
 receive the same set of types if and only if they have the
 same B\"ohm tree.
-Filter models are more discriminating than graph models but
-are still not fully abstract for the lazy $\lambda$-calculus,
-and require the additional machinery of intersection type
-theory and algebraic lattices.
+Filter models are more discriminating than graph models
+in that every filter model's theory lies between
+$\lambda\beta$ and~$\mathcal{B}$, with the BCD model
+attaining~$\mathcal{B}$ exactly; they require the
+additional machinery of intersection type theory and
+algebraic lattices.
 \emph{Relational models}~\cite{ehrhard2005finiteness,bucciarelli2001phase}
 arise from the relational semantics of linear logic: the
 exponential modality~$!$ is interpreted via finite
@@ -1812,23 +1831,42 @@ finiteness-space refinement of this model, standard
 fixed-point operators are not finitary, and a standard
 reflexive object for the pure $\lambda$-calculus cannot
 exist in this category.
-For the lazy $\lambda$-calculus, full abstraction has been
-achieved only through game
-semantics~\cite{abramsky1993lazy,abramsky1995games};
-none of the three set-theoretic families attains it.
+As \emph{denotational semantics} of the lazy
+$\lambda$-calculus, full abstraction has been achieved
+only through game
+semantics~\cite{abramsky1993lazy,abramsky1995games}:
+game semantics provides a compositional, fully abstract
+model, whereas graph and filter models, although their
+equational theories coincide with B\"ohm tree
+equivalence, are formulated as models of the standard
+$\lambda$-calculus and do not directly constitute a
+denotational semantics of the lazy calculus.
+In each family the denotation of a term is a set-theoretic
+object whose membership is not effectively decidable in general:
+graph-model application quantifies over all finite subsets of an
+argument, filter-model denotations require enumerating all
+derivable intersection types, and relational-model morphisms are
+infinite relations.
+None of these denotations can be computed from the term alone;
+all three families presuppose an operational semantics
+($\beta$-reduction) whose behavior the model validates after the
+fact.
 All three families are semantic \emph{models} of the
 $\lambda$-calculus: they interpret $\lambda$-terms in an
 external mathematical structure and validate
 $\beta$-reduction as an equation in that structure.
 None of them is a self-contained calculus with its own
 primitives into which the $\lambda$-calculus embeds.
-Moreover, all three identify terms more coarsely than
-observational equivalence---graph and filter models coincide
-with B\"ohm tree equality, while relational models cannot
-even host a standard reflexive
-object~\cite{ehrhard2005finiteness}---and none provides a
-fully abstract semantics for the lazy $\lambda$-calculus
-without resorting to game-theoretic machinery.
+Moreover, graph and filter models' equational theories
+coincide with B\"ohm tree equality---which equals
+observational equivalence in the lazy $\lambda$-calculus
+but is strictly coarser in the standard
+calculus---while relational models cannot even host a
+standard reflexive
+object~\cite{ehrhard2005finiteness};
+and none provides a fully abstract \emph{denotational
+semantics} of the lazy $\lambda$-calculus without
+game-theoretic machinery.
 
 \paragraph{Fixpoint semantics on powerset lattices}
 Van~Emden and Kowalski~\cite{vanemden1976semantics} showed that
@@ -1837,40 +1875,38 @@ three equivalent characterizations:
 operational (SLD resolution), model-theoretic (least Herbrand
 model), and fixed-point (least fixed point of the immediate
 consequence operator~$T_P$ on the powerset of ground atoms).
-The $T_P$ operator is monotone on a complete lattice, exactly as
-our six equations are.
-Our setting differs in that the underlying lattice is a product
-of powerset lattices indexed by \emph{paths}, and in that the
-equations are mutually recursive rather than defined by a single
-operator; but the mathematical machinery is the same.
+The $T_P$ operator is monotone on a complete lattice, but
+the fixpoint definition and its execution are not isomorphic:
+answering a single query requires a search strategy (SLD
+resolution), and different strategies (depth-first,
+breadth-first, tabling) yield different completeness properties.
+The gap between the declarative fixpoint and the procedural
+execution is non-trivial.
 Aczel~\cite{aczel1977inductive} gave a systematic treatment of
 inductive definitions via monotone operators on powerset lattices,
-providing the logical foundations that both
-Datalog-style and our semantics rest on.
+providing the logical foundations that Datalog-style semantics
+rests on.
 Cousot and Cousot~\cite{cousot1977abstract} independently
 developed abstract interpretation, a framework for program
 analysis that computes fixed points on abstract lattices connected
 to concrete semantics by Galois connections.
-While abstract interpretation approximates the behavior of
-programs, our equations \emph{define} the behavior exactly;
+Abstract interpretation \emph{approximates} the behavior of
+programs rather than defining it exactly;
 the lattice-theoretic technique, however, is shared.
 Leroy and Grall~\cite{leroy2006coinductive} addressed the
 treatment of divergence in big-step operational semantics by
-passing from inductive to \emph{coinductive} definitions.
-In our setting the analogous distinction is already captured by
-the Knaster--Tarski theorem: the least fixed point contains
-exactly the finitely derivable memberships (convergence), while
-undecidable memberships (divergence) are absent from it---no
-separate coinductive formulation is needed.
-
+passing from inductive to \emph{coinductive} definitions;
+when the inductive fixed point already captures divergence as
+the absence of finite derivations, no separate coinductive
+formulation is needed.
 Each of these prior frameworks operates on its own domain
-(Herbrand models, abstract domains, evaluation judgments).
-To our knowledge, the present work is the first to show that the
-same powerset-lattice fixed-point technique, applied to a
-tree-structured domain of paths, yields a fully abstract semantics
-of the lazy $\lambda$-calculus without function spaces,
-substitution, or reduction rules, and simultaneously generalizes
-to multi-path inheritance.
+(Herbrand models, abstract domains, evaluation judgments);
+none has been applied to a tree-structured domain of paths
+to obtain a fully abstract semantics of the lazy
+$\lambda$-calculus without function spaces, substitution, or
+reduction rules.
+
+\subsection{Inheritance, Objects, and Records}
 
 \paragraph{Denotational semantics of inheritance}
 Cook~\cite{cook1989denotational} gave the first denotational
@@ -1885,6 +1921,10 @@ present work.
 The model has four primitives---records, functions, generators, and
 wrappers---and requires a fixed-point combinator; composition is
 asymmetric, as a wrapper modifies a generator but not vice versa.
+The fixed-point construction relies on Scott continuity in a
+domain of functions; the resulting denotations are not directly
+executable, so a separate operational semantics is needed to
+define method dispatch and object construction at runtime.
 
 \paragraph{Mixin-based inheritance}
 Bracha and Cook~\cite{bracha1990mixin} formalized mixins as
@@ -1910,6 +1950,7 @@ application is function composition.
 Mixins organize and compose functions but cannot replace
 them; without the underlying $\lambda$-calculus, there is nothing
 to compose.  The mixin mechanism itself is not Turing complete.
+Bracha--Cook mixins are therefore not deep-mergeable.
 
 \paragraph{Traits}
 Sch\"arli et al.~\cite{scharli2003traits} introduced traits as
@@ -1928,6 +1969,7 @@ definitions are conflicts rather than recursive merges.
 And like mixins, traits presuppose the $\lambda$-calculus: trait
 methods are functions, and the computational power resides in those
 functions, not in the trait mechanism itself.
+Traits are therefore not deep-mergeable mixins either.
 
 \paragraph{Family polymorphism and virtual classes}
 Ernst~\cite{ernst2001family} introduced family polymorphism, where
@@ -1936,8 +1978,7 @@ subclasses. Ernst, Ostermann, and Cook~\cite{ernst2006virtual}
 formalized this in the virtual class calculus, where classes are
 class-valued attributes of objects, accessed via path expressions of
 the form \texttt{this.out.C}.
-The path \texttt{this.out} navigates to an enclosing scope, analogous
-to qualified this ($\qualifiedthis{\ell_{\mathrm{up}}}$) in this paper.
+The path \texttt{this.out} navigates to an enclosing scope.
 A notable restriction is that each such path resolves to a
 \emph{single} class in a \emph{single} enclosing object.
 When multiple inheritance routes lead to the same scope, a common
@@ -1955,6 +1996,10 @@ since method override replaces the previous definition.
 Boudol~\cite{boudol2004recursive} studied the recursive record
 semantics of objects in a call-by-value setting, showing that
 self-referential records require an unsafe fixed-point operator.
+The unsafe fixed-point operator produces denotations in a domain
+where well-definedness depends on the evaluation strategy; the
+semantics is therefore inseparable from the operational reduction
+rules.
 Whether self-reference can be handled without a fixed-point operator
 in the object language, for instance through coalgebraic
 observation rather than reduction, was not explored in these calculi.
@@ -1982,20 +2027,26 @@ Amin et al.~\cite{amin2016dot} formalized path-dependent types in
 the DOT calculus, the theoretical foundation of Scala's type system.
 DOT paths navigate through objects to reach nested type members,
 providing a rich dependent type structure.
-DOT's self variable in the object constructor $\nu(x : T)\, d$
-binds $x$ to a single object; when multiple inheritance routes
-lead to the same enclosing scope, the resulting intersection type
-is unrealizable and Scala rejects it at compile time
-(Appendix~\ref{app:scala-multi-path}).
+DOT includes the $\lambda$-calculus as a sub-language.
 DOT stratifies its syntax into terms and types, with types further
 divided into abstract type members bounded by $L..U$ and concrete
 definitions; each stratum requires its own subtyping rules.
 Whether these three roles could be unified under a single construct
 remains an open question in the DOT line of work.
-DOT includes the $\lambda$-calculus as a sub-language; removing it
-while retaining path-dependent types would yield a calculus closer
-to pure mixin inheritance
-(see Section~\ref{sec:future-work}).
+DOT's self variable in the object constructor $\nu(x : T)\, d$
+binds $x$ to a single object; when multiple inheritance routes
+lead to the same enclosing scope, the resulting intersection type
+is unrealizable and Scala rejects it at compile time
+(Appendix~\ref{app:scala-multi-path}).
+When the path structure is simple enough that no multi-target
+$\this$ resolution is needed, Scala programmers can approximate
+deep merge manually: the cake pattern layers traits with
+\texttt{self:} annotations, and object
+algebras~\cite{oliveira2012extensibility} compose operations via
+trait intersection, both requiring the programmer to write the
+merge logic by hand for each level of nesting.
+
+\subsection{Configuration Languages and Module Systems}
 
 \paragraph{Configuration languages}
 CUE~\cite{cue2019} unifies types and values in a single lattice
@@ -2045,13 +2096,20 @@ equally to the same option, that is, the multi-path situation that
 recursive merging naturally gives rise to, which motivated the
 observational semantics of Section~\ref{sec:mixin-trees}.
 
+\subsection{Our Companion Work}
+
 \paragraph{Modular software architectures}
 \label{sec:practical-modular}
 Plugin systems, component frameworks, and dependency injection frameworks
 enable software extensibility through declarative inheritance. The
 symmetric, associative nature of inheritance (Section~\ref{sec:mixin-trees}) explains why such
 systems work: components can be inherited in any order without changing
-behavior. These systems implement inheritance-calculus patterns ad hoc.
+behavior.
+MIXINv2\selfcite{~\cite{mixin2025}}{~(supplementary material)}
+is itself a dependency injection framework:
+each scope declares its dependencies as named slots, and
+composition resolves them by name across scope boundaries,
+making the inheritance-calculus patterns explicit rather than ad~hoc.
 
 \paragraph{Union file systems}
 \label{sec:practical-union-fs}
@@ -2112,6 +2170,22 @@ is purely documentary: it defines a structural slot but imposes no
 constraint on what must fill it.
 Totality checking would enforce such declarations statically,
 rejecting inheritances that leave required slots unfilled.
+
+\subsection{Embedding Datalog}
+Section~\ref{sec:emergent-phenomena} observed that ordinary
+arithmetic on Church-encoded values produces the relational
+semantics of logic programming as an emergent phenomenon:
+trie union is a relation, $\bases$ is cross-join, $\supers$ is
+union, and $\properties$ is projection.
+Formalizing this observation as an embedding of Datalog
+into inheritance-calculus, analogous to the $\lambda$-calculus
+embedding of Section~\ref{sec:forward-translation}, is future
+work.
+Such an embedding would be structurally notable: the
+$\lambda$-calculus is inherently lazy, Datalog is inherently
+eager, and inheritance-calculus is neither, suggesting that
+the two models are projections of the same observational
+fixed-point semantics.
 
 \subsection{Standard Library}
 The remaining items concern the \emph{standard library}: they require
