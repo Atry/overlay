@@ -101,9 +101,9 @@ So far all resources have had application lifetime: created once at startup and
 reused for every request. Real applications also need per-request resources — values
 that must be created fresh for each incoming request and discarded when it completes.
 
-A nested ``@scope`` named ``RequestScope`` serves as a per-request factory. The
+A nested ``@scope`` named ``Request`` serves as a per-request factory. The
 framework injects it by name as a ``Callable``; calling
-``RequestScope(request=handler)`` returns a fresh instance.
+``Request(request=handler)`` returns a fresh instance.
 
 The application below has four scopes, each owning only its own concern:
 
@@ -112,10 +112,10 @@ The application below has four scopes, each owning only its own concern:
 - **HttpHandlers** — HTTP layer; owns per-request ``userId``, ``responseBody``, ``responseSent``
 - **NetworkServer** — network layer; owns ``host``/``port``, creates the ``HTTPServer``
 
-``UserRepository.RequestScope`` and ``HttpHandlers.RequestScope`` are composed into a
-single ``RequestScope`` by the union mount. ``userId`` (extracted from the HTTP path
-by ``HttpHandlers.RequestScope``) flows automatically into ``currentUser`` (looked up
-in the DB by ``UserRepository.RequestScope``) without any glue code.
+``UserRepository.Request`` and ``HttpHandlers.Request`` are composed into a
+single ``Request`` by the union mount. ``userId`` (extracted from the HTTP path
+by ``HttpHandlers.Request``) flows automatically into ``currentUser`` (looked up
+in the DB by ``UserRepository.Request``) without any glue code.
 
 ``responseSent`` is an IO resource: it sends the HTTP response as a side effect and
 returns ``None``. The handler body is a single attribute access — all logic lives in

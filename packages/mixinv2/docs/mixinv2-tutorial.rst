@@ -125,7 +125,7 @@ Four new concepts:
   lexical scoping.
 
 
-``UserRepository.RequestScope`` — ANF style, cross-scope references
+``UserRepository.Request`` — ANF style, cross-scope references
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. literalinclude:: ../../mixinv2-examples/src/mixinv2_examples/app_mixin/Library.mixin.yaml
@@ -141,7 +141,7 @@ cost is verbosity; the benefit is that every intermediate value is inspectable
 and independently composable.
 
 **Cross-scope lexical reference:** ``connection: [connection]`` inside
-``RequestScope`` finds ``UserRepository.connection`` — the lexical scope chain
+``Request`` finds ``UserRepository.connection`` — the lexical scope chain
 searches outward through parent, grandparent, etc. No import statement is
 needed; the scope hierarchy *is* the namespace.
 
@@ -159,18 +159,18 @@ names are filled with concrete values.
    :start-after: # [docs:http-handlers]
    :end-before: # [/docs:http-handlers]
 
-**Flat inheritance:** ``RequestScope`` inherits *two* FFI adapters in its
+**Flat inheritance:** ``Request`` inherits *two* FFI adapters in its
 inheritance list (``- [FFI, ExtractUserId]``, ``- [FFI, HttpSendResponse]``). Their
-``@extern`` and ``@resource`` fields all merge into ``RequestScope``'s own field
+``@extern`` and ``@resource`` fields all merge into ``Request``'s own field
 namespace. The last list item (the mapping starting with ``request: []``) defines
-``RequestScope``'s own fields.
+``Request``'s own fields.
 
 **Lexical scoping across scope boundaries:** ``[user_count]`` inside
-``RequestScope`` searches outward and finds ``HttpHandlers.user_count``. At this
+``Request`` searches outward and finds ``HttpHandlers.user_count``. At this
 point ``user_count`` is just an extern ``[]`` — its actual value comes from
 ``UserRepository`` after deep merge (explained below).
 
-**Qualified this:** ``[RequestScope, ~, written]`` — instead of declaring
+**Qualified this:** ``[Request, ~, written]`` — instead of declaring
 ``written: []`` and writing ``response: [written]``, this navigates the runtime
 composition graph to access the ``written`` property inherited from
 ``HttpSendResponse``. The advantage: if ``HttpSendResponse`` is accidentally not
@@ -227,21 +227,21 @@ separate instances — it is a single scope with all four merged together. The
 last list item supplies concrete values for every ``[]`` extern.
 
 **Deep merge:** Both ``UserRepository`` and ``HttpHandlers`` define a
-``RequestScope``. When composed inside ``memory_app``, these merge by name into a
-single ``RequestScope``. After merging:
+``Request``. When composed inside ``memory_app``, these merge by name into a
+single ``Request``. After merging:
 
-- ``user_id`` (from ``HttpHandlers.RequestScope`` via ``ExtractUserId``) becomes
-  visible to ``UserRepository.RequestScope``, which uses it to look up
+- ``user_id`` (from ``HttpHandlers.Request`` via ``ExtractUserId``) becomes
+  visible to ``UserRepository.Request``, which uses it to look up
   ``current_user``
-- ``current_user_name`` (from ``UserRepository.RequestScope``) becomes visible to
-  ``HttpHandlers.RequestScope``, which uses it in ``_format``
+- ``current_user_name`` (from ``UserRepository.Request``) becomes visible to
+  ``HttpHandlers.Request``, which uses it in ``_format``
 
 Neither scope imports or references the other — deep merge makes their fields
 mutual siblings automatically. This is the most powerful feature of MIXINv2: cross-cutting concerns compose without glue code.
 
 **Config value scoping:** App-lifetime values (``database_path``, ``host``, ``port``)
 live directly in ``memory_app``. Request-lifetime values (``user_query_sql``,
-``path_separator``, ``response_template``) live in ``memory_app.RequestScope`` — they
+``path_separator``, ``response_template``) live in ``memory_app.Request`` — they
 are only needed during request handling.
 
 
@@ -324,7 +324,7 @@ Evaluation
    composed_app.user_count           # 2
 
    # Create a fresh request scope (per-request resources):
-   scope = composed_app.RequestScope(request=fake_request)
+   scope = composed_app.Request(request=fake_request)
    scope.current_user.name           # "alice"
    scope.response                    # sends HTTP response as side effect
 
