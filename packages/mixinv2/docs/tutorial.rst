@@ -27,6 +27,22 @@ values are passed as kwargs when calling the evaluated scope.
 database layer — it only declares ``connection: sqlite3.Connection`` as a parameter
 and receives it automatically from the composed scope.
 
+.. tip:: **Naming convention**
+
+   Throughout this tutorial we use **UpperCamelCase** for scopes and **lowerCamelCase**
+   for resources. The idea is that a scope is conceptually a *class* — an instantiable
+   container — while a resource is a lazily-evaluated value inside it.
+
+   In the example above, ``SQLiteDatabase`` and ``UserRepository`` are scopes
+   (UpperCamelCase), while ``databasePath``, ``connection``, and ``userCount`` are
+   resources (lowerCamelCase).
+
+   This convention extends to Python modules used as scopes: a module file representing
+   a scope is named in UpperCamelCase (e.g., ``SqliteDatabase.py``), and a subpackage
+   representing a nested scope likewise (e.g., ``UserRepository/Request/``). This
+   deviates from PEP 8 — the MIXINv2 decorators form a DSL, and the casing signals
+   that the code is not plain Python data model.
+
 
 Step 2 — Layer cross-cutting concerns with ``@patch`` and ``@merge``
 --------------------------------------------------------------------
@@ -183,8 +199,8 @@ way:
    import UserRepository   # UserRepository/ package
 
 The same decorators work on module-level functions exactly as on class methods. A
-subpackage becomes a nested scope — ``UserRepository/RequestScope/`` is the
-module equivalent of a nested ``@scope class RequestScope``.
+subpackage becomes a nested scope — ``UserRepository/Request/`` is the
+module equivalent of a nested ``@scope class Request``.
 
 Use ``@extend`` in a package's ``__init__.py`` to declare the composition, then
 ``evaluate()`` receives the single package:
