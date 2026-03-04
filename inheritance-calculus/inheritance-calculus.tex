@@ -288,19 +288,7 @@ All tests are mechanically verified against expected output snapshots.
     reduction rules, no evaluation order, and no notion of a result
     that a term reduces to.  The observer drives computation by
     querying paths in a lazily constructed tree.
-  \item Self-referential records require no fixed-point combinator;
-    the mixin tree \emph{is} the call stack.
-    Self-reference resolves to \emph{multiple objects}, not one.
-    Prior systems reject this
-    situation, but since inheritance
-    is idempotent, all objects contribute equally without
-    disambiguation.
-  \item The $\lambda$-calculus translates into
-    inheritance-calculus in five rules (Section~\ref{sec:translation}).
-    The translation is fully abstract with respect to
-    B\"ohm tree equivalence under $\lambda$-definable contexts
-    (Section~\ref{sec:bohm-tree}).
-  \item The induced semantics is a first-order,%
+    The six semantic equations are first-order%
     \footnote{First-order in three senses simultaneously:
       the semantic domain contains only paths (finite
       sequences of labels) and sets of paths, with no function
@@ -312,12 +300,27 @@ All tests are mechanically verified against expected output snapshots.
       definitions~\cite{aczel1977inductive} over paths
       and labels, where quantifiers range over paths and labels,
     never over functions or predicates.}
-    fully abstract, and computable semantics of the lazy
-    $\lambda$-calculus, requiring no function spaces, no
-    substitution, and no separate operational semantics.
-    The same technique also applies to the
-    $\lambda$-calculus without passing through
-    inheritance-calculus (Appendix~\ref{app:lambda-fixpoint}).
+    and computable; no function spaces, substitution, or
+    separate operational semantics are needed.
+  \item Self-referential records require no fixed-point combinator;
+    the mixin tree \emph{is} the call stack.
+    Self-reference resolves to \emph{multiple objects}, not one.
+    Prior systems reject this
+    situation, but since inheritance
+    is idempotent, all objects contribute equally without
+    disambiguation.
+  \item The $\lambda$-calculus macro-expresses into
+    inheritance-calculus in five local rules
+    (Section~\ref{sec:translation}).
+  \item The translation is fully abstract with respect to
+    B\"ohm tree equivalence under $\lambda$-definable contexts
+    (Section~\ref{sec:bohm-tree}):
+    the prior higher-order semantic frameworks of the lazy
+    $\lambda$-calculus coincide with a sublanguage of
+    the first-order semantics above.
+    As a corollary, the lazy $\lambda$-calculus has a
+    first-order and computable semantics in its own right
+    (Appendix~\ref{app:lambda-fixpoint}).
   \item Inheritance-calculus is strictly more expressive than
     the lazy $\lambda$-calculus in Felleisen's
     sense~\cite{felleisen1991expressive}
