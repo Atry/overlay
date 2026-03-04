@@ -79,7 +79,7 @@
 \thanks{This work was conducted independently prior to the author's employment at Figure AI.}
 
 \begin{abstract}
-  Just as the $\lambda$-calculus uses three primitives (abstraction, application, variable) as the foundation of functional programming, inheritance-calculus uses three primitives (record, definition, inheritance) as the foundation of declarative programming. It trivially embeds the $\lambda$-calculus, although the entire semantics rests solely on set theory; as a consequence, all constructs including inheritance are inherently commutative, idempotent, and associative; the linearization problem of multiple inheritance does not arise. This induces a fully abstract semantics of the lazy $\lambda$-calculus with respect to B\"ohm tree equivalence~\cite{barendregt1984lambda}. Inheritance-calculus is distilled from MIXINv2, a practical implementation in which we observed further emergent phenomena: the same code acts as different function colors~\cite{nystrom2015color}; ordinary arithmetic yields the relational semantics of logic programming~\cite{vanemden1976semantics}; self-reference resolves to multiple targets; and programs are immune to the Expression Problem~\cite{wadler1998expression}. This makes inheritance-calculus strictly more expressive than the $\lambda$-calculus in both common sense and Felleisen's sense~\cite{felleisen1991expressive}.
+  Just as the $\lambda$-calculus uses three primitives (abstraction, application, variable) as the foundation of functional programming, inheritance-calculus uses three primitives (record, definition, inheritance) as the foundation of declarative programming. It trivially embeds the $\lambda$-calculus, although the entire semantics is first-order; as a consequence, all constructs including inheritance are inherently commutative, idempotent, and associative; the linearization problem of multiple inheritance does not arise. This induces a fully abstract semantics of the lazy $\lambda$-calculus with respect to B\"ohm tree equivalence~\cite{barendregt1984lambda}. Inheritance-calculus is distilled from MIXINv2, a practical implementation in which we observed further emergent phenomena: the same code acts as different function colors~\cite{nystrom2015color}; ordinary arithmetic yields the relational semantics of logic programming~\cite{vanemden1976semantics}; self-reference resolves to multiple targets; and programs are immune to the Expression Problem~\cite{wadler1998expression}. This makes inheritance-calculus strictly more expressive than the $\lambda$-calculus in both common sense and Felleisen's sense~\cite{felleisen1991expressive}.
 \end{abstract}
 
 \begin{CCSXML}
@@ -132,6 +132,7 @@
 
 \keywords{declarative programming, inheritance, fixpoint semantics,
   self-referential records, expression problem,
+  first-order semantics,
   \texorpdfstring{$\lambda$-calculus}{lambda-calculus},
 \texorpdfstring{B\"ohm trees}{Bohm trees}, configuration languages}
 
@@ -216,9 +217,11 @@ idempotent, and associative (Section~\ref{sec:mixin-trees}).
 Self-reference naturally resolves to \emph{multiple objects} rather than
 one; prior systems assume single-object resolution and reject the
 multi-path situation (Scala, NixOS module system).
-Self-referential records require no fixed-point combinator---the
-mixin tree \emph{is} the call stack, and qualified this resolution
-is a first-order set-theoretic query, not a fixed-point construction.
+Self-referential records require no fixed-point combinator
+in the object language.
+The mixin tree \emph{is} the call stack, and qualified this resolution
+is a first-order set-theoretic query over paths,
+not a higher-order fixed-point construction over function spaces.
 We also found that boolean logic and arithmetic, implemented as separate
 MIXINv2 files, extend in both dimensions of the Expression
 Problem~\cite{wadler1998expression} without any dedicated mechanism.
@@ -287,9 +290,9 @@ All tests are mechanically verified against expected output snapshots.
     querying paths in a lazily constructed tree.
   \item Self-referential records require no fixed-point combinator;
     the mixin tree \emph{is} the call stack.
-    Self-reference resolves to \emph{multiple objects}, not one---a
-    situation that prior systems reject
-    (Appendix~\ref{app:scala-multi-path})---but since inheritance
+    Self-reference resolves to \emph{multiple objects}, not one.
+    Prior systems reject this
+    situation, but since inheritance
     is idempotent, all objects contribute equally without
     disambiguation.
   \item The $\lambda$-calculus translates into
@@ -297,10 +300,21 @@ All tests are mechanically verified against expected output snapshots.
     The translation is fully abstract with respect to
     B\"ohm tree equivalence under $\lambda$-definable contexts
     (Section~\ref{sec:bohm-tree}).
-  \item The induced semantics is the first fully abstract
-    and computable semantics of the lazy
-    $\lambda$-calculus that lives entirely in naive set
-    theory, requiring no separate operational semantics.
+  \item The induced semantics is a first-order,%
+    \footnote{First-order in three senses simultaneously:
+      the semantic domain contains only paths (finite
+      sequences of labels) and sets of paths, with no function
+      spaces, closures, or strategies;
+      the six equations are first-order functions whose
+      inputs and outputs are paths and sets of paths,
+      never functions;
+      and the judgments are first-order inductive
+      definitions~\cite{aczel1977inductive} over paths
+      and labels, where quantifiers range over paths and labels,
+    never over functions or predicates.}
+    fully abstract, and computable semantics of the lazy
+    $\lambda$-calculus, requiring no function spaces, no
+    substitution, and no separate operational semantics.
     The same technique also applies to the
     $\lambda$-calculus without passing through
     inheritance-calculus (Appendix~\ref{app:lambda-fixpoint}).
@@ -548,7 +562,7 @@ We define $\overrides$ first.
 Since a mixin can play the role of a method,
 a child scope should be
 able to find it through the parent's label even if the child
-does not redefine that label---this is method override.
+does not redefine that label; this is method override.
 Concretely, inheritance can introduce multiple
 definitions of the same label at the same scope level;
 $\overrides(p)$ collects all such paths that share the
@@ -696,7 +710,7 @@ value that is not an application result:%
 \footnote{Standard ANF allows values inline as operands;
   the value-binding production names them so that every
   subexpression of the translated program is accessible
-  via a lexical reference (Appendix~\ref{app:expressiveness}).}
+via a lexical reference (Appendix~\ref{app:expressiveness}).}
 \[
   \begin{array}{r@{\;::=\;}l}
     M & \mathbf{let}\; x = V_1\; V_2 \;\mathbf{in}\; M
@@ -855,24 +869,20 @@ Here $\approx_\lambda$ quantifies over $\lambda$-calculus
 contexts only; inheritance-calculus contexts are strictly more
 discriminating (Section~\ref{sec:asymmetry}).
 Together, Adequacy and Full Abstraction establish that
-the translation $\mathcal{T}$ is a fully abstract embedding of the
-lazy $\lambda$-calculus into inheritance-calculus
-with respect to B\"ohm tree
-equivalence~\cite{barendregt1984lambda}, using only
-elementary recursive evaluation on finite mixin trees,
-without lattices, continuous domains, or the topological
-infrastructure of domain theory.
-This is stronger than Scott's denotational
-semantics~\cite{scott1972continuous,wadsworth1976semantics}, which is
-adequate but not fully abstract, as it identifies terms that
-observational equivalence
-distinguishes~\cite{plotkin1975callbyname}.
-That recursive evaluation of set-comprehension equations
-suffices for full abstraction---without lattices,
-inverse limits, or game-theoretic machinery---is the central
-semantic result of this paper.%
+the lazy $\lambda$-calculus has a first-order
+foundation: the translation $\mathcal{T}$ is a fully
+abstract embedding into inheritance-calculus with respect
+to B\"ohm tree equivalence~\cite{barendregt1984lambda},
+using only recursive evaluation of set-comprehension
+equations over paths and sets of paths, requiring no function
+spaces, no substitution, no reduction rules, and no
+separate operational semantics.
+The prior higher-order semantic
+frameworks~\cite{scott1972continuous,wadsworth1976semantics,abramsky2000full,hyland2000full,barendregt1984lambda}
+are equivalent
+to this first-order semantics.%
 \footnote{Composing $\mathcal{T}$ with the equations of
-  Section~\ref{sec:mixin-trees} yields an elementary semantics
+  Section~\ref{sec:mixin-trees} yields a first-order semantics
   of the $\lambda$-calculus in which function application is
   record inheritance and convergence is determined by path
   queries.
@@ -900,8 +910,9 @@ additional expressiveness
 \subsection{Expressive Asymmetry}
 \label{sec:asymmetry}
 \label{sec:formal-separation}
-Two $\lambda$-terms that are B\"ohm-tree equivalent---and
-therefore indistinguishable in the $\lambda$-calculus---can be
+Two $\lambda$-terms that are B\"ohm-tree equivalent,
+and therefore indistinguishable in the $\lambda$-calculus,
+can be
 separated by a context that mixes $\lambda$-calculus and
 inheritance-calculus constructors, inheriting new observable
 projections onto an existing definition via open extension.
@@ -925,7 +936,7 @@ The underlying mechanism is open extension: mixin
 definitions compose via open recursion, so existing
 definitions gain new observable properties without
 modification.  In the $\lambda$-calculus, a function's result
-is closed---there is no way to add new observable projections
+is closed: there is no way to add new observable projections
 to an already-computed value without modifying the function's
 definition.
 
@@ -949,7 +960,7 @@ Operations expose their result through a projection field (e.g., $\mathrm{sum}$)
 Following the Church-encoding
 convention\selfcite{~\cite{mixin2025}}{~(supplementary material)},%
 \footnote{The data representation (Zero/Successor) is a Peano
-  encoding---an initial algebra of the functor $F(X) = 1 + X$.
+  encoding, an initial algebra of the functor $F(X) = 1 + X$.
   The Visitor pattern (NatVisitor, below) adds the
   Church-encoding behavior: a fold (catamorphism) over this
   algebra.  These two concerns are defined in separate files
@@ -1276,8 +1287,9 @@ explain why they arise from the three primitives.
       $\supers$ (equation~\ref{eq:supers}) $=$ union;
     $\properties$ (equation~\ref{eq:properties}) $=$ projection.}
     The carrier is a trie rather than a flat relation, and
-    observation is coinductive---the observer drives computation
-    by querying progressively deeper paths---rather than
+    observation is coinductive: the observer drives computation
+    by querying progressively deeper paths.
+    This contrasts with
     Datalog's bottom-up materialization, but the relational
     structure of the computation is the same.
 
@@ -1358,11 +1370,6 @@ by surveying every candidate known to us.
 
 \paragraph{Degrees of freedom}
 The analysis below assumes that the AST is a \emph{named tree}:%
-\footnote{This excludes combinator-based languages such as
-  SKI~\cite{schonfinkel1924,curry1958combinatory},
-  APL~\cite{iverson1962programming}, and
-  J~\cite{hui1991tacit}, whose programs are not
-definition trees but point-free combinator expressions.}
 every edge from parent to child carries a label, so that every
 node is uniquely identified by the path from the root.
 For configuration languages this is naturally the case: every
@@ -1375,13 +1382,15 @@ produces paths.%
   composed by recursive merging, and it is this DSL-level
 structure that naturally forms a named tree.}
 For mainstream programming languages the AST is not directly a
-named tree---anonymous expression positions and implicit
-scopes lack labels---but after ANF
-transformation~\cite{flanagan1993essence} every intermediate
-result is bound to a name, and the remaining anonymous positions
-(e.g., the body of a $\mathbf{let}$) can be assigned synthetic
-fresh labels (such as $\mathrm{result}$ and $\mathrm{tailCall}$
-in Section~\ref{sec:forward-translation}), yielding a named
+named tree, since anonymous expression positions and implicit
+scopes lack labels.
+After ANF
+transformation~\cite{flanagan1993essence}, however, every intermediate
+result is bound to a name, and the remaining anonymous positions%
+\footnote{For example, the body of a $\mathbf{let}$.}
+can be assigned synthetic
+fresh labels such as $\mathrm{result}$ and $\mathrm{tailCall}$
+in Section~\ref{sec:forward-translation}, yielding a named
 tree.
 
 Under this premise, every language whose programs are such
@@ -1444,9 +1453,9 @@ every well-formed program is extensible.
 We now classify the design space to explain why we chose the
 semantics of Section~\ref{sec:mixin-trees}.
 Two axes remain free:
-the \emph{composition mechanism}---how the single reference
+the \emph{composition mechanism}, which determines how the single reference
 type incorporates definitions;
-and the \emph{reference resolution}---how the single reference
+and the \emph{reference resolution}, which determines how the single reference
 type finds its target.
 
 \subsubsection*{The composition mechanism}
@@ -1496,11 +1505,11 @@ associativity~(A), and by their extensibility model.
 
   \item[Conflict rejection]
     Same-label definitions are rejected as errors.
-    All three identities hold---but vacuously:
+    All three identities hold, but vacuously:
     the identities are satisfied because the compositions that
     would test them are refused.
     Conflict rejection prevents extending existing
-    labels~\cite{harper1991record}---the composability that the
+    labels~\cite{harper1991record}, precisely the composability that the
     Expression Problem~\cite{wadler1998expression} requires.
 
   \item[Priority merge]
@@ -1514,8 +1523,8 @@ associativity~(A), and by their extensibility model.
     To make a new aspect extensible, the original function must
     be rewritten to accept an additional parameter.
     This applies to every language whose composition mechanism
-    is function application---functional, object-oriented, and
-    multi-paradigm alike---because method calls, virtual
+    is function application, whether functional, object-oriented, or
+    multi-paradigm, because method calls, virtual
     dispatch, and type-class resolution all reduce to
     $\beta$-reduction.
     The Expression Problem~\cite{wadler1998expression} is hard
@@ -1636,7 +1645,7 @@ We examine the three known candidates.
     duplicate-declaration error
     (Appendix~\ref{app:scala-multi-path}).
     This rejects nested extensions where two independently authored
-    modules define the same option---a composition that arises
+    modules define the same option, a composition that arises
     when solving the Expression
     Problem~\cite{wadler1998expression}
     (Section~\ref{sec:expression-problem}).
@@ -1716,8 +1725,8 @@ supply them;
 dynamic scope broke the substitution that the
 $\lambda$-calculus embedding relies on;
 single-target $\this$ rejected the multi-path compositions
-that the Expression Problem demands
-(three successive implementations confirmed this---see above).
+that the Expression Problem demands.%
+\footnote{Three successive implementations confirmed this; see the discussion above.}
 Deep merge with multi-target late-binding $\this$ is what
 remained.
 
@@ -1783,12 +1792,17 @@ is the central obstacle: operational semantics needs it
 implicitly (via substitution), denotational semantics
 constructs it explicitly, and game semantics refines it via
 strategies.
-None of these approaches yields a semantics of the lazy
-$\lambda$-calculus that simultaneously lives in naive set
-theory and is fully abstract: Scott's $D_\infty$ is adequate
+None of these approaches is first-order: all three require
+higher-order objects in their semantic domain.%
+\footnote{Function spaces
+  in denotational semantics, strategies
+  in game semantics, and substitution
+in operational semantics.}
+None of them yields a fully abstract semantics of the lazy
+$\lambda$-calculus without higher-order machinery:
+Scott's $D_\infty$ is adequate
 but not fully abstract, and game semantics is fully abstract
-but requires machinery (arenas, strategies, innocence
-conditions) far beyond set theory.
+but requires arenas, strategies, and innocence conditions.
 In all three approaches the semantic objects are not directly
 computable: Scott's denotations are elements of an uncountable
 continuous lattice, game-semantic strategies are infinite trees
@@ -1800,13 +1814,19 @@ game-semantic model then serves as a mathematical proxy whose
 adequacy with respect to the operational semantics must be proved
 separately.
 None of them eliminates the function space from the semantic
-domain; none avoids capture-avoiding substitution; and none
-dispenses with reduction rules or evaluation strategies.
+domain; none avoids capture-avoiding substitution; none
+dispenses with reduction rules or evaluation strategies;
+and none unifies denotational and operational semantics
+into a single first-order definition.
 
 \paragraph{Set-theoretic models of the $\lambda$-calculus}
 Several families of $\lambda$-calculus models avoid the
 inverse-limit construction of Scott's $D_\infty$ by working
 in set-theoretic rather than domain-theoretic settings.
+These models eliminate Scott topology but not the function
+space itself: they remain higher-order, encoding $[D \to D]$
+inside $D$ via injections, intersection types, or multiset
+relations.
 \emph{Graph models}~\cite{engeler1981algebras,plotkin1993set}
 take a \emph{web}~$A$ equipped with an injection
 $\iota : \mathcal{P}_{\mathrm{fin}}(A) \times A
@@ -1868,7 +1888,7 @@ equational theories coincide with B\"ohm tree
 equivalence, are formulated as models of the standard
 $\lambda$-calculus and do not directly constitute a
 denotational semantics of the lazy calculus.
-In each family the denotation of a term is a set-theoretic
+In each family the denotation of a term is a higher-order
 object whose membership is not effectively decidable in general:
 graph-model application quantifies over all finite subsets of an
 argument, filter-model denotations require enumerating all
@@ -1883,17 +1903,20 @@ $\lambda$-calculus: they interpret $\lambda$-terms in an
 external mathematical structure and validate
 $\beta$-reduction as an equation in that structure.
 None of them is a self-contained calculus with its own
-primitives into which the $\lambda$-calculus embeds.
+primitives into which the $\lambda$-calculus embeds;
+none is first-order, since the function space is encoded, not
+eliminated.
 Moreover, graph and filter models' equational theories
-coincide with B\"ohm tree equality---which equals
+coincide with B\"ohm tree equality,
+which equals
 observational equivalence in the lazy $\lambda$-calculus
 but is strictly coarser in the standard
-calculus---while relational models cannot even host a
+calculus; relational models cannot even host a
 standard reflexive
 object~\cite{ehrhard2005finiteness};
 and none provides a fully abstract \emph{denotational
 semantics} of the lazy $\lambda$-calculus without
-game-theoretic machinery.
+higher-order machinery.
 
 \paragraph{Recursive equations and fixpoint semantics}
 Van~Emden and Kowalski~\cite{vanemden1976semantics} showed that
@@ -1926,9 +1949,9 @@ passing from inductive to \emph{coinductive} definitions;
 when divergence already emerges as
 non-termination of recursive evaluation, no separate coinductive
 formulation is needed.
-Each of these prior frameworks operates on its own domain
-(Herbrand models, abstract domains, evaluation judgments);
-none has been applied to a tree-structured domain of paths
+Each of these prior frameworks operates on its own domain%
+\footnote{Herbrand models, abstract domains, and evaluation judgments, respectively.}
+and none has been applied to a first-order domain of paths
 to obtain a fully abstract semantics of the lazy
 $\lambda$-calculus without function spaces, substitution, or
 reduction rules.
@@ -1945,8 +1968,8 @@ Cook's key insight, that inheritance is a general mechanism
 applicable to any form of recursive definition and not only
 object-oriented methods, is one of the starting points of the
 present work.
-The model has four primitives---records, functions, generators, and
-wrappers---and requires a fixed-point combinator; composition is
+The model has four primitives (records, functions, generators, and
+wrappers) and requires a fixed-point combinator; composition is
 asymmetric, as a wrapper modifies a generator but not vice versa.
 The fixed-point construction relies on Scott continuity in a
 domain of functions; the resulting denotations are not directly
@@ -2318,17 +2341,17 @@ The semantics of $\mathscr{U}$ is given by translating
 every $\mathscr{U}$-program to inheritance-calculus in
 three steps:
 \begin{enumerate}
-\item Convert every maximal $\lambda$-calculus
-  subexpression (i.e.\ every subtree whose root
-  and all internal nodes use only $\lambda$-calculus
-  constructors) to A-normal
-  form~\cite{flanagan1993essence}.
-\item Apply the translation $\mathcal{T}$
-  (Section~\ref{sec:forward-translation}) to every ANF
-  $\lambda$-calculus subexpression.
-\item Evaluate the resulting inheritance-calculus
-  program by the rules of
-  Section~\ref{sec:mixin-trees}.
+  \item Convert every maximal $\lambda$-calculus
+    subexpression (i.e.\ every subtree whose root
+      and all internal nodes use only $\lambda$-calculus
+    constructors) to A-normal
+    form~\cite{flanagan1993essence}.
+  \item Apply the translation $\mathcal{T}$
+    (Section~\ref{sec:forward-translation}) to every ANF
+    $\lambda$-calculus subexpression.
+  \item Evaluate the resulting inheritance-calculus
+    program by the rules of
+    Section~\ref{sec:mixin-trees}.
 \end{enumerate}
 When a $\mathscr{U}$-expression interleaves
 $\lambda$-calculus and inheritance-calculus constructors
@@ -2370,7 +2393,7 @@ recursively enumerable, as required by
 Felleisen's framework~\cite{felleisen1991expressive}.
 
 \begin{lemma}[$\mathbf{let}$-binding is macro-expressible
-  in the lazy $\lambda$-calculus]
+in the lazy $\lambda$-calculus]
 \label{lem:let-macro}
 The translation
 $\mathbf{let}\; x = e_1 \;\mathbf{in}\; e_2
@@ -2388,7 +2411,7 @@ Felleisen~\cite{felleisen1991expressive}.
 \end{proof}
 
 \begin{lemma}[Equal expressiveness of the lazy
-  $\lambda$-calculus and its ANF fragment]
+$\lambda$-calculus and its ANF fragment]
 \label{lem:anf-equiv}
 In $\mathscr{U}$, the lazy $\lambda$-calculus and the
 ANF lazy $\lambda$-calculus
@@ -2399,27 +2422,27 @@ macro-expressive.
 \begin{proof}
 Every ANF term is a $\lambda$-term, so the embedding
 of the ANF fragment into the full $\lambda$-calculus is
-the identity---trivially macro-expressible.
+the identity, which is trivially macro-expressible.
 For the reverse direction, the ANF
 transformation~\cite{flanagan1993essence} consists of
 two steps, each macro-expressible:
 \begin{enumerate}
-\item \emph{Application flattening.}
-  Replace each nested application
-  $(e_1\; e_2)\; e_3$ with
-  $\mathbf{let}\; x = e_1\; e_2 \;\mathbf{in}\;
-  x\; e_3$.
-  The syntactic abstraction is
-  $A(\cdot_1, \cdot_2, \cdot_3)
-  = \mathbf{let}\; x = \cdot_1\; \cdot_2
+  \item \emph{Application flattening.}
+    Replace each nested application
+    $(e_1\; e_2)\; e_3$ with
+    $\mathbf{let}\; x = e_1\; e_2 \;\mathbf{in}\;
+    x\; e_3$.
+    The syntactic abstraction is
+    $A(\cdot_1, \cdot_2, \cdot_3)
+    = \mathbf{let}\; x = \cdot_1\; \cdot_2
     \;\mathbf{in}\; x\; \cdot_3$,
-  depending only on the three subexpressions.
-\item \emph{Value lifting.}
-  Replace each free value~$V$ used in an application
-  position with
-  $\mathbf{let}\; x = V \;\mathbf{in}\; x$.
-  The syntactic abstraction is
-  $A(\cdot_1) = \mathbf{let}\; x = \cdot_1
+    depending only on the three subexpressions.
+  \item \emph{Value lifting.}
+    Replace each free value~$V$ used in an application
+    position with
+    $\mathbf{let}\; x = V \;\mathbf{in}\; x$.
+    The syntactic abstraction is
+    $A(\cdot_1) = \mathbf{let}\; x = \cdot_1
     \;\mathbf{in}\; x$.
 \end{enumerate}
 By Lemma~\ref{lem:let-macro}, each resulting
@@ -2450,38 +2473,38 @@ A_F(\mathcal{T}(e_1),\ldots,\mathcal{T}(e_a))$.
 We check each rule of $\mathcal{T}$
 (Section~\ref{sec:forward-translation}):
 \begin{enumerate}
-\item \emph{$\lambda$-bound variable}
-  ($x$ with de~Bruijn index $n'$).
-  This is a nullary construct (no subexpressions).
-  The syntactic abstraction is the constant
-  $A = \dbi{n'}.\mathrm{argument}$.
-\item \emph{Let-bound variable} ($x$).
-  Nullary.
-  $A = x.\mathrm{result}$.
-\item \emph{$\lambda$-abstraction} ($\lambda x.\, M$).
-  Unary in the body~$M$.
-  $A(\cdot_1) = \{\mathrm{argument} \mapsto \{\},\;
+  \item \emph{$\lambda$-bound variable}
+    ($x$ with de~Bruijn index $n'$).
+    This is a nullary construct (no subexpressions).
+    The syntactic abstraction is the constant
+    $A = \dbi{n'}.\mathrm{argument}$.
+  \item \emph{Let-bound variable} ($x$).
+    Nullary.
+    $A = x.\mathrm{result}$.
+  \item \emph{$\lambda$-abstraction} ($\lambda x.\, M$).
+    Unary in the body~$M$.
+    $A(\cdot_1) = \{\mathrm{argument} \mapsto \{\},\;
     \mathrm{result} \mapsto \cdot_1\}$.
-\item \emph{Application let-binding}
-  ($\mathbf{let}\; x = V_1\; V_2
-  \;\mathbf{in}\; M$).
-  Ternary in~$V_1$, $V_2$, and~$M$.
-  $A(\cdot_1, \cdot_2, \cdot_3) =
+  \item \emph{Application let-binding}
+    ($\mathbf{let}\; x = V_1\; V_2
+    \;\mathbf{in}\; M$).
+    Ternary in~$V_1$, $V_2$, and~$M$.
+    $A(\cdot_1, \cdot_2, \cdot_3) =
     \{x \mapsto \{\cdot_1,\;
-    \mathrm{argument} \mapsto \cdot_2\},\;
+      \mathrm{argument} \mapsto \cdot_2\},\;
     \mathrm{result} \mapsto \cdot_3\}$.
-\item \emph{Value let-binding}
-  ($\mathbf{let}\; x = V \;\mathbf{in}\; M$).
-  Binary in~$V$ and~$M$.
-  $A(\cdot_1, \cdot_2) =
+  \item \emph{Value let-binding}
+    ($\mathbf{let}\; x = V \;\mathbf{in}\; M$).
+    Binary in~$V$ and~$M$.
+    $A(\cdot_1, \cdot_2) =
     \{x \mapsto \{\mathrm{result} \mapsto \cdot_1\},\;
     \mathrm{result} \mapsto \cdot_2\}$.
-\item \emph{Tail call} ($V_1\; V_2$).
-  Binary.
-  $A(\cdot_1, \cdot_2) =
+  \item \emph{Tail call} ($V_1\; V_2$).
+    Binary.
+    $A(\cdot_1, \cdot_2) =
     \{\mathrm{tailCall} \mapsto \{\cdot_1,\;
-    \mathrm{argument} \mapsto \cdot_2\},\;
-    \mathrm{result} \mapsto
+      \mathrm{argument} \mapsto \cdot_2\},\;
+      \mathrm{result} \mapsto
     \mathrm{tailCall}.\mathrm{result}\}$.
 \end{enumerate}
 In each case the syntactic abstraction~$A_F$ is a fixed
@@ -2509,22 +2532,22 @@ is a conservative extension of~$L_0$
 Felleisen~\cite{felleisen1991expressive}).
 We verify the four conditions:
 \begin{enumerate}
-\item[(i)] \emph{$L_0 \subseteq L_1$:}
-  The syntax of~$\mathscr{U}$ includes all
-  $L_0$-phrases.
-\item[(ii)] \emph{No new $L_0$-phrases:}
-  The mixin-tree constructors do not introduce new
-  phrases in~$L_0$.
-\item[(iii)] \emph{Disjoint constructors:}
-  The mixin-tree constructors are disjoint from the
-  $L_0$-constructors.
-\item[(iv)] \emph{Semantics preserved:}
-  For pure $\lambda$-terms, steps~(1) and~(2) of
-  Definition~\ref{def:language-universe} are vacuous
-  and step~(3) yields lazy evaluation by Adequacy
-  (Theorem~\ref{thm:adequacy}), so
-  $\mathrm{eval}_{\mathscr{U}}$ agrees with
-  $\mathrm{eval}_{L_0}$ on $L_0$-phrases.
+  \item[(i)] \emph{$L_0 \subseteq L_1$:}
+    The syntax of~$\mathscr{U}$ includes all
+    $L_0$-phrases.
+  \item[(ii)] \emph{No new $L_0$-phrases:}
+    The mixin-tree constructors do not introduce new
+    phrases in~$L_0$.
+  \item[(iii)] \emph{Disjoint constructors:}
+    The mixin-tree constructors are disjoint from the
+    $L_0$-constructors.
+  \item[(iv)] \emph{Semantics preserved:}
+    For pure $\lambda$-terms, steps~(1) and~(2) of
+    Definition~\ref{def:language-universe} are vacuous
+    and step~(3) yields lazy evaluation by Adequacy
+    (Theorem~\ref{thm:adequacy}), so
+    $\mathrm{eval}_{\mathscr{U}}$ agrees with
+    $\mathrm{eval}_{L_0}$ on $L_0$-phrases.
 \end{enumerate}
 The theorem requires us to exhibit two $L_0$-terms
 $M$ and $N$ with $M \cong_0 N$ but
@@ -2569,43 +2592,43 @@ Under the extended ANF convention
 value used in an application is first bound to a name:
 \begin{align*}
   \mathrm{ANF}(M) ={} &
-    \mathbf{let}\;\mathrm{eq} =
-      \lambda a.\,\lambda b.\,
-      \mathbf{let}\; x_1 = a\;b \;\mathbf{in}\;
-      \mathbf{let}\; f_1 = \mathrm{false}
-        \;\mathbf{in}\;
-      \mathbf{let}\; x_2 = b\;f_1 \;\mathbf{in}\;
-      \mathbf{let}\; t_1 = \mathrm{true}
-        \;\mathbf{in}\;
-      \mathbf{let}\; x_3 = x_2\;t_1
-        \;\mathbf{in}\;
-      x_1\;x_3 \\
+  \mathbf{let}\;\mathrm{eq} =
+  \lambda a.\,\lambda b.\,
+  \mathbf{let}\; x_1 = a\;b \;\mathbf{in}\;
+  \mathbf{let}\; f_1 = \mathrm{false}
+  \;\mathbf{in}\;
+  \mathbf{let}\; x_2 = b\;f_1 \;\mathbf{in}\;
+  \mathbf{let}\; t_1 = \mathrm{true}
+  \;\mathbf{in}\;
+  \mathbf{let}\; x_3 = x_2\;t_1
+  \;\mathbf{in}\;
+  x_1\;x_3 \\
   & \mathbf{in}\;\;
-    \mathbf{let}\; f_1 = \mathrm{false}
-    \;\mathbf{in}\;
-    \mathbf{let}\;\mathrm{eqFalse} = \mathrm{eq}\;f_1
-    \;\mathbf{in}\;
-    \mathbf{let}\; f_2 = \mathrm{false}
-    \;\mathbf{in}\;
-    \mathrm{eqFalse}\;f_2
+  \mathbf{let}\; f_1 = \mathrm{false}
+  \;\mathbf{in}\;
+  \mathbf{let}\;\mathrm{eqFalse} = \mathrm{eq}\;f_1
+  \;\mathbf{in}\;
+  \mathbf{let}\; f_2 = \mathrm{false}
+  \;\mathbf{in}\;
+  \mathrm{eqFalse}\;f_2
 \end{align*}
 Applying~$\mathcal{T}$:
 \begin{align*}
   \mathcal{T}(\mathrm{ANF}(M)) \;=\; \{&
     \mathrm{eq} \mapsto \{\mathrm{result} \mapsto
-      \mathcal{T}(\lambda a.\,\lambda b.\,\cdots)\}, \\
+    \mathcal{T}(\lambda a.\,\lambda b.\,\cdots)\}, \\
     & f_1 \mapsto \{\mathrm{result} \mapsto
-      \mathcal{T}(\mathrm{false})\}, \\
+    \mathcal{T}(\mathrm{false})\}, \\
     & \mathrm{eqFalse} \mapsto
     \{\mathrm{eq}.\mathrm{result},\;
-    \mathrm{argument} \mapsto
-      f_1.\mathrm{result}\}, \\
+      \mathrm{argument} \mapsto
+    f_1.\mathrm{result}\}, \\
     & f_2 \mapsto \{\mathrm{result} \mapsto
-      \mathcal{T}(\mathrm{false})\}, \\
+    \mathcal{T}(\mathrm{false})\}, \\
     & \mathrm{tailCall} \mapsto
     \{\mathrm{eqFalse}.\mathrm{result},\;
-    \mathrm{argument} \mapsto
-      f_2.\mathrm{result}\}, \\
+      \mathrm{argument} \mapsto
+    f_2.\mathrm{result}\}, \\
     & \mathrm{result} \mapsto
     \mathrm{tailCall}.\mathrm{result}
   \;\}
@@ -2622,12 +2645,12 @@ In particular, $\dbi{1}.\mathrm{argument}$ reaches
 the outer $\lambda a$ scope and
 $\dbi{0}.\mathrm{argument}$ reaches $\lambda b$
 itself.\footnote{These indices use the condensed
-convention, counting only $\lambda$-scopes.
-As noted in the translation footnote
-(Section~\ref{sec:forward-translation}),
-each let-binding and tail call introduces an
-additional scope level in inheritance-calculus;
-the formal index is correspondingly larger,
+  convention, counting only $\lambda$-scopes.
+  As noted in the translation footnote
+  (Section~\ref{sec:forward-translation}),
+  each let-binding and tail call introduces an
+  additional scope level in inheritance-calculus;
+  the formal index is correspondingly larger,
 but the target scope is the same.}
 
 The $\mathscr{U}$-context uses inheritance to add
@@ -2636,27 +2659,27 @@ of $\mathrm{eq}$ that projects the first operand.
 Define the context $C[\cdot]$ as:
 \begin{align*}
   C[\cdot] ={} & \mathbf{let}\;
-    \mathrm{extended} = \{[\cdot],\;
+  \mathrm{extended} = \{[\cdot],\;
     \mathrm{eq} \mapsto \{
       \mathrm{result} \mapsto \{
-      \mathrm{result} \mapsto \{
-        \mathrm{repr} \mapsto \{
-          \mathrm{firstOperand}
-          \mapsto \dbi{2}.\mathrm{argument}
+        \mathrm{result} \mapsto \{
+          \mathrm{repr} \mapsto \{
+            \mathrm{firstOperand}
+            \mapsto \dbi{2}.\mathrm{argument}
   \}\}\}\}\} \\
   & \mathbf{in}\;
-    \mathrm{extended}.\mathrm{tailCall}.\mathrm{repr}.\mathrm{firstOperand}
+  \mathrm{extended}.\mathrm{tailCall}.\mathrm{repr}.\mathrm{firstOperand}
 \end{align*}
 Here $[\cdot]$ is the hole.
 Note the two levels of $\mathrm{result}$ nesting in the
-overlay: the outer $\mathrm{result}$ enters the value
+mixin: the outer $\mathrm{result}$ enters the value
 let-binding wrapper for $\mathrm{eq}$, and the inner
 $\mathrm{result}$ enters the $\lambda a$ scope.
 The second $\mathrm{result}$ then contains the
 $\lambda b$ scope, so $\mathrm{repr}$ is placed at
 the $\lambda b$ scope level.
 The mixin $\{\mathrm{eq} \mapsto \{\mathrm{result}
-\mapsto \{\mathrm{result} \mapsto
+    \mapsto \{\mathrm{result} \mapsto
 \{\mathrm{repr} \mapsto \cdots\}\}\}\}$ is an
 inheritance-calculus expression: it uses only the
 mixin-tree constructors of $\mathscr{U}$.
@@ -2677,7 +2700,7 @@ Since $\mathrm{eqFalse}$ (respectively $\mathrm{eqTrue}$)
 inherits $\mathrm{eq}.\mathrm{result}$,
 and $\mathrm{tailCall}$ inherits
 $\mathrm{eqFalse}.\mathrm{result}$ (the $\lambda b$
-scope), the $\mathrm{repr}$ record placed by the overlay
+scope), the $\mathrm{repr}$ record placed by the mixin
 at the $\lambda b$ scope level propagates through
 the inheritance chain to $\mathrm{tailCall}$.
 In $C[M]$: the $\mathrm{eqFalse}$ binding supplies
@@ -2754,29 +2777,29 @@ We must show that inheritance-calculus can
 macro-express all four of these constructs.
 The translation proceeds in two stages:
 \begin{enumerate}
-\item \emph{ANF conversion.}
-  The A-normal form
-  transformation~\cite{flanagan1993essence}
-  replaces nested applications with
-  $\mathbf{let}$-bindings; it is macro-expressible
-  in the $\lambda$-calculus by
-  Lemma~\ref{lem:anf-equiv}.
-  In the reverse direction,
-  $\mathbf{let}$-bindings are macro-expressible in
-  the $\lambda$-calculus by
-  Proposition~3.7 of
-  Felleisen~\cite{felleisen1991expressive}
-  (restated as Lemma~\ref{lem:let-macro}).
-  Thus ANF conversion is a macro-expressible
-  equivalence between the $\lambda$-calculus and its
-  ANF fragment.
-\item \emph{The translation $\mathcal{T}$.}
-  Each ANF $\lambda$-calculus construct maps to a
-  fixed syntactic abstraction over
-  inheritance-calculus
-  (Theorem~\ref{thm:forward-macro}), satisfying
-  condition~E4 of
-  Felleisen~\cite[Definition~3.11]{felleisen1991expressive}.
+  \item \emph{ANF conversion.}
+    The A-normal form
+    transformation~\cite{flanagan1993essence}
+    replaces nested applications with
+    $\mathbf{let}$-bindings; it is macro-expressible
+    in the $\lambda$-calculus by
+    Lemma~\ref{lem:anf-equiv}.
+    In the reverse direction,
+    $\mathbf{let}$-bindings are macro-expressible in
+    the $\lambda$-calculus by
+    Proposition~3.7 of
+    Felleisen~\cite{felleisen1991expressive}
+    (restated as Lemma~\ref{lem:let-macro}).
+    Thus ANF conversion is a macro-expressible
+    equivalence between the $\lambda$-calculus and its
+    ANF fragment.
+  \item \emph{The translation $\mathcal{T}$.}
+    Each ANF $\lambda$-calculus construct maps to a
+    fixed syntactic abstraction over
+    inheritance-calculus
+    (Theorem~\ref{thm:forward-macro}), satisfying
+    condition~E4 of
+    Felleisen~\cite[Definition~3.11]{felleisen1991expressive}.
 \end{enumerate}
 By Lemma~\ref{lem:macro-composition}, composing the
 two macro-expressible translations gives a
@@ -3034,7 +3057,7 @@ determine a unique value for every vertex in this subgraph.
 
 \begin{proof}
 By induction on the DAG in reverse topological order.
-Leaves---vertices with no outgoing edges---have their
+Leaves (vertices with no outgoing edges) have their
 values determined directly by the AST primitives
 $\defines$ and $\inherits$.
 Each non-leaf vertex's value is uniquely determined by its
@@ -3236,8 +3259,8 @@ source.
 This is a reference, not a record.
 The $\this$ function walks up $n$ steps from the enclosing scope.
 By the compositionality argument above, every scope level
-encountered during the walk---including inherited subtrees
-reached through reference resolution---is the image of some
+encountered during the walk, including inherited subtrees
+reached through reference resolution, is the image of some
 sub-term under~$\mathcal{T}$, so each step of $\this$
 encounters exactly one matching pair in $\supers$.
 
@@ -3621,13 +3644,12 @@ The mixin tree semantics inherits full abstraction from the
 $\lambda$-calculus without needing to define or compare
 absolute paths inside mixin trees.
 
-\section{Set-Theoretic Semantics of the ANF Lazy
+\section{First-Order Semantics of the ANF Lazy
 \texorpdfstring{$\lambda$}{λ}-Calculus}
 \label{app:lambda-fixpoint}
 
-This appendix presents a semantics of the lazy
-$\lambda$-calculus in A-normal form (ANF) that lives entirely
-in set theory.
+This appendix presents a first-order semantics of the lazy
+$\lambda$-calculus in A-normal form (ANF).
 The semantics is given by mutually recursive set-comprehension
 equations whose well-definedness follows from the same
 termination argument as in
