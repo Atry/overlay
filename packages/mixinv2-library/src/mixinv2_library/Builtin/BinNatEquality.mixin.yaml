@@ -8,17 +8,17 @@
       Zero:
         Equal:
           other: [Product]
-          _OtherVisitor:
-            - [other, Visitor]
-            - VisitZero:
+          _OtherVisitors:
+            - [other, Visitors]
+            - ZeroVisitor:
                 equal: [BinNatEquality, ~, BooleanFactory, "True"]
-              VisitEven:
+              EvenVisitor:
                 equal: [BinNatEquality, ~, BooleanFactory, "False"]
-              VisitOdd:
+              OddVisitor:
                 equal: [BinNatEquality, ~, BooleanFactory, "False"]
-              Visit:
+              Accepted:
                 equal: [BinNatEquality, ~, Boolean]
-          equal: [_OtherVisitor, Visit, equal]
+          equal: [_OtherVisitors, Accepted, equal]
       Even:
         half:
           Equal:
@@ -30,17 +30,17 @@
           _recursiveEquality:
             - [Even, ~, half, Equal]
             - other: [Equal, ~, other, half]
-          _OtherVisitor:
-            - [other, Visitor]
-            - VisitZero:
+          _OtherVisitors:
+            - [other, Visitors]
+            - ZeroVisitor:
                 equal: [BinNatEquality, ~, BooleanFactory, "False"]
-              VisitEven:
+              EvenVisitor:
                 equal: [_recursiveEquality, equal]
-              VisitOdd:
+              OddVisitor:
                 equal: [BinNatEquality, ~, BooleanFactory, "False"]
-              Visit:
+              Accepted:
                 equal: [BinNatEquality, ~, Boolean]
-          equal: [_OtherVisitor, Visit, equal]
+          equal: [_OtherVisitors, Accepted, equal]
       Odd:
         halfOfPredecessor:
           Equal:
@@ -52,14 +52,14 @@
           _recursiveEquality:
             - [Odd, ~, halfOfPredecessor, Equal]
             - other: [Equal, ~, other, halfOfPredecessor]
-          _OtherVisitor:
-            - [other, Visitor]
-            - VisitZero:
+          _OtherVisitors:
+            - [other, Visitors]
+            - ZeroVisitor:
                 equal: [BinNatEquality, ~, BooleanFactory, "False"]
-              VisitEven:
+              EvenVisitor:
                 equal: [BinNatEquality, ~, BooleanFactory, "False"]
-              VisitOdd:
+              OddVisitor:
                 equal: [_recursiveEquality, equal]
-              Visit:
+              Accepted:
                 equal: [BinNatEquality, ~, Boolean]
-          equal: [_OtherVisitor, Visit, equal]
+          equal: [_OtherVisitors, Accepted, equal]

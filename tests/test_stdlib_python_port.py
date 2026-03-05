@@ -116,7 +116,7 @@ class Nat:
         @public
         @scope
         class Visitors:
-            """Visitor pattern for Zero."""
+            """Visitors pattern for Zero."""
 
             @public
             @scope
@@ -128,7 +128,7 @@ class Nat:
             @public
             @extend(LexicalReference(path=("ZeroVisitor",)))
             @scope
-            class Visitor:
+            class Visitors:
                 """Result of visitor application (inherits from ZeroVisitor)."""
 
                 pass
@@ -165,7 +165,7 @@ class Nat:
         @public
         @scope
         class Visitors:
-            """Visitor pattern for Succ."""
+            """Visitors pattern for Succ."""
 
             @public
             @scope
@@ -177,7 +177,7 @@ class Nat:
             @public
             @extend(LexicalReference(path=("SuccVisitor",)))
             @scope
-            class Visitor:
+            class Visitors:
                 """Result of visitor application (inherits from SuccVisitor)."""
 
                 pass
@@ -233,9 +233,9 @@ def test_zero_visitors_structure():
     zero_visitors = nat.Zero.Visitors
 
     assert hasattr(zero_visitors, "ZeroVisitor")
-    assert hasattr(zero_visitors, "Visitor")
+    assert hasattr(zero_visitors, "Visitors")
 
-    # Visitor should inherit from ZeroVisitor
+    # Visitors should inherit from ZeroVisitor
     # (This is expressed via @extend in the definition)
 
 
@@ -245,7 +245,7 @@ def test_succ_visitors_structure():
     succ_visitors = nat.Succ.Visitors
 
     assert hasattr(succ_visitors, "SuccVisitor")
-    assert hasattr(succ_visitors, "Visitor")
+    assert hasattr(succ_visitors, "Visitors")
 
 
 # =============================================================================

@@ -11,35 +11,35 @@
         Decrement:
           decreased: [Product]
       Decrement:
-        _HalfVisitor:
-          - [Even, ~, half, Visitor]
-          - VisitZero:
+        _HalfVisitors:
+          - [Even, ~, half, Visitors]
+          - ZeroVisitor:
               decreased: [Zero]
-            VisitEven:
+            EvenVisitor:
               decreased:
                 - [Odd]
                 - halfOfPredecessor: [Even, ~, half, Decrement, decreased]
-            VisitOdd:
+            OddVisitor:
               decreased:
                 - [Odd]
                 - halfOfPredecessor: [Even, ~, half, Decrement, decreased]
-            Visit:
+            Accepted:
               decreased: [Product]
-        decreased: [_HalfVisitor, Visit, decreased]
+        decreased: [_HalfVisitors, Accepted, decreased]
     Odd:
       Decrement:
-        _HalfVisitor:
-          - [Odd, ~, halfOfPredecessor, Visitor]
-          - VisitZero:
+        _HalfVisitors:
+          - [Odd, ~, halfOfPredecessor, Visitors]
+          - ZeroVisitor:
               decreased: [Zero]
-            VisitEven:
+            EvenVisitor:
               decreased:
                 - [Even]
                 - half: [Odd, ~, halfOfPredecessor]
-            VisitOdd:
+            OddVisitor:
               decreased:
                 - [Even]
                 - half: [Odd, ~, halfOfPredecessor]
-            Visit:
+            Accepted:
               decreased: [Product]
-        decreased: [_HalfVisitor, Visit, decreased]
+        decreased: [_HalfVisitors, Accepted, decreased]

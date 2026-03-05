@@ -3,13 +3,13 @@
     Zero: [Product]
     One: [Product]
     Product:
-      Visitor:
-        VisitZero: []
-        VisitOne: []
-        VisitMoreThanOne:
+      Visitors:
+        ZeroVisitor: []
+        OneVisitor: []
+        MoreThanOneVisitor:
           decrementedOnce: [Product]
           decrementedTwice: [Product]
-        Visit:
+        Accepted:
           decrementedOnce: [Product]
           decrementedTwice: [Product]
       Plus:
@@ -19,54 +19,54 @@
     Fibonacci:
       n:
         - [Product]
-        - Visitor: []
-      _NVisitor:
-        - [n, Visitor]
-        - VisitZero:
+        - Visitors: []
+      _NVisitors:
+        - [n, Visitors]
+        - ZeroVisitor:
             fibonacci: [Zero]
-          VisitOne:
+          OneVisitor:
             fibonacci: [One]
-          VisitMoreThanOne:
+          MoreThanOneVisitor:
             _fibonacciDecrementedOnce:
               - [Fibonacci]
-              - n: [_NVisitor, ~, Visit, decrementedOnce]
+              - n: [_NVisitors, ~, Accepted, decrementedOnce]
             _fibonacciDecrementedTwice:
               - [Fibonacci]
-              - n: [_NVisitor, ~, Visit, decrementedTwice]
+              - n: [_NVisitors, ~, Accepted, decrementedTwice]
             _addition:
               - [_fibonacciDecrementedOnce, fibonacci, Plus]
               - addend: [_fibonacciDecrementedTwice, fibonacci]
             fibonacci: [_addition, sum]
-          Visit:
+          Accepted:
             fibonacci: [Product]
-      fibonacci: [_NVisitor, Visit, fibonacci]
+      fibonacci: [_NVisitors, Accepted, fibonacci]
 
     FibonacciAccumulator:
       n:
         - [Product]
-        - Visitor: []
-      _NVisitor:
-        - [n, Visitor]
-        - VisitZero:
+        - Visitors: []
+      _NVisitors:
+        - [n, Visitors]
+        - ZeroVisitor:
             _current: [Zero]
             _next: [One]
-          VisitOne:
+          OneVisitor:
             _current: [One]
             _next: [One]
-          VisitMoreThanOne:
+          MoreThanOneVisitor:
             _previousAccumulator:
               - [FibonacciAccumulator]
-              - n: [_NVisitor, ~, Visit, decrementedOnce]
+              - n: [_NVisitors, ~, Accepted, decrementedOnce]
             _current: [_previousAccumulator, _next]
             _addition:
               - [_previousAccumulator, _next, Plus]
               - addend: [_previousAccumulator, _current]
             _next: [_addition, sum]
-          Visit:
+          Accepted:
             _current: [Product]
             _next: [Product]
-      _current: [_NVisitor, Visit, _current]
-      _next: [_NVisitor, Visit, _next]
+      _current: [_NVisitors, Accepted, _current]
+      _next: [_NVisitors, Accepted, _next]
       fibonacci: [_current]
 
 - [Builtin, BooleanData]

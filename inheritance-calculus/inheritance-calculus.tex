@@ -1042,7 +1042,7 @@ Following the Church-encoding
 convention\selfcite{~\cite{mixin2025}}{~(supplementary material)},%
 \footnote{The data representation (Zero/Successor) is a Peano
   encoding, an initial algebra of the functor $F(X) = 1 + X$.
-  The Visitor pattern (NatVisitor, below) adds the
+  The Visitors pattern (NatVisitor, below) adds the
   Church-encoding behavior: a fold (catamorphism) over this
   algebra.  These two concerns are defined in separate files
   and composed via inheritance, which is itself an instance of
@@ -1102,22 +1102,22 @@ by delegating to $n_0$'s $\mathrm{Plus}$ with an incremented addend:
 \paragraph{NatEquality}
 To test that $2 + 3 = 5$, we needed equality on Nat values.
 Equality requires case analysis on the constructor; we use the
-Visitor pattern.
-$\mathrm{NatVisitor}$ adds a $\mathrm{Visitor}$ operation to each constructor,
-with a $\mathrm{Visit}$ field that delegates to the appropriate
-$\mathrm{VisitZero}$ or $\mathrm{VisitSuccessor}$ branch:
+Visitors pattern.
+$\mathrm{NatVisitor}$ adds a $\mathrm{Visitors}$ operation to each constructor,
+with a $\mathrm{Accepted}$ field that delegates to the appropriate
+$\mathrm{ZeroVisitor}$ or $\mathrm{SuccessorVisitor}$ branch:
 \begin{align*}
   \mathrm{NatVisitor} \mapsto \{\;&
     \mathrm{NatData},\\
     &\mathrm{NatFactory} \mapsto \{\\
-      &\quad \mathrm{Product} \mapsto \{\mathrm{Visitor} \mapsto \{
-      \mathrm{Visit} \mapsto \{\}\}\},\\[2pt]
-      &\quad \mathrm{Zero} \mapsto \{\mathrm{Visitor} \mapsto \{
-          \mathrm{VisitZero} \mapsto \{\},\;
-      \mathrm{Visit} \mapsto \{\mathrm{VisitZero}\}\}\},\\[2pt]
-      &\quad \mathrm{Successor} \mapsto \{\mathrm{Visitor} \mapsto \{
-          \mathrm{VisitSuccessor} \mapsto \{\},\;
-  \mathrm{Visit} \mapsto \{\mathrm{VisitSuccessor}\}\}\}\}\}
+      &\quad \mathrm{Product} \mapsto \{\mathrm{Visitors} \mapsto \{
+      \mathrm{Accepted} \mapsto \{\}\}\},\\[2pt]
+      &\quad \mathrm{Zero} \mapsto \{\mathrm{Visitors} \mapsto \{
+          \mathrm{ZeroVisitor} \mapsto \{\},\;
+      \mathrm{Accepted} \mapsto \{\mathrm{ZeroVisitor}\}\}\},\\[2pt]
+      &\quad \mathrm{Successor} \mapsto \{\mathrm{Visitors} \mapsto \{
+          \mathrm{SuccessorVisitor} \mapsto \{\},\;
+  \mathrm{Accepted} \mapsto \{\mathrm{SuccessorVisitor}\}\}\}\}\}
 \end{align*}
 $\mathrm{BooleanData}$ defines the output sort:
 \begin{align*}
@@ -1134,7 +1134,7 @@ and adds an $\mathrm{Equal}$ operation to each constructor.
 $\mathrm{Zero}$ is equal only to another $\mathrm{Zero}$;
 $\mathrm{Successor}$ is equal only to another $\mathrm{Successor}$
 with an equal predecessor.
-Case analysis on $\mathrm{other}$ is done via its $\mathrm{Visitor}$:
+Case analysis on $\mathrm{other}$ is done via its $\mathrm{Visitors}$:
 {\small
   \begin{align*}
     \mathrm{NatEquality} \mapsto \{\;&
@@ -1149,22 +1149,22 @@ Case analysis on $\mathrm{other}$ is done via its $\mathrm{Visitor}$:
             \mathrm{other} \mapsto \{\mathrm{Product}\},\\
             &\qquad
             \mathrm{OtherVisitor} \mapsto \{
-              \mathrm{other}.\mathrm{Visitor},\\
+              \mathrm{other}.\mathrm{Visitors},\\
               &\qquad\;
-              \mathrm{VisitZero} \mapsto \{
+              \mathrm{ZeroVisitor} \mapsto \{
                 \mathrm{equal} \mapsto \{
               \qualifiedthis{\mathrm{NatEquality}}.\mathrm{True}\}\},\\
               &\qquad\;
-              \mathrm{VisitSuccessor} \mapsto \{
+              \mathrm{SuccessorVisitor} \mapsto \{
                 \mathrm{equal} \mapsto \{
               \qualifiedthis{\mathrm{NatEquality}}.\mathrm{False}\}\},\\
               &\qquad\;
-              \mathrm{Visit} \mapsto \{
+              \mathrm{Accepted} \mapsto \{
                 \mathrm{equal} \mapsto \{
             \qualifiedthis{\mathrm{NatEquality}}.\mathrm{Boolean}\}\}\},\\
             &\qquad
             \mathrm{equal} \mapsto \{
-        \mathrm{OtherVisitor}.\mathrm{Visit}.\mathrm{equal}\}\}\},\\[2pt]
+        \mathrm{OtherVisitor}.\mathrm{Accepted}.\mathrm{equal}\}\}\},\\[2pt]
         &\quad \mathrm{Successor} \mapsto \{\mathrm{Equal} \mapsto \{
             \mathrm{other} \mapsto \{
               \mathrm{Product},\;
@@ -1177,22 +1177,22 @@ Case analysis on $\mathrm{other}$ is done via its $\mathrm{Visitor}$:
             \qualifiedthis{\mathrm{Equal}}.\mathrm{other}.\mathrm{predecessor}\}\},\\
             &\qquad
             \mathrm{OtherVisitor} \mapsto \{
-              \mathrm{other}.\mathrm{Visitor},\\
+              \mathrm{other}.\mathrm{Visitors},\\
               &\qquad\;
-              \mathrm{VisitZero} \mapsto \{
+              \mathrm{ZeroVisitor} \mapsto \{
                 \mathrm{equal} \mapsto \{
               \qualifiedthis{\mathrm{NatEquality}}.\mathrm{False}\}\},\\
               &\qquad\;
-              \mathrm{VisitSuccessor} \mapsto \{
+              \mathrm{SuccessorVisitor} \mapsto \{
                 \mathrm{equal} \mapsto \{
               \mathrm{RecursiveEquality}.\mathrm{equal}\}\},\\
               &\qquad\;
-              \mathrm{Visit} \mapsto \{
+              \mathrm{Accepted} \mapsto \{
                 \mathrm{equal} \mapsto \{
             \qualifiedthis{\mathrm{NatEquality}}.\mathrm{Boolean}\}\}\},\\
             &\qquad
             \mathrm{equal} \mapsto \{
-    \mathrm{OtherVisitor}.\mathrm{Visit}.\mathrm{equal}\}\}\}\}\}
+    \mathrm{OtherVisitor}.\mathrm{Accepted}.\mathrm{equal}\}\}\}\}\}
 \end{align*}}
 %% === 审稿人备忘：关于代码"冗长"的回应 ===
 %%
@@ -1910,15 +1910,15 @@ absent from the model it reduces.
 %%     - 提取子部分是平凡的：所有值都是透明 record，通过 qualified this
 %%       投影任意 slot 即可。Theorem 6 的 separating context 就在读取
 %%       argument slot（↑².argument）。
-%%     - 判断结构形态并分支：需要 Visitor pattern（Section 4）。
+%%     - 判断结构形态并分支：需要 Visitors pattern（Section 4）。
 %%       NatVisitor 对 Nat 做的事情与 F 对 SF-calculus 项做的事情
-%%       完全对应：VisitZero/VisitSuccessor 对应 F 的 atom/compound
+%%       完全对应：VisitZero/SuccessorVisitor 对应 F 的 atom/compound
 %%       分支。Visitor 可以通过 open extension 添加到已有 term 上，
 %%       不修改原始定义。
-%%   Visitor 在精神上就是 F：两者都是对 closed normal form 做
+%%   Visitors 在精神上就是 F：两者都是对 closed normal form 做
 %%   constructor dispatch。区别在于 F 是不可扩展的 built-in primitive
-%%   （硬编码了 S 和 F 两个 atom），而 Visitor 是可扩展的 encoding
-%%   （新增 constructor 只需继承新的 Visit* 分支，即 Expression Problem
+%%   （硬编码了 S 和 F 两个 atom），而 Visitors 是可扩展的 encoding
+%%   （新增 constructor 只需继承新的 Accepted* 分支，即 Expression Problem
 %%   immunity）。
 %%
 %% 精确差异：
@@ -1926,11 +1926,11 @@ absent from the model it reduces.
 %%   primitive reduction rule（F 是一个 term）；
 %%   inheritance-calculus 把它留在了 meta-level（观察者总能通过
 %%   properties(p) 查询任何路径），而 term-level 的分支需要通过
-%%   Visitor pattern 显式编码。
+%%   Visitors pattern 显式编码。
 %%   换言之：inheritance-calculus 中 F 的 *读取* 能力是免费的
 %%   （所有值都是透明 record），但 F 的 *分支* 能力需要 Visitor。
 %%   SF-calculus 的 F 则把读取和分支捆绑在一个不可扩展的 primitive 里。
-%%   Visitor 是可扩展的（新增 constructor 只需继承新分支，
+%%   Visitors 是可扩展的（新增 constructor 只需继承新分支，
 %%   即 Expression Problem immunity），而 F 硬编码了固定的 atom 集合
 %%   （S 和 F）。
 %%

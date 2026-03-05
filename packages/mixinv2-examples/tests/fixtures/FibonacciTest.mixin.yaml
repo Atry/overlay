@@ -18,41 +18,41 @@
         - predecessor:
             - [FibonacciTest, ~, NatFactory, Zero]
       Product:
-        Visitor:
-          VisitZero: []
-          VisitOne: []
-          VisitMoreThanOne:
+        Visitors:
+          ZeroVisitor: []
+          OneVisitor: []
+          MoreThanOneVisitor:
             decrementedOnce: [Product]
             decrementedTwice: [Product]
-          Visit: []
+          Accepted: []
       Zero:
-        Visitor:
-          - VisitZero: []
-            VisitOne: []
-            VisitMoreThanOne:
+        Visitors:
+          - ZeroVisitor: []
+            OneVisitor: []
+            MoreThanOneVisitor:
               decrementedOnce: [Product]
               decrementedTwice: [Product]
-            Visit: [VisitZero]
+            Accepted: [ZeroVisitor]
       Successor:
-        Visitor:
-          _PredVisitor:
-            - [Successor, ~, predecessor, Visitor]
-            - VisitZero:
+        Visitors:
+          _PredVisitors:
+            - [Successor, ~, predecessor, Visitors]
+            - ZeroVisitor:
                 _case:
-                  - [VisitOne]
-              VisitSuccessor:
+                  - [OneVisitor]
+              SuccessorVisitor:
                 _case:
-                  - [VisitMoreThanOne]
+                  - [MoreThanOneVisitor]
                   - decrementedOnce: [Successor, ~, predecessor]
                     decrementedTwice: [Successor, ~, predecessor, Decrement, decreased]
-              Visit:
+              Accepted:
                 _case: [Product]
-          VisitZero: []
-          VisitOne: []
-          VisitMoreThanOne:
+          ZeroVisitor: []
+          OneVisitor: []
+          MoreThanOneVisitor:
             decrementedOnce: [Product]
             decrementedTwice: [Product]
-          Visit: [_PredVisitor, Visit, _case]
+          Accepted: [_PredVisitors, Accepted, _case]
 
   BinNatFactory:
     - [FibonacciTest, ~, FibonacciFactory]
@@ -61,54 +61,54 @@
         - halfOfPredecessor:
             - [FibonacciTest, ~, BinNatFactory, Zero]
       Product:
-        Visitor:
-          VisitZero: []
-          VisitOne: []
-          VisitMoreThanOne:
+        Visitors:
+          ZeroVisitor: []
+          OneVisitor: []
+          MoreThanOneVisitor:
             decrementedOnce: [Product]
             decrementedTwice: [Product]
-          Visit: []
+          Accepted: []
       Zero:
-        Visitor:
-          - VisitZero: []
-            VisitOne: []
-            VisitMoreThanOne:
+        Visitors:
+          - ZeroVisitor: []
+            OneVisitor: []
+            MoreThanOneVisitor:
               decrementedOnce: [Product]
               decrementedTwice: [Product]
-            Visit: [VisitZero]
+            Accepted: [ZeroVisitor]
       Even:
-        Visitor:
-          - VisitZero: []
-            VisitOne: []
-            VisitMoreThanOne:
+        Visitors:
+          - ZeroVisitor: []
+            OneVisitor: []
+            MoreThanOneVisitor:
               decrementedOnce: [Even, ~, Decrement, decreased]
               decrementedTwice: [Even, ~, Decrement, decreased, Decrement, decreased]
-            Visit: [VisitMoreThanOne]
+            Accepted: [MoreThanOneVisitor]
       Odd:
-        Visitor:
-          _HalfVisitor:
-            - [Odd, ~, halfOfPredecessor, Visitor]
-            - VisitZero:
+        Visitors:
+          _HalfVisitors:
+            - [Odd, ~, halfOfPredecessor, Visitors]
+            - ZeroVisitor:
                 _case:
-                  - [VisitOne]
-              VisitEven:
+                  - [OneVisitor]
+              EvenVisitor:
                 _case:
-                  - [VisitMoreThanOne]
+                  - [MoreThanOneVisitor]
                   - decrementedOnce: [Odd, ~, Decrement, decreased]
                     decrementedTwice: [Odd, ~, Decrement, decreased, Decrement, decreased]
-              VisitOdd:
+              OddVisitor:
                 _case:
-                  - [VisitMoreThanOne]
+                  - [MoreThanOneVisitor]
                   - decrementedOnce: [Odd, ~, Decrement, decreased]
                     decrementedTwice: [Odd, ~, Decrement, decreased, Decrement, decreased]
-              Visit:
+              Accepted:
                 _case: [Product]
-          VisitZero: []
-          VisitOne: []
-          VisitMoreThanOne:
+          ZeroVisitor: []
+          OneVisitor: []
+          MoreThanOneVisitor:
             decrementedOnce: [Product]
             decrementedTwice: [Product]
-          Visit: [_HalfVisitor, Visit, _case]
+          Accepted: [_HalfVisitors, Accepted, _case]
 
   # ===========================================================================
   # Nat Fibonacci tests

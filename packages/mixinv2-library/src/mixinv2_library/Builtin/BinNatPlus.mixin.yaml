@@ -17,27 +17,27 @@
           - [Product]
           - half: [Product]
           - halfOfPredecessor: [Product]
-        _AddendVisitor:
-          - [addend, Visitor]
-          - VisitZero:
+        _AddendVisitors:
+          - [addend, Visitors]
+          - ZeroVisitor:
               sum: [Even, ~]
-            VisitEven:
+            EvenVisitor:
               _recursiveAddition:
                 - [Even, ~, half, Plus]
                 - addend: [Plus, ~, addend, half]
               sum:
                 - [Even]
                 - half: [_recursiveAddition, sum]
-            VisitOdd:
+            OddVisitor:
               _recursiveAddition:
                 - [Even, ~, half, Plus]
                 - addend: [Plus, ~, addend, halfOfPredecessor]
               sum:
                 - [Odd]
                 - halfOfPredecessor: [_recursiveAddition, sum]
-            Visit:
+            Accepted:
               sum: [Product]
-        sum: [_AddendVisitor, Visit, sum]
+        sum: [_AddendVisitors, Accepted, sum]
     Odd:
       halfOfPredecessor:
         Plus:
@@ -48,24 +48,24 @@
           - [Product]
           - half: [Product]
           - halfOfPredecessor: [Product]
-        _AddendVisitor:
-          - [addend, Visitor]
-          - VisitZero:
+        _AddendVisitors:
+          - [addend, Visitors]
+          - ZeroVisitor:
               sum: [Odd, ~]
-            VisitEven:
+            EvenVisitor:
               _recursiveAddition:
                 - [Odd, ~, halfOfPredecessor, Plus]
                 - addend: [Plus, ~, addend, half]
               sum:
                 - [Odd]
                 - halfOfPredecessor: [_recursiveAddition, sum]
-            VisitOdd:
+            OddVisitor:
               _recursiveAddition:
                 - [Odd, ~, halfOfPredecessor, Plus]
                 - addend: [Plus, ~, addend, halfOfPredecessor]
               sum:
                 - [Even]
                 - half: [_recursiveAddition, sum, increment]
-            Visit:
+            Accepted:
               sum: [Product]
-        sum: [_AddendVisitor, Visit, sum]
+        sum: [_AddendVisitors, Accepted, sum]

@@ -1,14 +1,14 @@
 - [BooleanData]
 - BooleanFactory:
     Product:
-      Visitor:
-        Visit: []
+      Visitors:
+        Accepted: []
     "True":
-      Visitor:
-        - VisitTrue: []
-          Visit: [VisitTrue]
+      Visitors:
+        - TrueVisitor: []
+          Accepted: [TrueVisitor]
 
     "False":
-      Visitor:
-        - VisitFalse: []
-          Visit: [VisitFalse]
+      Visitors:
+        - FalseVisitor: []
+          Accepted: [FalseVisitor]
