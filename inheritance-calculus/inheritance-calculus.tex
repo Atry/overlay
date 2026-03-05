@@ -21,7 +21,7 @@
   breaklines=true,
   showstringspaces=false,
   columns=flexible,
-  commentstyle=\itshape,
+  commentstyle=\color[gray]{0.5},
   morecomment=[l]{\#},
 }
 
@@ -51,6 +51,14 @@
 \newcommand{\last}{\mathtt{last}}
 \newcommand{\qualifiedthis}[1]{#1.\mathbf{this}}
 \newcommand{\dbi}[1]{\uparrow^{\!#1}}
+
+%% Indexed hylomorphism notation
+%% (Meijer--Fokkinga--Paterson 1991; L\"oh--Magalh\~aes 2011)
+%%   \hylo{I}        — full indexed hylomorphism over index set I
+%%   \hyloi{i}       — component at index value i
+\newcommand{\Idx}{\mathcal{I}}
+\newcommand{\hylo}[1]{[\![(\varphi_i,\; \alpha_i)_{i \in #1}]\!]}
+\newcommand{\hyloi}[1]{[\![\varphi_{#1},\; \alpha_{#1}]\!]}
 
 %% Semantic functions for the direct λ-calculus fixpoint semantics (Appendix E)
 \newcommand{\labels}{\mathtt{labels}}
@@ -183,13 +191,12 @@ explicit functions, is expressive enough to configure entire operating
 systems.
 
 Conventionally, the value domain of configuration languages is assumed
-to consist of finite, well-founded structures, that is, initial algebras in the
-sense of universal algebra. We challenge this assumption: configuration
+to consist of finite, well-founded structures---initial algebras in the
+sense of universal algebra. We challenge this assumption. Configuration
 values are better understood as lazily observable, possibly infinite
 structures, where
 semantics is determined by the observer and a finite prefix suffices
-for any finite observation. This is not merely a theoretical
-distinction: the \texttt{nixpkgs} package
+for any finite observation. The \texttt{nixpkgs} package
 collection~\cite{dolstra2006purely} (over 100{,}000
 packages) behaves as a lazily observed structure in practice, allowing any
 single package to be evaluated without materializing the entire set.
@@ -202,32 +209,31 @@ material)}, now implemented in Python: a declarative programming
 language with only three constructs (record literals, properties,
 and inheritance) and no functions or let-bindings.
 
-In developing real programs in MIXINv2, including boolean logic and
-natural number arithmetic (Section~\ref{sec:case-study}) and a web application
-(Section~\ref{sec:practical-function-color}), the
+In developing real programs in MIXINv2, including boolean logic,
+natural number arithmetic, and a web application, the
 linearization problem of mixin-based
-systems~\cite{bracha1990mixin,c3linearization} did not arise:
-because records are sets, inheritance is inherently commutative,
+systems~\cite{bracha1990mixin,c3linearization} did not arise.
+Because records are sets, inheritance is inherently commutative,
 idempotent, and associative (Section~\ref{sec:mixin-trees}).
 Self-reference naturally resolves to \emph{multiple objects} rather than
-one; prior systems assume single-object resolution and reject the
-multi-path situation (Scala, NixOS module system).
+one. Prior systems such as Scala and the NixOS module system assume
+single-object resolution and reject the multi-path situation.
 Self-referential records require no fixed-point combinator
 in the object language.
 The mixin tree \emph{is} the call stack, and qualified this resolution
-is a first-order set-theoretic query over paths,
-not a higher-order fixed-point construction over function spaces.
+is a first-order set-theoretic query over paths.
 We also found that boolean logic and arithmetic, implemented as separate
 MIXINv2 files, extend in both dimensions of the Expression
 Problem~\cite{wadler1998expression} without any dedicated mechanism.
 Church-encoded values automatically form trie structures, and
 operations on tries automatically become Cartesian products, so that
-adding $\{1,2\}$ to $\{3,4\}$ yields $\{4,5,6\}$, which
-is the relational semantics of logic programming~\cite{vanemden1976semantics}
-(Section~\ref{sec:case-study}); and that the same web
+adding $\{1,2\}$ to $\{3,4\}$ yields $\{4,5,6\}$---the
+relational semantics of logic programming~\cite{vanemden1976semantics}
+(Section~\ref{sec:case-study}).
+Furthermore, the same web
 application MIXINv2 file runs under both Python asyncio and synchronous
 execution without modification, an instance of function color
-blindness~\cite{nystrom2015color}, equivalently CPS-agnostic behavior
+blindness~\cite{nystrom2015color}
 (Section~\ref{sec:practical-function-color}).
 
 This paper distills these observations into \textbf{inheritance-calculus},
@@ -272,16 +278,13 @@ All tests are mechanically verified against expected output snapshots.
 \begin{itemize}
   \item We present inheritance-calculus, a minimal computational model for
     declarative programming that contains three constructs (record,
-    definition, inheritance) without functions.
+    definition, inheritance).
   \item The mixin is a single abstraction that unifies class,
     method, object, and property.
     Method-level overriding is subsumed by deep merge of mixin
     trees; inheritance is commutative, idempotent,
-    and associative, and the linearization problem of prior mixin
-    and trait calculi does not arise.
-  \item The semantics is \emph{observational}: there are no
-    reduction rules, no evaluation order, and no notion of a result
-    that a term reduces to.  The observer drives computation by
+    and associative, and the linearization problem in OOP does not arise.
+  \item The semantics is \emph{observational}: the observer drives computation by
     querying paths in a lazily constructed tree.
     The six semantic equations are first-order%
     \footnote{First-order in three senses simultaneously:
@@ -295,27 +298,22 @@ All tests are mechanically verified against expected output snapshots.
       definitions~\cite{aczel1977inductive} over paths
       and labels, where quantifiers range over paths and labels,
     never over functions or predicates.},
-    denotational, and computable; no function spaces, substitution, or
-    separate operational semantics are needed.
-  \item Self-referential records require no fixed-point combinator;
-    the mixin tree \emph{is} the call stack.
-    Self-reference resolves to \emph{multiple objects}, not one.
-    Prior systems reject this
-    situation, but since inheritance
-    is idempotent, all objects contribute equally without
-    disambiguation.
+    denotational, and computable.
+  \item The mixin tree \emph{is} the call stack.
+    Self-reference resolves to \emph{multiple objects}.
+    Since inheritance
+    is idempotent, all objects contribute equally.
   \item The $\lambda$-calculus macro-expresses into
     inheritance-calculus in five local rules
     (Section~\ref{sec:translation}).
-  \item The translation is fully abstract with respect to
-    B\"ohm tree equivalence under $\lambda$-definable contexts
+  \item The translation gives the lazy $\lambda$-calculus a
+    first-order semantics
     (Section~\ref{sec:bohm-tree}):
-    the prior higher-order semantic frameworks of the lazy
-    $\lambda$-calculus coincide with a sublanguage of
-    inheritance-calculus's first-order semantics.
-    As a corollary, the lazy $\lambda$-calculus has a
-    first-order denotational computable semantics in its own right
-    (Appendix~\ref{app:lambda-fixpoint}).
+    the prior higher-order semantic frameworks are shown
+    to be faithful to a sublanguage of
+    inheritance-calculus's first-order equations.
+    Appendix~\ref{app:lambda-fixpoint} reformulates this
+    semantics directly on ANF\@.
   \item Inheritance-calculus is strictly more expressive than
     the lazy $\lambda$-calculus in Felleisen's
     sense~\cite{felleisen1991expressive}
@@ -359,8 +357,7 @@ Because expressions are sets, element order is irrelevant and
 duplicates have no effect; inheritance is inherently commutative,
 idempotent, and associative.
 
-The $\mapsto$ in $\ell \mapsto e$ defines a property, not a let-binding.
-There is no variable binding in inheritance-calculus.
+The $\mapsto$ in $\ell \mapsto e$ defines a property.
 MIXINv2 also provides scalar types through a
 foreign-function interface (FFI); inheritance-calculus is what remains
 after removing the FFI.
@@ -440,9 +437,16 @@ Its semantics is purely \emph{observational}: given an
 inheritance-calculus program, one queries whether a
 label $\ell$ is a property at a given position $p$.
 
-This section defines the semantics via
-six mutually recursive set-comprehension equations over
-paths~\cite{vanemden1976semantics,aczel1977inductive}.
+This section defines the semantics as an indexed
+hylomorphism~\cite{meijer1991functional,loh2011generic},
+a family of mutually recursive unfold--fold
+pairs, over six set-comprehension equations on paths,
+in the style of fixpoint
+semantics~\cite{vanemden1976semantics} and inductive
+definitions~\cite{aczel1977inductive}.
+Each semantic function has its own coalgebra (one-level
+exploration) and algebra (combination), and the indexed
+hylomorphism ties them together.
 The equations are well-defined for every query whose
 recursive evaluation terminates: the reachable dependency
 subgraph is necessarily finite and acyclic, so the equations
@@ -519,6 +523,10 @@ Both $\defines$ and $\inherits$ are pure data; they are not functions
 of runtime state.
 Given these two primitives, we can now answer the question
 posed at the beginning of this section.
+The answer is a system of six mutually recursive functions
+$\properties$, $\supers$, $\overrides$, $\bases$, $\resolve$,
+$\this$
+defined below.
 
 \paragraph{Properties}
 The properties of a path are its own properties together with
@@ -541,8 +549,8 @@ plus the $\overrides$ of each
 direct base $\bases$ of $p$, and so on transitively.
 Each result is paired with the inheritance-site context
 $\init(p_{\mathrm{base}})$ through which it is reached.
-This provenance is needed by qualified this resolution, i.e.\ the $\this$ function defined below,
-to map a definition-site mixin back to
+Qualified this resolution (the $\this$ function defined below)
+uses this provenance to map a definition-site mixin back to
 the inheritance-site paths that incorporate it:
 \begin{equation}\label{eq:supers}
   \supers(p) =
@@ -663,36 +671,36 @@ At each step $\init$ shortens $p_{\mathrm{def}}$ by one label
 and $n$ decreases by one.
 Since $n$ is a nonnegative integer, the recursion terminates.
 
-This completes the chain of definitions needed to compute $\properties(p)$.
+This completes the six mutually recursive functions.
 
 \subsection{Recursive Evaluation}
-The six equations
-(\ref{eq:properties})--(\ref{eq:this}) define set membership
-recursively:
+Equations~(\ref{eq:properties})--(\ref{eq:this})
+define set membership recursively:
 $\ell \in \properties(p)$ holds if and only if it can
 be established by a finite chain of applications of
 these equations.
-Well-definedness follows from a termination argument:
-if the recursive evaluation terminates, the reachable
-dependency subgraph is finite and acyclic, and the equations
-have a unique solution
-(Appendix~\ref{app:well-definedness}).
-When no finite derivation exists for a given query, the
-recursive evaluation does not terminate, analogous to
-divergence in the $\lambda$-calculus.
+The six functions decompose into an indexed
+hylomorphism~\cite{meijer1991functional,loh2011generic}
+$\hylo{\Idx}$, a pattern of structured mutual
+recursion~\cite{mcbride2015turing};
+Appendix~\ref{app:well-definedness} gives the explicit
+coalgebra--algebra decomposition for each equation,
+proves well-definedness for terminating queries,
+and characterises divergence via the final coalgebra.
 
-The equations \emph{are} the interpreter: the observer
-drives the computation by choosing which path to inspect,
-and the equations unfold on demand.
+Since hylomorphisms are a computation
+model~\cite{hinze2015conjugate}, the equations \emph{are}
+the interpreter: the observer drives the computation by
+choosing which path to inspect, and each coalgebra
+unfolds on demand.
 The equations are pure and order-independent, so the
 reflexive-transitive closure $\bases^*$
 in~(\ref{eq:supers}) may be explored breadth-first or
 depth-first without affecting the result;
 paths may be \emph{interned} so that structural equality
 reduces to pointer equality;
-and the six equations form a memoizable
+and the six functions form a memoizable
 dynamic-programming recurrence keyed by paths.
-No separate operational semantics is needed.
 
 %% === 审稿人备忘：六个方程的渐近复杂度分析 ===
 %%
@@ -808,10 +816,11 @@ in the translated mixin tree.
 
 \medskip
 \begin{center}
-  \begin{tabular}{l@{\qquad$\longrightarrow$\qquad}l}
-    $x$ \text{\small($\lambda$-bound, index $n'$)} &
+  \small
+  \begin{tabular}{l@{\quad$\longrightarrow$\quad}l}
+    $x$ \text{\scriptsize($\lambda$-bound, index $n'$)} &
     $\dbi{n'}.\mathrm{argument}$ \\[4pt]
-    $x$ \text{\small(let-bound)} &
+    $x$ \text{\scriptsize(let-bound)} &
     $x.\mathrm{result}$ \\[4pt]
     $\lambda x.\, M$ &
     $\{\mathrm{argument} \mapsto \{\},\;
@@ -819,16 +828,16 @@ in the translated mixin tree.
     $\mathbf{let}\; x = V_1\; V_2
     \;\mathbf{in}\; M$ &
     $\{x \mapsto \{\mathcal{T}(V_1),\;
-      \mathrm{argument} \mapsto \mathcal{T}(V_2)\},\;
-    \mathrm{result} \mapsto \mathcal{T}(M)\}$ \\[4pt]
+      \mathrm{argument} \mapsto \mathcal{T}(V_2)\},$ \\
+    & $\;\mathrm{result} \mapsto \mathcal{T}(M)\}$ \\[4pt]
     $\mathbf{let}\; x = V
     \;\mathbf{in}\; M$ &
     $\{x \mapsto \{\mathrm{result} \mapsto \mathcal{T}(V)\},\;
     \mathrm{result} \mapsto \mathcal{T}(M)\}$ \\[4pt]
-    $V_1\; V_2$ \text{\small(tail call)} &
+    $V_1\; V_2$ \text{\scriptsize(tail call)} &
     $\{\mathrm{tailCall} \mapsto \{\mathcal{T}(V_1),\;
-      \mathrm{argument} \mapsto \mathcal{T}(V_2)\},\;
-    \mathrm{result} \mapsto \mathrm{tailCall}.\mathrm{result}\}$
+      \mathrm{argument} \mapsto \mathcal{T}(V_2)\},$ \\
+    & $\;\mathrm{result} \mapsto \mathrm{tailCall}.\mathrm{result}\}$
   \end{tabular}
 \end{center}
 \medskip
@@ -922,7 +931,7 @@ We write $T{\Uparrow}$ if no such depth exists.
   only if $\mathcal{T}(M){\Downarrow}$.
 \end{theorem}
 
-\begin{theorem}[Full abstraction w.r.t.\ $\lambda$-definable contexts]%
+\begin{theorem}[First-order semantics of the lazy $\lambda$-calculus]%
   \label{thm:full-abstraction}
   For closed $\lambda$-terms $M$ and $N$, define
   $\mathcal{T}(M) \approx_\lambda \mathcal{T}(N)$ iff for every
@@ -941,19 +950,18 @@ We write $T{\Uparrow}$ if no such depth exists.
 Here $\approx_\lambda$ quantifies over $\lambda$-calculus
 contexts only; inheritance-calculus contexts are strictly more
 discriminating (Section~\ref{sec:asymmetry}).
-Together, Adequacy and Full Abstraction establish that
-the lazy $\lambda$-calculus has a first-order
-foundation: the translation $\mathcal{T}$ is a fully
-abstract embedding into inheritance-calculus with respect
-to B\"ohm tree equivalence~\cite{barendregt1984lambda},
+The theorem establishes
+that the lazy $\lambda$-calculus has a
+first-order semantics: the translation $\mathcal{T}$
+embeds the $\lambda$-calculus into a sublanguage of
+inheritance-calculus,
 using only recursive evaluation of set-comprehension
-equations over paths and sets of paths, requiring no function
-spaces, no substitution, no reduction rules, and no
-separate operational semantics.
-The prior higher-order semantic
-frameworks~\cite{scott1972continuous,wadsworth1976semantics,abramsky2000full,hyland2000full,barendregt1984lambda}
-are equivalent
-to this first-order semantics.%
+equations over paths and sets of paths.
+The prior higher-order semantic frameworks
+of~\cite{scott1972continuous,wadsworth1976semantics,abramsky2000full,hyland2000full,barendregt1984lambda}
+are thereby shown to be faithful to this first-order
+semantics: they agree with the equations on B\"ohm tree
+equivalence~\cite{barendregt1984lambda}.%
 \footnote{Composing $\mathcal{T}$ with the equations of
   Section~\ref{sec:mixin-trees} yields a first-order semantics
   of the $\lambda$-calculus in which function application is
@@ -1372,8 +1380,8 @@ every operation distributes over them.
 In developing real programs in MIXINv2, we encountered three
 phenomena that we did not design for.  They can be seen in the
 source code\selfcite{~\cite{mixin2025}}{~(supplementary material)}
-and the Case Study (Section~\ref{sec:case-study}); below we
-explain why they arise from the three primitives.
+and the Case Study (Section~\ref{sec:case-study}).
+Below we explain why they arise from the three primitives.
 
 \begin{description}
   \item[Relational semantics]
@@ -1403,14 +1411,12 @@ explain why they arise from the three primitives.
     It is structurally impossible to write a nonextensible program.
     Every construct of inheritance-calculus
     (Section~\ref{sec:syntax}) is extensible via deep merge
-    (equation~\ref{eq:overrides}); there is no nonextensible
-    construct.
+    (equation~\ref{eq:overrides}).
     The Case Study (Section~\ref{sec:case-study}) and the
     Expressive Asymmetry (Section~\ref{sec:asymmetry};
     Theorem~\ref{thm:cartesian-nonexpressibility}) demonstrate
     and formalize this: new operations and data types are added,
-    and new observable projections are introduced, without
-    modifying existing definitions.
+    and new observable projections are introduced.
     This is the extensibility that the
     Expression Problem~\cite{wadler1998expression} demands.%
     \footnote{As an untyped calculus, inheritance-calculus cannot violate
@@ -1435,7 +1441,6 @@ explain why they arise from the three primitives.
 
   \item[Function color blindness]
     \label{sec:practical-function-color}
-    Structured effects require no dedicated mechanism.
     Business logic in MIXINv2 declares abstract property slots;
     different assemblies fill them with synchronous or
     asynchronous implementations via inheritance.
@@ -1619,8 +1624,9 @@ associativity~(A), and by their extensibility model.
     Expression Problem~\cite{wadler1998expression} requires.
 
   \item[Priority merge]
-    $A + B \neq B + A$: one source takes
-    precedence~\cite{jsonnet,dolstra2010nixos}, introducing
+    One source takes
+    precedence~\cite{jsonnet,dolstra2010nixos},
+    so $A + B \neq B + A$, introducing
     an ordering dependency.
 
   \item[$\beta$-reduction]
@@ -1763,11 +1769,11 @@ We examine the three known candidates.
     indices~\cite{debruijn1972lambda}.
     All three produced subtle bugs when inheritance introduced
     multiple routes to the same enclosing scope.
-    The difficulty was structural:
-    a closure captures a single environment, so a fixed-point
-    combinator solves for a single self-reference; a stack-based
-    environment is a linear chain where each scope level has one
-    parent.
+    The difficulty was structural.
+    A closure captures a single environment, so a fixed-point
+    combinator solves for a single self-reference.
+    A stack-based environment is a linear chain where each scope
+    level has one parent.
     Both data structures embed a single-valued assumption
     incompatible with the multi-path situation that multiple
     inheritance naturally produces
@@ -1839,7 +1845,7 @@ remained.
 \section{Related Work}
 \label{sec:related-work}
 
-\subsection{Computational Models and $\lambda$-Calculus Semantics}
+\subsection{Computational Models and \texorpdfstring{$\lambda$}{λ}-Calculus Semantics}
 
 \paragraph{Minimal Turing-complete models}
 Sch\"onfinkel~\cite{schonfinkel1924} and
@@ -1856,9 +1862,9 @@ satisfying five additional conditions are exactly lambda
 algebras.
 No independent semantic domain for SKI has ever been
 exhibited from which $\lambda$-calculus semantics could be
-derived; the direction has always been the reverse
-(Scott's $D_\infty$ was built for the $\lambda$-calculus,
-and SKI was interpreted inside it afterwards).
+derived. The direction has always been the reverse:
+Scott's $D_\infty$ was built for the $\lambda$-calculus,
+and SKI was interpreted inside it afterwards.
 Dolan~\cite{dolan2013mov} showed that the x86 \texttt{mov}
 instruction alone is Turing complete by exploiting
 addressing modes as implicit arithmetic on mutable memory;
@@ -1948,7 +1954,8 @@ computation~\cite{church1936unsolvable,church1941calculi,barendregt1984lambda}.
 This requires capture-avoiding substitution, a mechanism whose
 subtleties motivated de~Bruijn
 indices~\cite{debruijn1972lambda} and explicit substitution
-calculi~\cite{abadi1991explicit}, and a choice of evaluation
+calculi~\cite{abadi1991explicit}.
+It also requires a choice of evaluation
 strategy: call-by-name versus
 call-by-value~\cite{plotkin1975callbyname} or the lazy
 strategy of Abramsky~\cite{abramsky1990lazy}.
@@ -1956,7 +1963,7 @@ strategy of Abramsky~\cite{abramsky1990lazy}.
 interprets terms in a mathematical domain, but giving meaning
 to $\beta$-reduction requires a reflexive domain
 $D \cong [D \to D]$, which has no set-theoretic solution by
-Cantor's theorem; Scott's $D_\infty$ resolves this by
+Cantor's theorem. Scott's $D_\infty$ resolves this by
 constructing $D$ as an inverse limit of continuous
 lattices~\cite{scott1972continuous}.
 The resulting semantics is adequate but not fully
@@ -1973,30 +1980,12 @@ is the central obstacle: operational semantics needs it
 implicitly (via substitution), denotational semantics
 constructs it explicitly, and game semantics refines it via
 strategies.
-None of these approaches is first-order: all three require
-higher-order objects in their semantic domain.%
+None of these approaches is first-order;%
 \footnote{Function spaces
   in denotational semantics, strategies
   in game semantics, and substitution
 in operational semantics.}
-None of them yields a fully abstract semantics of the lazy
-$\lambda$-calculus without higher-order machinery:
-Scott's $D_\infty$ is adequate
-but not fully abstract, and game semantics is fully abstract
-but requires arenas, strategies, and innocence conditions.
-In all three approaches the semantic objects are not directly
-computable: Scott's denotations are elements of an uncountable
-continuous lattice, game-semantic strategies are infinite trees
-over move sequences, and the function space $[D \to D]$ has no
-effective enumeration.
-Each framework therefore requires a separate operational
-semantics to define how computation proceeds; the denotational or
-game-semantic model then serves as a mathematical proxy whose
-adequacy with respect to the operational semantics must be proved
-separately.
-None of them eliminates the function space from the semantic
-domain; none avoids capture-avoiding substitution; none
-dispenses with reduction rules or evaluation strategies;
+none eliminates the function space from the semantic domain;
 and none unifies denotational and operational semantics
 into a single first-order definition.
 
@@ -2009,95 +1998,31 @@ space itself: they remain higher-order, encoding $[D \to D]$
 inside $D$ via injections, intersection types, or multiset
 relations.
 \emph{Graph models}~\cite{engeler1981algebras,plotkin1993set}
-take a \emph{web}~$A$ equipped with an injection
-$\iota : \mathcal{P}_{\mathrm{fin}}(A) \times A
-\hookrightarrow A$
-and set $D = \mathcal{P}(A)$.
-Application is
-$f \cdot x = \{\, b \mid \exists\, S \subseteq x,\;
-\iota(S, b) \in f \,\}$:
-the function space $[D \to D]$ is not constructed
-explicitly but encoded inside $D$ via~$\iota$.
-The construction uses only powerset lattices, no Scott
-topology or continuity conditions.
-Graph models are sensible (they equate all unsolvable terms):
+encode functions via a web injection on powerset lattices;
 Bucciarelli and Salibra~\cite{bucciarelli2008graph}
 proved that the greatest sensible graph theory equals the
 B\"ohm tree theory~$\mathcal{B}$.
 \emph{Filter models}~\cite{barendregt1983filter,coppo1978type}
-interpret a term as the filter (upward-closed,
-intersection-closed set) of all intersection types derivable
-for it.
-The collection of all such filters forms an $\omega$-algebraic
-lattice.
-Barendregt, Coppo, and Dezani-Ciancaglini proved that type
-assignment is sound and complete with respect to the filter
-$\lambda$-model.
+interpret a term as the set of intersection types derivable
+for it;
 Dezani-Ciancaglini et al.~\cite{dezani1998intersection}
-showed that the $\lambda$-theory of the BCD filter model
-coincides exactly with B\"ohm tree equality: two terms
-receive the same set of types if and only if they have the
-same B\"ohm tree.
-Filter models are more discriminating than graph models
-in that every filter model's theory lies between
-$\lambda\beta$ and~$\mathcal{B}$, with the BCD model
-attaining~$\mathcal{B}$ exactly; they require the
-additional machinery of intersection type theory and
-algebraic lattices.
+showed that the BCD filter model's $\lambda$-theory
+coincides exactly with B\"ohm tree equality.
 \emph{Relational models}~\cite{ehrhard2005finiteness,bucciarelli2001phase}
-arise from the relational semantics of linear logic: the
-exponential modality~$!$ is interpreted via finite
-multisets~$\mathcal{M}_{\mathrm{fin}}(A)$, giving a
-co-Kleisli category whose morphisms are relations from
-$\mathcal{M}_{\mathrm{fin}}(A)$ to~$B$.
-The multiset structure corresponds to nonidempotent
-intersection types~\cite{decarvalho2018execution}, which
-carry quantitative information (bounds on reduction length)
-that idempotent systems lack.
-Ehrhard~\cite{ehrhard2005finiteness} showed that in the
-finiteness-space refinement of this model, standard
-fixed-point operators are not finitary, and a standard
+arise from the relational semantics of linear logic via
+finite multisets;
+Ehrhard~\cite{ehrhard2005finiteness} showed that a standard
 reflexive object for the pure $\lambda$-calculus cannot
 exist in this category.
-As \emph{denotational semantics} of the lazy
-$\lambda$-calculus, full abstraction has been achieved
-only through game
-semantics~\cite{abramsky1993lazy,abramsky1995games}:
-game semantics provides a compositional, fully abstract
-model, whereas graph and filter models, although their
-equational theories coincide with B\"ohm tree
-equivalence, are formulated as models of the standard
-$\lambda$-calculus and do not directly constitute a
-denotational semantics of the lazy calculus.
-In each family the denotation of a term is a higher-order
-object whose membership is not effectively decidable in general:
-graph-model application quantifies over all finite subsets of an
-argument, filter-model denotations require enumerating all
-derivable intersection types, and relational-model morphisms are
-infinite relations.
-None of these denotations can be computed from the term alone;
-all three families presuppose an operational semantics
-($\beta$-reduction) whose behavior the model validates after the
-fact.
-All three families are semantic \emph{models} of the
-$\lambda$-calculus: they interpret $\lambda$-terms in an
-external mathematical structure and validate
-$\beta$-reduction as an equation in that structure.
-None of them is a self-contained calculus with its own
-primitives into which the $\lambda$-calculus embeds;
-none is first-order, since the function space is encoded, not
+All three families are semantic \emph{models}: they interpret
+$\lambda$-terms in an external mathematical structure and
+validate $\beta$-reduction as an equation in that structure.
+None is a self-contained calculus with its own primitives
+into which the $\lambda$-calculus embeds.
+None is first-order, since the function space is encoded, not
 eliminated.
-Moreover, graph and filter models' equational theories
-coincide with B\"ohm tree equality,
-which equals
-observational equivalence in the lazy $\lambda$-calculus
-but is strictly coarser in the standard
-calculus; relational models cannot even host a
-standard reflexive
-object~\cite{ehrhard2005finiteness};
-and none provides a fully abstract \emph{denotational
-semantics} of the lazy $\lambda$-calculus without
-higher-order machinery.
+And none provides a fully abstract denotational semantics of
+the lazy $\lambda$-calculus without higher-order machinery.
 
 \paragraph{Recursive equations and fixpoint semantics}
 Van~Emden and Kowalski~\cite{vanemden1976semantics} showed that
@@ -2106,34 +2031,17 @@ three equivalent characterizations:
 operational (SLD resolution), model-theoretic (least Herbrand
 model), and fixed-point (least fixed point of the immediate
 consequence operator~$T_P$ on the powerset of ground atoms).
-The $T_P$ operator is monotone on a complete lattice, but
-the fixpoint definition and its execution are not isomorphic:
-answering a single query requires a search strategy (SLD
-resolution), and different strategies (depth-first,
-breadth-first, tabling) yield different completeness properties.
-The gap between the declarative fixpoint and the procedural
-execution is non-trivial.
 Aczel~\cite{aczel1977inductive} gave a systematic treatment of
 inductive definitions via monotone operators on powerset lattices,
 providing the logical foundations that Datalog-style semantics
 rests on.
-Cousot and Cousot~\cite{cousot1977abstract} independently
-developed abstract interpretation, a framework for program
-analysis that computes fixed points on abstract lattices connected
-to concrete semantics by Galois connections.
-Abstract interpretation \emph{approximates} the behavior of
-programs rather than defining it exactly;
-the lattice-theoretic technique, however, is shared.
-Leroy and Grall~\cite{leroy2006coinductive} addressed the
-treatment of divergence in big-step operational semantics by
-passing from inductive to \emph{coinductive} definitions;
-when divergence already emerges as
-non-termination of recursive evaluation, no separate coinductive
-formulation is needed.
-Each of these prior frameworks operates on its own domain%
-\footnote{Herbrand models, abstract domains, and evaluation judgments, respectively.}
-and none has been applied to a first-order domain of paths
-to obtain a fully abstract semantics of the lazy
+Leroy and Grall~\cite{leroy2006coinductive} treated divergence
+in big-step semantics via coinductive definitions;
+in inheritance-calculus, divergence already emerges as
+non-termination of recursive evaluation, so no separate
+coinductive formulation is needed.
+None of these prior frameworks has been applied to a first-order
+domain of paths to obtain a fully abstract semantics of the lazy
 $\lambda$-calculus without function spaces, substitution, or
 reduction rules.
 
@@ -2141,141 +2049,75 @@ reduction rules.
 
 \paragraph{Denotational semantics of inheritance}
 Cook~\cite{cook1989denotational} gave the first denotational
-semantics of inheritance, modeling objects as recursive records and
-inheritance as composition of \emph{generators}, which are functions from self
-to complete object, and \emph{wrappers}, which are functions that modify
-generators, solved by a fixed-point construction.
-Cook's key insight, that inheritance is a general mechanism
-applicable to any form of recursive definition and not only
-object-oriented methods, is one of the starting points of the
+semantics of inheritance, modeling objects as recursive records.
+Inheritance is composition of \emph{generators}---functions from self
+to complete object---and \emph{wrappers}---functions that modify
+generators---solved by a fixed-point construction.
+Cook's key insight is that inheritance is a general mechanism
+applicable to any form of recursive definition, not only
+object-oriented methods. This insight is one of the starting points of the
 present work.
-The model has four primitives (records, functions, generators, and
-wrappers) and requires a fixed-point combinator; composition is
-asymmetric, as a wrapper modifies a generator but not vice versa.
+The model has four primitives---records, functions, generators, and
+wrappers---and requires a fixed-point combinator. Composition is
+asymmetric: a wrapper modifies a generator but not vice versa.
 The fixed-point construction relies on Scott continuity in a
-domain of functions; the resulting denotations are not directly
+domain of functions. The resulting denotations are not directly
 executable, so a separate operational semantics is needed to
 define method dispatch and object construction at runtime.
 
-\paragraph{Mixin-based inheritance}
+\paragraph{Mixins and traits}
 Bracha and Cook~\cite{bracha1990mixin} formalized mixins as
-abstract subclasses, that is, functions from a superclass parameter to a
-subclass, unifying the inheritance mechanisms of Smalltalk, Beta,
-and CLOS under a single model.
+abstract subclasses---functions from a superclass parameter to a
+subclass.
 Because mixin application is function composition, it is
-\emph{neither commutative nor idempotent}: applying the same
-mixin twice may produce different results, and applying two
-mixins in different orders may yield different linearizations.
-The C3 linearization algorithm~\cite{c3linearization} was later
-developed to impose a deterministic order;
-whether linearization is inherent to inheritance or an artifact of
-noncommutativity had not been established.
-Mixin composition operates at the \emph{method level}: applying a
-mixin replaces or extends individual methods in a flat namespace.
-There is no recursive merging of nested structure: composing two
-mixins that define the same method name results in an override, not
-deep merge.
-Finally, mixins presuppose the $\lambda$-calculus as their
-computational foundation: method bodies are functions, and mixin
-application is function composition.
-Mixins organize and compose functions but cannot replace
-them; without the underlying $\lambda$-calculus, there is nothing
-to compose.  The mixin mechanism itself is not Turing complete.
-Bracha--Cook mixins are therefore not deep-mergeable.
+\emph{neither commutative nor idempotent}; the C3 linearization
+algorithm~\cite{c3linearization} was later developed to impose a
+deterministic order.
+Sch\"arli et al.~\cite{scharli2003traits} introduced traits,
+whose composition is commutative but rejects same-name
+conflicts~\cite{ducasse2006traits}.
+Both mechanisms operate at the \emph{method level}: composing two
+definitions of the same name results in an override or a conflict,
+not a recursive merge of nested structure.
+Both presuppose the $\lambda$-calculus: method bodies are functions,
+and the composition mechanism itself is not Turing complete.
+Neither mixins nor traits are therefore deep-mergeable.
 
-\paragraph{Traits}
-Sch\"arli et al.~\cite{scharli2003traits} introduced traits as
-composable units of behavior. Trait composition is symmetric and
-commutative: the sum of two traits is order-independent, which is
-a departure from mixin ordering.
-However, when two traits provide methods with the
-same name, a \emph{conflict} arises and must be explicitly resolved
-by the programmer through exclusion or aliasing.
-Ducasse et al.~\cite{ducasse2006traits} extended the model with a
-\emph{flattening property}: the semantics of a class is independent
-of whether its methods originate from traits or are defined directly.
-Like mixins, trait composition is \emph{flat}: it operates on
-individual method names, not on nested structures, so same-name
-definitions are conflicts rather than recursive merges.
-And like mixins, traits presuppose the $\lambda$-calculus: trait
-methods are functions, and the computational power resides in those
-functions, not in the trait mechanism itself.
-Traits are therefore not deep-mergeable mixins either.
+\paragraph{Object and record calculi}
+Abadi and Cardelli~\cite{abadi1996theory} treat objects as the
+primitive notion, but methods are functions that take self as a
+parameter and object extension is asymmetric.
+Boudol~\cite{boudol2004recursive} showed that self-referential
+records require an unsafe fixed-point operator whose
+well-definedness depends on the evaluation strategy.
+Harper and Pierce~\cite{harper1991record} gave a record
+calculus with symmetric concatenation that rejects same-label
+composition;
+Cardelli~\cite{cardelli1992extensible} studied extensible records
+with subtyping;
+R\'emy~\cite{remy1989type} introduced row polymorphism for
+records and variants in ML.
+All of these calculi operate on \emph{flat} records: there is
+no recursive merging of nested structure, no lazy observation,
+and self-reference requires an explicit fixed-point combinator.
 
-\paragraph{Family polymorphism and virtual classes}
-Ernst~\cite{ernst2001family} introduced family polymorphism, where
-families of mutually dependent classes can be refined together in
-subclasses. Ernst, Ostermann, and Cook~\cite{ernst2006virtual}
-formalized this in the virtual class calculus, where classes are
-class-valued attributes of objects, accessed via path expressions of
-the form \texttt{this.out.C}.
-The path \texttt{this.out} navigates to an enclosing scope.
-A notable restriction is that each such path resolves to a
+\paragraph{Family polymorphism and DOT}
+Ernst~\cite{ernst2001family} introduced family polymorphism;
+Ernst, Ostermann, and Cook~\cite{ernst2006virtual}
+formalized it in the virtual class calculus, where classes are
+accessed via path expressions \texttt{this.out.C}.
+Amin et al.~\cite{amin2016dot} formalized path-dependent types
+in the DOT calculus, the theoretical foundation of Scala.
+In both frameworks, each path resolves to a
 \emph{single} class in a \emph{single} enclosing object.
-When multiple inheritance routes lead to the same scope, a common
-situation under inheritance, single-valued resolution must choose
-one route and discard the others, losing information.
-The framework provides no mechanism for set-valued resolution.
-
-\paragraph{Object calculi}
-Abadi and Cardelli~\cite{abadi1996theory} developed a comprehensive
-theory of objects, treating objects rather than classes as the
-primitive notion. Their calculi include method update and
-self-referential objects, but methods are fundamentally functions
-that take self as a parameter, and object extension is asymmetric
-since method override replaces the previous definition.
-Boudol~\cite{boudol2004recursive} studied the recursive record
-semantics of objects in a call-by-value setting, showing that
-self-referential records require an unsafe fixed-point operator.
-The unsafe fixed-point operator produces denotations in a domain
-where well-definedness depends on the evaluation strategy; the
-semantics is therefore inseparable from the operational reduction
-rules.
-Whether self-reference can be handled without a fixed-point operator
-in the object language, for instance through coalgebraic
-observation rather than reduction, was not explored in these calculi.
-
-\paragraph{Record calculi}
-Harper and Pierce~\cite{harper1991record} presented a record
-calculus based on symmetric concatenation with a type system that
-tracks the absence of fields.
-When two records define the same label, concatenation
-is undefined and raises a type error; the calculus leaves same-label
-composition undefined.
-Cardelli~\cite{cardelli1992extensible}
-studied extensible records with subtyping;
-R\'emy~\cite{remy1989type} gave a type system for records and
-variants in ML.
-These calculi operate on \emph{flat} records with no nesting and
-treat records as \emph{data}, that is, initial algebras: a record is a
-finite map from labels to values, fully determined at construction
-time.  Nested records, self-reference, and lazy observation, which are the
-properties needed for records to serve as a computational
-substrate, are outside their scope.
-
-\paragraph{DOT calculus}
-Amin et al.~\cite{amin2016dot} formalized path-dependent types in
-the DOT calculus, the theoretical foundation of Scala's type system.
-DOT paths navigate through objects to reach nested type members,
-providing a rich dependent type structure.
-DOT includes the $\lambda$-calculus as a sublanguage.
-DOT stratifies its syntax into terms and types, with types further
-divided into abstract type members bounded by $L..U$ and concrete
-definitions; each stratum requires its own subtyping rules.
-Whether these three roles could be unified under a single construct
-remains an open question in the DOT line of work.
-DOT's self variable in the object constructor $\nu(x : T)\, d$
-binds $x$ to a single object; when multiple inheritance routes
-lead to the same enclosing scope, the resulting intersection type
-is unrealizable and Scala rejects it at compile time
+When multiple inheritance routes lead to the same scope,
+single-valued resolution must choose one route and discard the
+others; DOT's self variable $\nu(x : T)\, d$ binds $x$ to a
+single object, and Scala rejects the resulting intersection
+type at compile time
 (Appendix~\ref{app:scala-multi-path}).
-When the path structure is simple enough that no multi-target
-$\this$ resolution is needed, Scala programmers can approximate
-deep merge manually: the cake pattern layers traits with
-\texttt{self:} annotations, and object
-algebras~\cite{oliveira2012extensibility} compose operations via
-trait intersection, both requiring the programmer to write the
-merge logic by hand for each level of nesting.
+Neither framework provides a mechanism for set-valued
+resolution.
 
 \subsection{Configuration Languages and Module Systems}
 
@@ -2427,7 +2269,7 @@ Inheritance-calculus is \emph{open by default}: inheritance
 can freely merge any two mixins, and a value may simultaneously
 inhabit multiple constructors (e.g.,
 $\{\mathrm{Zero},\; \mathrm{Odd},\; \mathrm{half} \mapsto \mathrm{Zero}\}$).
-This is not a defect; it is the natural trie semantics of the
+This is the natural trie semantics of the
 calculus, and the basis for solving the expression problem
 (Section~\ref{sec:expression-problem}).
 However, many operations (e.g., equality testing) assume that values
@@ -2468,818 +2310,368 @@ Immunity to nonextensibility guided the design of
 inheritance-calculus.
 The emergent phenomena exhibit an expressive asymmetry
 between inheritance-calculus and the $\lambda$-calculus.
-Inheritance is not a mechanism for organizing functions;
-functions are syntactic sugar for inheritance.
+Functions are syntactic sugar for inheritance.
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{references}
 
 \appendix
 
-\section{Expressive Asymmetry: Proofs}
-\label{app:expressiveness}
-
-\begin{definition}[Macro-expressibility, after Felleisen~\cite{felleisen1991expressive}]
-\label{def:macro-expressibility}
-A construct $C$ of language $\mathscr{L}_1$ is \emph{macro-expressible}
-in language $\mathscr{L}_0$ if there exists a translation $\mathcal{E}$
-such that for every program $P$ containing occurrences of $C$,
-the translation $\mathcal{E}(P)$ is obtained by replacing each
-occurrence of $C$ with an $\mathscr{L}_0$ expression that depends only
-on $C$'s subexpressions, leaving all other constructs of $P$
-unchanged.
-\end{definition}
-
-\begin{lemma}[Composition of macro-expressible translations]
-\label{lem:macro-composition}
-If $\mathcal{E}_1$ macro-expresses the constructs of
-$\mathscr{L}_1$ in $\mathscr{L}_0$ and
-$\mathcal{E}_2$ macro-expresses the constructs of
-$\mathscr{L}_2$ in $\mathscr{L}_1$, then the composition
-$\mathcal{E}_1 \circ \mathcal{E}_2$ macro-expresses the
-constructs of $\mathscr{L}_2$ in $\mathscr{L}_0$.
-\end{lemma}
-
-\begin{proof}
-Each construct~$F$ of $\mathscr{L}_2$ has a fixed
-syntactic abstraction $A_F^{(2)}$ over~$\mathscr{L}_1$.
-Each $\mathscr{L}_1$-construct~$G$ appearing in
-$A_F^{(2)}$ has a fixed syntactic abstraction
-$A_G^{(1)}$ over~$\mathscr{L}_0$.
-Substituting $A_G^{(1)}$ for every~$G$ in $A_F^{(2)}$
-yields a fixed syntactic abstraction
-over~$\mathscr{L}_0$ for~$F$, satisfying~E4.
-\end{proof}
-
-\begin{definition}[Language universe]
-\label{def:language-universe}
-Let $\mathscr{U}$ be the language whose constructors are
-the union of the constructors of inheritance-calculus,
-the constructors of the lazy $\lambda$-calculus
-($\lambda$-abstraction, application, variable), and
-$\mathbf{let}$-binding.
-The semantics of $\mathscr{U}$ is given by translating
-every $\mathscr{U}$-program to inheritance-calculus in
-three steps:
-\begin{enumerate}
-  \item Convert every maximal $\lambda$-calculus
-    subexpression (i.e.\ every subtree whose root
-      and all internal nodes use only $\lambda$-calculus
-    constructors) to A-normal
-    form~\cite{flanagan1993essence}.
-  \item Apply the translation $\mathcal{T}$
-    (Section~\ref{sec:forward-translation}) to every ANF
-    $\lambda$-calculus subexpression.
-  \item Evaluate the resulting inheritance-calculus
-    program by the rules of
-    Section~\ref{sec:mixin-trees}.
-\end{enumerate}
-When a $\mathscr{U}$-expression interleaves
-$\lambda$-calculus and inheritance-calculus constructors
-(e.g.\ a $\mathbf{let}$-binding whose bound value is an
-inheritance-calculus expression), the translation is
-applied compositionally from leaves to root: each
-$\lambda$-calculus construct is replaced by its
-inheritance-calculus equivalent via~$\mathcal{T}$,
-treating inheritance-calculus subexpressions as opaque
-values.
-Since each rule of~$\mathcal{T}$
-(Section~\ref{sec:forward-translation}) is a fixed
-syntactic abstraction depending only on the translated
-subexpressions, this bottom-up application is
-well-defined and yields a pure inheritance-calculus
-program for step~(3).
-
-A $\mathscr{U}$-program $P$ converges,
-$\mathrm{eval}_{\mathscr{U}}(P)$, iff its translation
-converges.
-The lazy $\lambda$-calculus and inheritance-calculus are
-conservative restrictions of $\mathscr{U}$: each is
-obtained by removing the other's constructors.
-For a pure inheritance-calculus program, steps~(1)
-and~(2) are vacuous, so
-$\mathrm{eval}_{\mathscr{U}}$ agrees with the
-inheritance-calculus semantics.
-For a pure $\lambda$-calculus program, the composition
-of steps~(1)--(3) agrees with lazy evaluation by
-Adequacy (Theorem~\ref{thm:adequacy}).
-\end{definition}
-
-The three-step translation is effective (ANF conversion
-and~$\mathcal{T}$ are syntactic transformations) and the
-recursive evaluation of inheritance-calculus
-(Section~\ref{sec:mixin-trees}) is a semi-decision
-procedure, so $\mathrm{eval}_{\mathscr{U}}$ is
-recursively enumerable, as required by
-Felleisen's framework~\cite{felleisen1991expressive}.
-
-\begin{lemma}[$\mathbf{let}$-binding is macro-expressible
-in the lazy $\lambda$-calculus]
-\label{lem:let-macro}
-The translation
-$\mathbf{let}\; x = e_1 \;\mathbf{in}\; e_2
-\;\mapsto\; (\lambda x.\, e_2)\; e_1$
-is a macro-expressible elimination of $\mathbf{let}$
-in the lazy $\lambda$-calculus.
-\end{lemma}
-
-\begin{proof}
-The translation replaces each $\mathbf{let}$-binding
-with a $\lambda$-expression that depends only on the
-two subexpressions $e_1$ and~$e_2$.
-This is Proposition~3.7 of
-Felleisen~\cite{felleisen1991expressive}.
-\end{proof}
-
-\begin{lemma}[Equal expressiveness of the lazy
-$\lambda$-calculus and its ANF fragment]
-\label{lem:anf-equiv}
-In $\mathscr{U}$, the lazy $\lambda$-calculus and the
-ANF lazy $\lambda$-calculus
-(Section~\ref{sec:forward-translation}) are equally
-macro-expressive.
-\end{lemma}
-
-\begin{proof}
-Every ANF term is a $\lambda$-term, so the embedding
-of the ANF fragment into the full $\lambda$-calculus is
-the identity, which is trivially macro-expressible.
-For the reverse direction, the ANF
-transformation~\cite{flanagan1993essence} consists of
-two steps, each macro-expressible:
-\begin{enumerate}
-  \item \emph{Application flattening.}
-    Replace each nested application
-    $(e_1\; e_2)\; e_3$ with
-    $\mathbf{let}\; x = e_1\; e_2 \;\mathbf{in}\;
-    x\; e_3$.
-    The syntactic abstraction is
-    $A(\cdot_1, \cdot_2, \cdot_3)
-    = \mathbf{let}\; x = \cdot_1\; \cdot_2
-    \;\mathbf{in}\; x\; \cdot_3$,
-    depending only on the three subexpressions.
-  \item \emph{Value lifting.}
-    Replace each free value~$V$ used in an application
-    position with
-    $\mathbf{let}\; x = V \;\mathbf{in}\; x$.
-    The syntactic abstraction is
-    $A(\cdot_1) = \mathbf{let}\; x = \cdot_1
-    \;\mathbf{in}\; x$.
-\end{enumerate}
-By Lemma~\ref{lem:let-macro}, each resulting
-$\mathbf{let}$-binding is itself
-macro-expressible in the $\lambda$-calculus.
-By Lemma~\ref{lem:macro-composition}, composing
-these macro-expressible translations
-yields a macro-expressible translation from the full
-$\lambda$-calculus to its ANF fragment.
-\end{proof}
-
-\begin{theorem}[Forward macro-expressibility]
-\label{thm:forward-macro}
-The translation $\mathcal{T}$
-(Section~\ref{sec:forward-translation}) is a macro-expressible
-embedding of the $\lambda$-calculus into inheritance-calculus.
-\end{theorem}
-
-\begin{proof}
-We verify condition~E4 of
-Felleisen~\cite[Definition~3.11]{felleisen1991expressive}:
-for each $\lambda$-calculus construct~$F$ of arity~$a$,
-there must exist a fixed $a$-ary syntactic abstraction
-$A_F(\cdot_1,\ldots,\cdot_a)$ over
-inheritance-calculus such that
-$\mathcal{T}(F(e_1,\ldots,e_a)) =
-A_F(\mathcal{T}(e_1),\ldots,\mathcal{T}(e_a))$.
-We check each rule of $\mathcal{T}$
-(Section~\ref{sec:forward-translation}):
-\begin{enumerate}
-  \item \emph{$\lambda$-bound variable}
-    ($x$ with de~Bruijn index $n'$).
-    This is a nullary construct (no subexpressions).
-    The syntactic abstraction is the constant
-    $A = \dbi{n'}.\mathrm{argument}$.
-  \item \emph{Let-bound variable} ($x$).
-    Nullary.
-    $A = x.\mathrm{result}$.
-  \item \emph{$\lambda$-abstraction} ($\lambda x.\, M$).
-    Unary in the body~$M$.
-    $A(\cdot_1) = \{\mathrm{argument} \mapsto \{\},\;
-    \mathrm{result} \mapsto \cdot_1\}$.
-  \item \emph{Application let-binding}
-    ($\mathbf{let}\; x = V_1\; V_2
-    \;\mathbf{in}\; M$).
-    Ternary in~$V_1$, $V_2$, and~$M$.
-    $A(\cdot_1, \cdot_2, \cdot_3) =
-    \{x \mapsto \{\cdot_1,\;
-      \mathrm{argument} \mapsto \cdot_2\},\;
-    \mathrm{result} \mapsto \cdot_3\}$.
-  \item \emph{Value let-binding}
-    ($\mathbf{let}\; x = V \;\mathbf{in}\; M$).
-    Binary in~$V$ and~$M$.
-    $A(\cdot_1, \cdot_2) =
-    \{x \mapsto \{\mathrm{result} \mapsto \cdot_1\},\;
-    \mathrm{result} \mapsto \cdot_2\}$.
-  \item \emph{Tail call} ($V_1\; V_2$).
-    Binary.
-    $A(\cdot_1, \cdot_2) =
-    \{\mathrm{tailCall} \mapsto \{\cdot_1,\;
-      \mathrm{argument} \mapsto \cdot_2\},\;
-      \mathrm{result} \mapsto
-    \mathrm{tailCall}.\mathrm{result}\}$.
-\end{enumerate}
-In each case the syntactic abstraction~$A_F$ is a fixed
-inheritance-calculus context whose holes are filled
-by the recursive translations of the subexpressions,
-satisfying~E4.
-\end{proof}
-
-\begin{theorem}[Nonexpressibility of inheritance]
-\label{thm:cartesian-nonexpressibility}
-The lazy $\lambda$-calculus cannot macro-express the
-inheritance constructors of $\mathscr{U}$
-(Definition~\ref{def:language-universe}).
-\end{theorem}
-
-\begin{proof}
-We apply Theorem~3.14(i) of
-Felleisen~\cite{felleisen1991expressive} to the pair
-$L_0 = \text{lazy $\lambda$-calculus}$,
-$L_1 = \mathscr{U}$.
-By Definition~\ref{def:language-universe},
-$\mathscr{U} = L_0 + \{$mixin-tree constructors$\}$
-is a conservative extension of~$L_0$
-(Definition~3.2 of
-Felleisen~\cite{felleisen1991expressive}).
-We verify the four conditions:
-\begin{enumerate}
-  \item[(i)] \emph{$L_0 \subseteq L_1$:}
-    The syntax of~$\mathscr{U}$ includes all
-    $L_0$-phrases.
-  \item[(ii)] \emph{No new $L_0$-phrases:}
-    The mixin-tree constructors do not introduce new
-    phrases in~$L_0$.
-  \item[(iii)] \emph{Disjoint constructors:}
-    The mixin-tree constructors are disjoint from the
-    $L_0$-constructors.
-  \item[(iv)] \emph{Semantics preserved:}
-    For pure $\lambda$-terms, steps~(1) and~(2) of
-    Definition~\ref{def:language-universe} are vacuous
-    and step~(3) yields lazy evaluation by Adequacy
-    (Theorem~\ref{thm:adequacy}), so
-    $\mathrm{eval}_{\mathscr{U}}$ agrees with
-    $\mathrm{eval}_{L_0}$ on $L_0$-phrases.
-\end{enumerate}
-The theorem requires us to exhibit two $L_0$-terms
-$M$ and $N$ with $M \cong_0 N$ but
-$M \not\cong_1 N$, where $\cong_0$ is operational
-equivalence in $L_0$ and $\cong_1$ is operational
-equivalence in $\mathscr{U}$.
-
-\paragraph{Operational equivalence in $L_0$}
-By Full Abstraction for the lazy
-$\lambda$-calculus~\cite{abramsky1990lazy}
-(Theorem~\ref{thm:full-abstraction}), for closed
-$\lambda$-terms $M$ and $N$:
-$M \cong_0 N$ iff $\mathrm{BT}(M) = \mathrm{BT}(N)$.
-
-\paragraph{Separating pair}
-Define Church booleans and Church boolean equality:
-$\mathrm{true} = \lambda t.\,\lambda f.\, t$,
-$\mathrm{false} = \lambda t.\,\lambda f.\, f$, and
-$\mathrm{eq} = \lambda a.\,\lambda b.\,
-(a\;b)\;(b\;\mathrm{false}\;\mathrm{true})$.
-Let
-\[
-  M = \mathrm{eq}\;\mathrm{false}\;\mathrm{false}
-  \qquad
-  N = \mathrm{eq}\;\mathrm{true}\;\mathrm{true}.
-\]
-Both reduce to Church~$\mathrm{true}$ in the
-lazy $\lambda$-calculus, so
-$\mathrm{BT}(M) = \mathrm{BT}(N)$ and hence
-$M \cong_0 N$.
-
-\paragraph{Distinguishing $\mathscr{U}$-context}
-We now construct a $\mathscr{U}$-context that
-separates $M$ and $N$.
-$M$ and $N$ are syntactically closed $\lambda$-terms;
-by Definition~\ref{def:language-universe}, their
-semantics in $\mathscr{U}$ is given by translating
-them to inheritance-calculus via ANF conversion followed
-by~$\mathcal{T}$.
-Under the extended ANF convention
-(Section~\ref{sec:forward-translation}), every free
-value used in an application is first bound to a name:
-\begin{align*}
-  \mathrm{ANF}(M) ={} &
-  \mathbf{let}\;\mathrm{eq} =
-  \lambda a.\,\lambda b.\,
-  \mathbf{let}\; x_1 = a\;b \;\mathbf{in}\;
-  \mathbf{let}\; f_1 = \mathrm{false}
-  \;\mathbf{in}\;
-  \mathbf{let}\; x_2 = b\;f_1 \;\mathbf{in}\;
-  \mathbf{let}\; t_1 = \mathrm{true}
-  \;\mathbf{in}\;
-  \mathbf{let}\; x_3 = x_2\;t_1
-  \;\mathbf{in}\;
-  x_1\;x_3 \\
-  & \mathbf{in}\;\;
-  \mathbf{let}\; f_1 = \mathrm{false}
-  \;\mathbf{in}\;
-  \mathbf{let}\;\mathrm{eqFalse} = \mathrm{eq}\;f_1
-  \;\mathbf{in}\;
-  \mathbf{let}\; f_2 = \mathrm{false}
-  \;\mathbf{in}\;
-  \mathrm{eqFalse}\;f_2
-\end{align*}
-Applying~$\mathcal{T}$:
-\begin{align*}
-  \mathcal{T}(\mathrm{ANF}(M)) \;=\; \{&
-    \mathrm{eq} \mapsto \{\mathrm{result} \mapsto
-    \mathcal{T}(\lambda a.\,\lambda b.\,\cdots)\}, \\
-    & f_1 \mapsto \{\mathrm{result} \mapsto
-    \mathcal{T}(\mathrm{false})\}, \\
-    & \mathrm{eqFalse} \mapsto
-    \{\mathrm{eq}.\mathrm{result},\;
-      \mathrm{argument} \mapsto
-    f_1.\mathrm{result}\}, \\
-    & f_2 \mapsto \{\mathrm{result} \mapsto
-    \mathcal{T}(\mathrm{false})\}, \\
-    & \mathrm{tailCall} \mapsto
-    \{\mathrm{eqFalse}.\mathrm{result},\;
-      \mathrm{argument} \mapsto
-    f_2.\mathrm{result}\}, \\
-    & \mathrm{result} \mapsto
-    \mathrm{tailCall}.\mathrm{result}
-  \;\}
-\end{align*}
-and symmetrically for $N$ with $\mathrm{true}$ in place
-of $\mathrm{false}$.
-Note that $\mathrm{eq}$ is a \emph{named child}
-of $\mathcal{T}(\mathrm{ANF}(M))$, bound via a value
-let-binding.
-Inside the translation of $\mathrm{eq}$, the inner
-$\lambda b$ scope contains the let-bindings
-for $x_1$, $f_1$, $x_2$, $t_1$, $x_3$, and a tail call.
-In particular, $\dbi{1}.\mathrm{argument}$ reaches
-the outer $\lambda a$ scope and
-$\dbi{0}.\mathrm{argument}$ reaches $\lambda b$
-itself.\footnote{These indices use the condensed
-  convention, counting only $\lambda$-scopes.
-  As noted in the translation footnote
-  (Section~\ref{sec:forward-translation}),
-  each let-binding and tail call introduces an
-  additional scope level in inheritance-calculus;
-  the formal index is correspondingly larger,
-but the target scope is the same.}
-
-The $\mathscr{U}$-context uses inheritance to add
-a $\mathrm{repr}$ record inside the $\lambda b$ scope
-of $\mathrm{eq}$ that projects the first operand.
-Define the context $C[\cdot]$ as:
-\begin{align*}
-  C[\cdot] ={} & \mathbf{let}\;
-  \mathrm{extended} = \{[\cdot],\;
-    \mathrm{eq} \mapsto \{
-      \mathrm{result} \mapsto \{
-        \mathrm{result} \mapsto \{
-          \mathrm{repr} \mapsto \{
-            \mathrm{firstOperand}
-            \mapsto \dbi{2}.\mathrm{argument}
-  \}\}\}\}\} \\
-  & \mathbf{in}\;
-  \mathrm{extended}.\mathrm{tailCall}.\mathrm{repr}.\mathrm{firstOperand}
-\end{align*}
-Here $[\cdot]$ is the hole.
-Note the two levels of $\mathrm{result}$ nesting in the
-mixin: the outer $\mathrm{result}$ enters the value
-let-binding wrapper for $\mathrm{eq}$, and the inner
-$\mathrm{result}$ enters the $\lambda a$ scope.
-The second $\mathrm{result}$ then contains the
-$\lambda b$ scope, so $\mathrm{repr}$ is placed at
-the $\lambda b$ scope level.
-The mixin $\{\mathrm{eq} \mapsto \{\mathrm{result}
-    \mapsto \{\mathrm{result} \mapsto
-\{\mathrm{repr} \mapsto \cdots\}\}\}\}$ is an
-inheritance-calculus expression: it uses only the
-mixin-tree constructors of $\mathscr{U}$.
-The outer $\mathbf{let}$-binding and projection are
-$\lambda$-calculus constructs (Lemma~\ref{lem:let-macro}).
-Thus $C[\cdot]$ is a valid $\mathscr{U}$-context.
-
-The de~Bruijn index $\dbi{2}$ in
-$\mathrm{repr}$ counts scope levels
-(in the condensed convention):
-$\dbi{0}$ is $\mathrm{repr}$ itself,
-$\dbi{1}$ is the $\lambda b$ scope, and
-$\dbi{2}$ is the $\lambda a$ scope.
-So $\mathrm{firstOperand}$ projects
-$\lambda a$'s argument.
-
-Since $\mathrm{eqFalse}$ (respectively $\mathrm{eqTrue}$)
-inherits $\mathrm{eq}.\mathrm{result}$,
-and $\mathrm{tailCall}$ inherits
-$\mathrm{eqFalse}.\mathrm{result}$ (the $\lambda b$
-scope), the $\mathrm{repr}$ record placed by the mixin
-at the $\lambda b$ scope level propagates through
-the inheritance chain to $\mathrm{tailCall}$.
-In $C[M]$: the $\mathrm{eqFalse}$ binding supplies
-$\mathrm{argument} \mapsto f_1.\mathrm{result}$
-(i.e.\ $\mathrm{false}$) to the $\lambda a$ scope, so
-$\mathrm{firstOperand}$ evaluates to
-$\mathrm{false} = \lambda t.\,\lambda f.\, f$.
-In $C[N]$: the $\mathrm{eqTrue}$ binding supplies
-$\mathrm{argument} \mapsto \mathrm{true}$, so
-$\mathrm{firstOperand}$ evaluates to
-$\mathrm{true} = \lambda t.\,\lambda f.\, t$.
-
-Define $D[\cdot] = (\lambda x.\, x\;\Omega\;I)\;
-C[\cdot]$.
-Then $\mathrm{eval}_{\mathscr{U}}$ holds for $D[M]$
-(since $\mathrm{false}\;\Omega\;I \to I$, which
-converges)
-but not for $D[N]$
-(since $\mathrm{true}\;\Omega\;I \to \Omega$, which
-diverges).
-Therefore $M \not\cong_1 N$.
-
-\paragraph{Conclusion}
-We have $M \cong_0 N$ but $M \not\cong_1 N$, so
-${\cong_0} \neq {(\cong_1|_{L_0})}$.
-By Theorem~3.14(i) of
-Felleisen~\cite{felleisen1991expressive},
-the lazy $\lambda$-calculus cannot macro-express the
-inheritance constructors of~$\mathscr{U}$.
-\end{proof}
-
-\begin{theorem}[Expressive asymmetry]
-\label{thm:expressive-asymmetry}
-In the language universe $\mathscr{U}$
-(Definition~\ref{def:language-universe}),
-inheritance-calculus is strictly more expressive than
-the lazy $\lambda$-calculus: it can macro-express every
-$\mathscr{U}$-construct that the $\lambda$-calculus
-can, but not conversely
-(Definition~3.17 of
-Felleisen~\cite{felleisen1991expressive}).
-\end{theorem}
-
-\begin{proof}
-We must show:
-(a)~inheritance-calculus can macro-express every
-$\mathscr{U}$-construct that the lazy $\lambda$-calculus
-can macro-express, and
-(b)~the converse fails.
-
-\paragraph{Part (b): the lazy $\lambda$-calculus $\not\geq$
-inheritance-calculus}
-The $\lambda$-calculus contains its own constructors
-($\lambda$, application, variable) and can macro-express
-$\mathbf{let}$-binding (Lemma~\ref{lem:let-macro}), but
-cannot macro-express the inheritance constructors of
-$\mathscr{U}$
-(Theorem~\ref{thm:cartesian-nonexpressibility}).
-Inheritance-calculus contains those constructors.
-Therefore the lazy $\lambda$-calculus is not at least
-as expressive as inheritance-calculus with respect
-to~$\mathscr{U}$.
-
-\paragraph{Part (a): inheritance-calculus $\geq$ the lazy
-$\lambda$-calculus}
-We show that inheritance-calculus can macro-express
-every $\mathscr{U}$-construct that the
-$\lambda$-calculus contains or can macro-express.
-The $\lambda$-calculus contains $\lambda$-abstraction,
-application, and variable; it can macro-express
-$\mathbf{let}$-binding
-(Lemma~\ref{lem:let-macro}).
-We must show that inheritance-calculus can
-macro-express all four of these constructs.
-The translation proceeds in two stages:
-\begin{enumerate}
-  \item \emph{ANF conversion.}
-    The A-normal form
-    transformation~\cite{flanagan1993essence}
-    replaces nested applications with
-    $\mathbf{let}$-bindings; it is macro-expressible
-    in the $\lambda$-calculus by
-    Lemma~\ref{lem:anf-equiv}.
-    In the reverse direction,
-    $\mathbf{let}$-bindings are macro-expressible in
-    the $\lambda$-calculus by
-    Proposition~3.7 of
-    Felleisen~\cite{felleisen1991expressive}
-    (restated as Lemma~\ref{lem:let-macro}).
-    Thus ANF conversion is a macro-expressible
-    equivalence between the $\lambda$-calculus and its
-    ANF fragment.
-  \item \emph{The translation $\mathcal{T}$.}
-    Each ANF $\lambda$-calculus construct maps to a
-    fixed syntactic abstraction over
-    inheritance-calculus
-    (Theorem~\ref{thm:forward-macro}), satisfying
-    condition~E4 of
-    Felleisen~\cite[Definition~3.11]{felleisen1991expressive}.
-\end{enumerate}
-By Lemma~\ref{lem:macro-composition}, composing the
-two macro-expressible translations gives a
-macro-expressible translation from
-the $\lambda$-calculus (with $\mathbf{let}$) into
-inheritance-calculus.
-Since inheritance-calculus trivially contains its own
-constructors, it can macro-express every
-$\mathscr{U}$-construct that the $\lambda$-calculus
-contains or can macro-express.
-\end{proof}
-
-\section{Multi-Path Self-Reference in Other Systems}
-\label{app:scala-multi-path}
-
-This appendix demonstrates that two representative systems, Scala~3
-and the NixOS module system, reject the multi-path self-reference
-pattern that inheritance-calculus handles naturally.
-
-\subsection*{Scala~3}
-
-Consider two objects that independently extend an outer class,
-each providing its own copy of an inner trait:
-
-\begin{lstlisting}[style=scala]
-class MyOuter:
-  trait MyInner:
-    def outer = MyOuter.this
-
-object Object1 extends MyOuter
-object Object2 extends MyOuter
-object HasMultipleOuters extends Object1.MyInner
-                     with Object2.MyInner
-\end{lstlisting}
-
-\noindent
-Scala~3 rejects \texttt{HasMultipleOuters} with the error:
-
-\begin{lstlisting}
-trait MyInner is extended twice
-object HasMultipleOuters cannot be instantiated since
-  it has conflicting base types
-  Object1.MyInner and Object2.MyInner
-\end{lstlisting}
-
-\noindent
-The rejection is not a surface-level restriction but a consequence
-of DOT's type-theoretic foundations~\cite{amin2016dot}.
-In DOT, an object is constructed as $\nu(x : T)\, d$, where the
-self variable~$x$ binds to a \emph{single} object.
-\texttt{Object1.MyInner} and \texttt{Object2.MyInner} are distinct
-path-dependent types, each constraining the outer self-reference
-to a different object.
-Their intersection requires \texttt{outer} to simultaneously
-return \texttt{Object1} and \texttt{Object2}, but DOT's self
-variable is single-valued, making this intersection unrealizable.
-
-The equivalent inheritance-calculus definition is:
-\begin{align*}
-\{ \quad \mathrm{MyOuter} &\mapsto \{
-    \mathrm{MyInner} \mapsto \{
-  \mathrm{outer} \mapsto \qualifiedthis{\mathrm{MyOuter}}\}\}, \\
-  \mathrm{Object1} &\mapsto \{\mathrm{MyOuter}\}, \\
-  \mathrm{Object2} &\mapsto \{\mathrm{MyOuter}\}, \\
-  \mathrm{HasMultipleOuters} &\mapsto \{
-    \mathrm{Object1}.\mathrm{MyInner},\;
-  \mathrm{Object2}.\mathrm{MyInner}\}
-\quad \}
-\end{align*}
-This is well-defined in inheritance-calculus.
-The reference
-$\qualifiedthis{\mathrm{MyOuter}}$ inside $\mathrm{outer}$
-has de~Bruijn index $n = 1$:
-starting from $\mathrm{outer}$'s enclosing scope
-$\mathrm{MyInner}$, one $\this$ step reaches
-$\mathrm{MyOuter}$.
-When $\mathrm{HasMultipleOuters}$ inherits from both
-$\mathrm{Object1}.\mathrm{MyInner}$ and
-$\mathrm{Object2}.\mathrm{MyInner}$,
-the $\this$ function (equation~\ref{eq:this}) resolves
-$\qualifiedthis{\mathrm{MyOuter}}$ by searching through
-$\supers(\mathrm{HasMultipleOuters})$ for override paths matching
-$\mathrm{MyInner}$'s definition site.
-It finds two inheritance-site paths, one through
-$\mathrm{Object1}$ and one through $\mathrm{Object2}$, and
-returns both.
-Both paths lead to records that inherit from the same
-$\mathrm{MyOuter}$, so querying
-$\mathrm{HasMultipleOuters}.\mathrm{outer}$ yields the
-$\properties$ of $\mathrm{MyOuter}$ regardless of which
-route is taken.
-Since inheritance is idempotent, the two routes contribute the
-same properties in this semantics, so no route-priority
-disambiguation rule is introduced.
-
-\subsection*{NixOS Module System}
-
-The NixOS module system rejects the same pattern with a static error.
-The translation uses the module system's own abstractions:
-\texttt{deferredModule} for traits, which are unevaluated module values imported
-into other fixpoints, and \texttt{submoduleWith} for objects, which are evaluated
-in their own fixpoints.
-
-\begin{lstlisting}[style=nix]
-let
-  lib = (import <nixpkgs> { }).lib;
-  result = lib.evalModules {
-    modules = [
-      (toplevel@{ config, ... }: {
-        # class MyOuter { trait MyInner {
-        #   def outer = MyOuter.this } }
-        options.MyOuter = lib.mkOption {
-          default = { };
-          type = lib.types.deferredModuleWith {
-            staticModules = [
-              (MyOuter: {
-                options.MyInner = lib.mkOption {
-                  default = { };
-                  type = lib.types.deferredModuleWith {
-                    staticModules = [
-                      (MyInner: {
-                        options.outer = lib.mkOption {
-                          default = { };
-                          type =
-                            lib.types.deferredModuleWith {
-                              staticModules =
-                                [ toplevel.config.MyOuter ];
-                            };
-                        };
-                      })
-                    ];
-                  };
-                };
-              })
-            ];
-          };
-        };
-        # object Object1 extends MyOuter
-        options.Object1 = lib.mkOption {
-          default = { };
-          type = lib.types.submoduleWith {
-            modules = [ toplevel.config.MyOuter ];
-          };
-        };
-        # object Object2 extends MyOuter
-        options.Object2 = lib.mkOption {
-          default = { };
-          type = lib.types.submoduleWith {
-            modules = [ toplevel.config.MyOuter ];
-          };
-        };
-        # object HasMultipleOuters extends
-        #   Object1.MyInner with Object2.MyInner
-        options.HasMultipleOuters = lib.mkOption {
-          default = { };
-          type = lib.types.submoduleWith {
-            modules = [
-            toplevel.config.Object1.MyInner
-            toplevel.config.Object2.MyInner
-          ];
-          };
-        };
-      })
-    ];
-  };
-in
-  builtins.attrNames result.config.HasMultipleOuters.outer
-\end{lstlisting}
-
-\noindent
-The NixOS module system rejects this with:
-
-\begin{lstlisting}
-error: The option `HasMultipleOuters.outer'
-  in `<unknown-file>'
-  is already declared
-  in `<unknown-file>'.
-\end{lstlisting}
-
-\noindent
-The rejection occurs because
-\texttt{Object1.\allowbreak{}My\-Inner} and
-\texttt{Object2.\allowbreak{}My\-Inner} each carry the full
-\texttt{static\-Modules} of the \texttt{My\-Inner} deferred
-module, including the declaration
-\texttt{options.\allowbreak{}outer}.
-When \texttt{My\-ObjectA} imports both, the module system's
-\texttt{merge\-Option\-Decls} encounters two declarations of the
-same option and raises a static error; it cannot express that
-both declarations originate from the same trait and should be
-unified.
-
-The rejection is analogous to Scala's ``conflicting base types''
-error above: both systems assume that each option or type member
-has a single declaration site, and reject the multi-path situation
-where two inheritance routes introduce the same declaration
-independently.
-In inheritance-calculus, the same pattern is well-defined because
-$\overrides$ (equation~\ref{eq:overrides}) recognizes that both
-routes lead to the same definition, and $\supers$
-(equation~\ref{eq:supers}) collects both inheritance-site
-contexts without duplication.
-
 \section{Well-Definedness of the Semantic Functions}
 \label{app:well-definedness}
 
-This appendix proves that the mutually recursive equations
-(\ref{eq:properties})--(\ref{eq:this}) are well-defined:
-for every query whose recursive evaluation terminates, the
-result is uniquely determined.
-The proof proceeds by contrapositive: both a cycle and an
-infinite acyclic chain in the dependency graph force
-divergence, so termination implies that the reachable
-subgraph is finite and acyclic, which in turn implies
-uniqueness.
+The six semantic
+equations~(\ref{eq:properties})--(\ref{eq:this}) are
+first-order: their inputs and outputs are paths and sets of
+paths, with no function spaces, closures, or higher-order
+constructs.
+This section exploits the first-order character to establish
+well-definedness via an indexed hylomorphism over the
+dependency graph.
 
 \begin{definition}[Dependency graph]\label{def:dependency-graph}
 Fix an AST with its primitive functions $\defines$ and
 $\inherits$.
-The \emph{dependency graph} $G$ has as vertices all
-semantic-function applications
+The \emph{dependency graph}~$G$ has as vertices all
+semantic-function applications\linebreak
 ($\properties(p)$, $\supers(p)$, $\overrides(p)$,
-$\bases(p)$, $\resolve(\ldots)$, $\this(\ldots)$)
-that arise from the AST\@.
-There is a directed edge from vertex $u$ to vertex $v$
-whenever computing $u$ via
+$\bases(p)$, $\resolve(\ldots)$,
+$\this(\ldots)$) that arise from the AST\@.
+There is a directed edge from vertex~$u$ to vertex~$v$
+whenever computing~$u$ via
 equations~(\ref{eq:properties})--(\ref{eq:this})
-requires the value of $v$.
+requires the value of~$v$.
 \end{definition}
 
-\begin{lemma}[Termination implies finite acyclic subgraph]%
-\label{lem:termination-acyclicity}
-If the memoized recursive evaluation of a query $q$
-terminates, then the subgraph of $G$ reachable from $q$
-is finite and acyclic.
-\end{lemma}
+\begin{definition}[Coalgebras, algebras, and the indexed functor]%
+\label{def:indexed-functor}
+Each equation~(\ref{eq:properties})--(\ref{eq:this})
+decomposes into a \emph{coalgebra}~$\alpha_i$
+that extracts the sub-queries on its right-hand side
+(the outgoing edges from a vertex in~$G$)
+and an \emph{algebra}~$\varphi_i$
+that assembles the sub-query results into the
+equation's value.
+We write each decomposition below;
+the hylomorphism at index~$i$ recovers the
+original equation as
+$\hyloi{i} = \varphi_i \circ F_i(\hylo{\Idx}) \circ \alpha_i$%
+~\cite{meijer1991functional,loh2011generic}.
 
-\begin{proof}
-Contrapositive.  A terminating computation visits finitely
-many vertices, so the reachable subgraph is finite.
-For acyclicity, suppose the reachable subgraph contains a
-cycle $v_0 \to v_1 \to \cdots \to v_k = v_0$.
-In a recursive evaluation, computing $v_0$ eventually
-requires the value of $v_0$ before it has been determined.
-Without a pre-assigned default value, this is infinite
-recursion; hence the evaluation does not terminate.
-\end{proof}
+\medskip\noindent\textbf{(1)\;$\properties$.}
+\begin{align}
+  \alpha_{\properties}(p)
+  &\;=\;
+  \{\,\supers(p)\,\}
+  \\
+  \varphi_{\properties}(p,\; R_{\supers(p)})
+  &\;=\;
+  \{\; \ell \;|\;
+    (\_,\; p_{\mathrm{override}}) \in R_{\supers(p)},\;
+    \ell \in \defines(p_{\mathrm{override}})
+  \;\}
+\end{align}
 
-\begin{lemma}[Unique solution on acyclic graphs]%
-\label{lem:unique-solution-dag}
-If the subgraph of $G$ reachable from a query $q$ is a
-finite directed acyclic graph, then the six equations
-determine a unique value for every vertex in this subgraph.
-\end{lemma}
+\noindent\textbf{(2)\;$\supers$.}
+\begin{align}
+  \alpha_{\supers}(p)
+  &\;=\;
+  \{\,\overrides(p),\;\bases(p)\,\} \notag \\
+  &\quad{}\cup\;
+  \{\,\supers(p_{\mathrm{base}}) \;|\;
+    p_{\mathrm{base}} \in R_{\bases(p)}\,\}
+  \\
+  \varphi_{\supers}(
+    p,\;R_{\overrides(p)},\;
+      R_{\bases(p)}, \notag \\
+  \quad
+    (R_{\supers(p_{\mathrm{base}})})_{
+      p_{\mathrm{base}} \in R_{\bases(p)}}
+  ) &\;=\;
+  \{\,(\init(p),\; p_{\mathrm{override}})
+    \;|\;
+    p_{\mathrm{override}}
+      \in R_{\overrides(p)}\,\}%
+    \footnote{The functions $\init$ and $\last$ are
+    defined only for non-root paths
+    (Section~\ref{sec:mixin-trees}).
+    When $p = ()$, the value $\init(p)$ in the first
+    component is never consumed:
+    $\varphi_{\properties}$ uses only the second
+    component~$p_{\mathrm{override}}$,
+    and $\alpha_{\overrides}$ calls
+    $\supers(\init(p))$
+    only for non-root~$p$.
+    In $\alpha_{\bases}$ and $\varphi_{\bases}$,
+    $\init(p)$ is guarded by the condition
+    $(n, \ell_{\mathrm{down},*})
+    \in \inherits(p_{\mathrm{override}})$;
+    since $\inherits = \varnothing$ at the root,
+    $\init(p)$ is never reached.
+    Likewise, $\alpha_{\resolve}$ and
+    $\alpha_{\this}$ use
+    $\init(p_{\mathrm{def}})$
+    where $p_{\mathrm{def}}$ always originates
+    from an $\inherits$ entry and is therefore
+    non-root.}
+  \notag \\
+  &\quad{}\cup\;
+  \{\; (p_{\mathrm{site}},\; p_{\mathrm{override}})
+    \;|\; \notag \\
+  &\qquad
+    p_{\mathrm{base}} \in R_{\bases(p)},\; \notag \\
+  &\qquad
+    (p_{\mathrm{site}},\; p_{\mathrm{override}})
+      \in R_{\supers(p_{\mathrm{base}})}
+  \;\}
+\end{align}
+The second batch of sub-queries depends on
+the result~$R_{\bases(p)}$ of the first batch,
+making $F_{\supers}$ a dependent polynomial
+(container) functor~\cite{abbott2005containers,hancock2000interactive}
+rather than a simple polynomial.
+Equivalently, the closed-form $\bases^*$
+in~(\ref{eq:supers}) is the reflexive-transitive
+closure of~$\bases$---itself a hylomorphism
+(coalgebra~$= \bases$, algebra~$= \cup$)
+embedded via the cross-index recursion
+$\supers \to \bases \to \supers$.
 
-\begin{proof}
-By induction on the DAG in reverse topological order.
-Leaves (vertices with no outgoing edges) have their
-values determined directly by the AST primitives
-$\defines$ and $\inherits$.
-Each non-leaf vertex's value is uniquely determined by its
-children's values via the corresponding equation.
-\end{proof}
+\noindent\textbf{(3)\;$\overrides$.}
+\begin{align}
+  \alpha_{\overrides}(p)
+  &\;=\;
+  \begin{cases}
+    \emptyset & \text{if } p = () \\[4pt]
+    \{\,\supers(\init(p))\,\}
+    & \text{if } p \neq ()
+  \end{cases}
+  \\
+  \varphi_{\overrides}(p,\; R_{\supers(\init(p))})
+  &\;=\;
+  \begin{cases}
+    \{p\} & \text{if } p = () \\[4pt]
+    \{p\}
+    \;\cup\;
+    \{\; p_{\mathrm{branch}} \snoc \last(p) \;|\; \\
+    \qquad
+      (\_,\; p_{\mathrm{branch}}) \in R_{\supers(\init(p))}, \\
+    \qquad
+      \last(p) \in \defines(p_{\mathrm{branch}})
+    \;\}
+    & \text{if } p \neq ()
+  \end{cases}
+\end{align}
+
+\noindent\textbf{(4)\;$\bases$.}
+\begin{align}
+  \alpha_{\bases}(p)
+  &\;=\;
+  \{\,\overrides(p)\,\}
+  \;\cup \notag \\
+  &\quad
+  \{\,
+    \resolve(\init(p),\;
+      p_{\mathrm{override}},\;
+      n,\;\ell_{\mathrm{down},*})
+    \notag \\
+  &\qquad\;|\;
+    p_{\mathrm{override}} \in R_{\overrides(p)}, \notag \\
+  &\qquad\phantom{\;|\;}
+    (n,\; \ell_{\mathrm{down},*})
+      \in \inherits(p_{\mathrm{override}})
+  \,\}
+  \\
+  \varphi_{\bases}(
+    p,\;
+      R_{\overrides(p)}, \notag \\
+  \quad
+    (R_{\resolve(
+      \init(p),\,p_{\mathrm{override}},\,
+      n,\,\ell_{\mathrm{down},*})}
+    )
+  ) &\;=\;
+  \{\; p_{\mathrm{target}} \;|\; \notag \\
+  &\;\;
+    p_{\mathrm{override}} \in R_{\overrides(p)}, \notag \\
+  &\;\;
+    (n,\; \ell_{\mathrm{down},*})
+      \in \inherits(p_{\mathrm{override}}), \notag \\
+  &\;\;
+    p_{\mathrm{target}} \in
+      R_{\resolve(\init(p),\,
+        p_{\mathrm{override}},\,
+        n,\,\ell_{\mathrm{down},*})}
+  \;\}
+\end{align}
+Like $F_{\supers}$, the functor $F_{\bases}$ is a
+dependent polynomial:
+the $\resolve$-positions depend on the
+result~$R_{\overrides(p)}$.
+
+\noindent\textbf{(5)\;$\resolve$.}
+\begin{align}
+  \alpha_{\resolve}(p_{\mathrm{site}},\; p_{\mathrm{def}},\;
+    n,\; \ell_{\mathrm{down},*})
+  &\;=\;
+  \{\,
+    \this(\{p_{\mathrm{site}}\},\; \init(p_{\mathrm{def}}),\; n)
+  \,\}
+  \\
+  \varphi_{\resolve}(
+    p_{\mathrm{site}},\; p_{\mathrm{def}},\;
+      n,\; \ell_{\mathrm{down},*}, \notag \\
+  \quad
+    R_{\this(\{p_{\mathrm{site}}\},\,
+      \init(p_{\mathrm{def}}),\,n)}
+  ) &\;=\;
+  \{\;
+    p_{\mathrm{current}}
+    \snoc \ell_{\mathrm{down},1}
+    \snoc \cdots
+    \snoc \ell_{\mathrm{down},k}
+    \notag \\
+  &\quad\;|\;
+    p_{\mathrm{current}} \in
+      R_{\this(\{p_{\mathrm{site}}\},\,
+        \init(p_{\mathrm{def}}),\,n)}
+  \;\}
+\end{align}
+
+\noindent\textbf{(6)\;$\this$.}
+\begin{align}
+  \alpha_{\this}(S,\; p_{\mathrm{def}},\; n)
+  &\;=\;
+  \begin{cases}
+    \emptyset & \text{if } n = 0 \\[4pt]
+    \{\,\supers(p_{\mathrm{current}}) \;|\;
+      p_{\mathrm{current}} \in S\,\} \\
+    \;\cup\;
+    \{\,\this(S',\;
+      \init(p_{\mathrm{def}}),\;
+      n - 1)\,\}
+    & \text{if } n > 0
+  \end{cases}
+\intertext{where
+$S' = \{\,p_{\mathrm{site}} \;|\;
+  p_{\mathrm{current}} \in S,\;
+  (p_{\mathrm{site}},\; p_{\mathrm{override}})
+    \in R_{\supers(p_{\mathrm{current}})},\;
+  p_{\mathrm{override}} = p_{\mathrm{def}}\,\}$.}
+  \varphi_{\this}(
+    S,\; p_{\mathrm{def}},\; n, \notag \\
+  \quad
+    (R_{\supers(p_{\mathrm{current}})})_{
+        p_{\mathrm{current}} \in S}, \notag \\
+  \quad
+    R_{\this(S',\,\init(p_{\mathrm{def}}),\,n-1)}
+  ) &\;=\;
+  \begin{cases}
+    S & \text{if } n = 0 \\[4pt]
+    R_{\this(S',\,
+      \init(p_{\mathrm{def}}),\,
+      n-1)}
+    & \text{if } n > 0
+  \end{cases}
+\end{align}
+Like $F_{\supers}$ and $F_{\bases}$, the functor
+$F_{\this}$ is a dependent polynomial:
+the $\this$-position depends on the frontier~$S'$
+computed from the $\supers$~results.
+The self-call is structural recursion on~$n$
+and terminates independently of the dependency graph.
+
+\medskip
+Because every $\alpha_i$ and $\varphi_i$ operates on paths
+and sets of paths---first-order data with no function
+spaces---the construction is purely set-theoretic.
+The \emph{indexed functor}
+$F_{\Idx} = (F_i)_{i \in \Idx}$ is the family of
+container
+endofunctors~\cite{abbott2005containers}
+on $\prod_{j \in \Idx}\mathbf{Set}$
+whose shape at each index~$i$ is determined by the
+sub-queries that $\alpha_i$
+emits~\cite{loh2011generic}.
+For indices where the set of sub-queries depends on
+earlier results ($\supers$, $\bases$, $\this$),
+$F_i$ is a dependent polynomial
+functor~\cite{hancock2000interactive};
+for the remaining indices ($\properties$, $\overrides$,
+$\resolve$) it is a simple polynomial.
+The cross-index dependencies
+($\supers \leftrightarrow \overrides$,
+$\supers \to \bases \to \resolve \to \this \to \supers$)
+are encoded in the index arguments of each~$F_i$.
+The initial algebra $\mu F_{\Idx}$ consists of finite
+dependency trees, and the final coalgebra $\nu F_{\Idx}$
+includes the infinite trees that arise from diverging queries.
+
+The equivalence between the decompositions above and the
+original equations~(\ref{eq:properties})--(\ref{eq:this})
+is constructive:
+for each index~$i$, substituting the sub-query results
+produced by $F_i(\hylo{\Idx}) \circ \alpha_i$ into
+$\varphi_i$ recovers the corresponding equation
+in Section~\ref{sec:mixin-trees}.
+The reader may verify this by inlining each
+$\alpha_i$ into its $\varphi_i$ and checking that the
+resulting expression coincides with
+equations~(\ref{eq:properties})--(\ref{eq:this}).
+\end{definition}
 
 \begin{theorem}[Well-definedness]\label{thm:well-defined}
 The semantic functions
 $\properties$, $\supers$, $\overrides$, $\bases$, $\resolve$,
 $\this$ are well-defined: for every query whose recursive
 evaluation terminates, the result is the unique solution of
-equations~(\ref{eq:properties})--(\ref{eq:this}) on the
+$\hylo{\Idx}$~(\ref{eq:properties})--(\ref{eq:this}) on the
 reachable dependency subgraph.
 \end{theorem}
 
 \begin{proof}
-By Lemma~\ref{lem:termination-acyclicity}, termination
-implies that the reachable subgraph is a finite DAG\@.
-By Lemma~\ref{lem:unique-solution-dag}, the equations have
-a unique solution on this finite DAG\@.
-Memoized recursive evaluation computes exactly this solution,
-visiting each vertex at most once in reverse topological
-order.
+Termination implies that the reachable subgraph of~$G$ is
+finite (finitely many vertices visited) and acyclic
+(a cycle $v_0 \to \cdots \to v_0$ would require
+the value of~$v_0$ before it has been determined,
+giving infinite recursion).
+On this finite DAG the restriction of each~$\alpha_i$
+is a well-founded (recursive)
+coalgebra~\cite{taylor1999practical,capretta2006recursive},
+so $\hylo{\Idx}$ has a unique solution by the general
+recursion theorem for recursive
+coalgebras~\cite{adamek2019well}.
+Memoized evaluation computes exactly this solution,
+visiting each vertex at most once.
 \end{proof}
 
 \paragraph{Divergence}
-The recursive evaluation diverges in two cases:
-(1)~the dependency graph contains a cycle (circular
-inheritance), causing infinite recursion; or
-(2)~the reachable subgraph is an infinite acyclic chain
-(an infinite inheritance hierarchy whose paths grow without
-bound).
-This is the analogue of divergence in the $\lambda$-calculus.
-No separate treatment of divergence is needed; it emerges
-from the recursive evaluation itself.
+When evaluation does not terminate, the
+$\hylo{\Idx}$ framework accounts for divergence
+without additional apparatus.
+The dependency graph either contains a cycle (circular
+inheritance, giving infinite recursion) or an infinite
+acyclic chain (unbounded inheritance hierarchy).
+In both cases~$\alpha_i$ is non-well-founded
+and the unfold produces an infinite
+tree~\cite{capretta2006recursive}---an element of the
+final coalgebra
+$\nu F_{\Idx}$~(Definition~\ref{def:indexed-functor}),
+the carrier of the terminal
+$F_{\Idx}$-coalgebra~\cite{rutten2000universal}.
+Convergence and divergence are therefore \emph{internal}
+to the first-order framework: convergent queries yield
+elements of $\mu F_{\Idx}$ (finite dependency trees),
+divergent queries yield elements of
+$\nu F_{\Idx} \setminus \mu F_{\Idx}$
+(infinite trees).
 
 \section{B\"ohm Tree Correspondence: Proofs}
 \label{app:bohm-tree-proofs}
 
 This appendix contains the full proofs of Adequacy
-(Theorem~\ref{thm:adequacy}) and Full Abstraction
+(Theorem~\ref{thm:adequacy}) and the first-order
+semantics theorem
 (Theorem~\ref{thm:full-abstraction}) stated in
 Section~\ref{sec:bohm-tree}.
 
@@ -3752,13 +3144,14 @@ By the induction hypothesis, $N$ has a head normal
 form, and since $M \to_h N$, so does $M$.
 \end{proof}
 
-\subsection{Full Abstraction}
+\subsection{First-Order Semantics of the Lazy \texorpdfstring{$\lambda$}{λ}-Calculus}
 
 Adequacy relates a single term's head normal form to its
 inheritance-convergence.
-Full abstraction lifts this to an equivalence between terms:
-the translation $\mathcal{T}$ preserves and reflects
-observational equivalence.
+The following theorem lifts this to an equivalence between
+terms, establishing that the translation $\mathcal{T}$
+gives the lazy $\lambda$-calculus a first-order semantics
+that preserves and reflects B\"ohm tree equivalence.
 
 \begin{definition}[$\lambda$-contextual equivalence under $\mathcal{T}$]%
 \label{def:ctx-equiv}
@@ -3821,9 +3214,725 @@ The proof rests on two pillars: Adequacy
 the classical result that B\"ohm tree equivalence equals
 observational equivalence for the lazy
 $\lambda$-calculus~\cite{abramsky1993lazy}.
-The mixin tree semantics inherits full abstraction from the
-$\lambda$-calculus without needing to define or compare
-absolute paths inside mixin trees.
+The prior higher-order frameworks are thereby shown to be
+faithful to the first-order semantics, without needing to
+define or compare absolute paths inside mixin trees.
+
+\section{Expressive Asymmetry: Proofs}
+\label{app:expressiveness}
+
+\begin{definition}[Macro-expressibility, after Felleisen~\cite{felleisen1991expressive}]
+\label{def:macro-expressibility}
+A construct $C$ of language $\mathscr{L}_1$ is \emph{macro-expressible}
+in language $\mathscr{L}_0$ if there exists a translation $\mathcal{E}$
+such that for every program $P$ containing occurrences of $C$,
+the translation $\mathcal{E}(P)$ is obtained by replacing each
+occurrence of $C$ with an $\mathscr{L}_0$ expression that depends only
+on $C$'s subexpressions, leaving all other constructs of $P$
+unchanged.
+\end{definition}
+
+\begin{lemma}[Composition of macro-expressible translations]
+\label{lem:macro-composition}
+If $\mathcal{E}_1$ macro-expresses the constructs of
+$\mathscr{L}_1$ in $\mathscr{L}_0$ and
+$\mathcal{E}_2$ macro-expresses the constructs of
+$\mathscr{L}_2$ in $\mathscr{L}_1$, then the composition
+$\mathcal{E}_1 \circ \mathcal{E}_2$ macro-expresses the
+constructs of $\mathscr{L}_2$ in $\mathscr{L}_0$.
+\end{lemma}
+
+\begin{proof}
+Each construct~$F$ of~$\mathscr{L}_2$ has a fixed
+syntactic abstraction~$A_F^{(2)}$
+over~$\mathscr{L}_1$.\linebreak
+Each $\mathscr{L}_1$-construct~$G$ appearing
+in~$A_F^{(2)}$ has a fixed
+syntactic abstraction~$A_G^{(1)}$
+over~$\mathscr{L}_0$.
+Substituting~$A_G^{(1)}$ for every~$G$
+in~$A_F^{(2)}$ yields a fixed syntactic
+abstraction over~$\mathscr{L}_0$ for~$F$,
+satisfying~E4.
+\end{proof}
+
+\begin{definition}[Language universe]
+\label{def:language-universe}
+Let $\mathscr{U}$ be the language whose constructors are
+the union of the constructors of inheritance-calculus,
+the constructors of the lazy $\lambda$-calculus
+($\lambda$-abstraction, application, variable), and
+$\mathbf{let}$-binding.
+The semantics of $\mathscr{U}$ is given by translating
+every $\mathscr{U}$-program to inheritance-calculus in
+three steps:
+\begin{enumerate}
+  \item Convert every maximal $\lambda$-calculus
+    subexpression (i.e.\ every subtree whose root
+      and all internal nodes use only $\lambda$-calculus
+    constructors) to A-normal
+    form~\cite{flanagan1993essence}.
+  \item Apply the translation $\mathcal{T}$
+    (Section~\ref{sec:forward-translation}) to every ANF
+    $\lambda$-calculus subexpression.
+  \item Evaluate the resulting inheritance-calculus
+    program by the rules of
+    Section~\ref{sec:mixin-trees}.
+\end{enumerate}
+When a $\mathscr{U}$-expression interleaves
+$\lambda$-calculus and inheritance-calculus constructors
+(e.g.\ a $\mathbf{let}$-binding whose bound value is an
+inheritance-calculus expression), the translation is
+applied compositionally from leaves to root: each
+$\lambda$-calculus construct is replaced by its
+inheritance-calculus equivalent via~$\mathcal{T}$,
+treating inheritance-calculus subexpressions as opaque
+values.
+Since each rule of~$\mathcal{T}$
+(Section~\ref{sec:forward-translation}) is a fixed
+syntactic abstraction depending only on the translated
+subexpressions, this bottom-up application is
+well-defined and yields a pure inheritance-calculus
+program for step~(3).
+
+A $\mathscr{U}$-program $P$ converges,
+$\mathrm{eval}_{\mathscr{U}}(P)$, iff its translation
+converges.
+The lazy $\lambda$-calculus and inheritance-calculus are
+conservative restrictions of $\mathscr{U}$: each is
+obtained by removing the other's constructors.
+For a pure inheritance-calculus program, steps~(1)
+and~(2) are vacuous, so
+$\mathrm{eval}_{\mathscr{U}}$ agrees with the
+inheritance-calculus semantics.
+For a pure $\lambda$-calculus program, the composition
+of steps~(1)--(3) agrees with lazy evaluation by
+Adequacy (Theorem~\ref{thm:adequacy}).
+\end{definition}
+
+The three-step translation is effective (ANF conversion
+and~$\mathcal{T}$ are syntactic transformations) and the
+recursive evaluation of inheritance-calculus
+(Section~\ref{sec:mixin-trees}) is a semi-decision
+procedure, so $\mathrm{eval}_{\mathscr{U}}$ is
+recursively enumerable, as required by
+Felleisen's framework~\cite{felleisen1991expressive}.
+
+\begin{lemma}[$\mathbf{let}$-binding is macro-expressible
+in the lazy $\lambda$-calculus]
+\label{lem:let-macro}
+The translation
+$\mathbf{let}\; x = e_1 \;\mathbf{in}\; e_2
+\;\mapsto\; (\lambda x.\, e_2)\; e_1$
+is a macro-expressible elimination of $\mathbf{let}$
+in the lazy $\lambda$-calculus.
+\end{lemma}
+
+\begin{proof}
+The translation replaces each $\mathbf{let}$-binding
+with a $\lambda$-expression that depends only on the
+two subexpressions $e_1$ and~$e_2$.
+This is Proposition~3.7 of
+Felleisen~\cite{felleisen1991expressive}.
+\end{proof}
+
+\begin{lemma}[Equal expressiveness of the lazy
+$\lambda$-calculus and its ANF fragment]
+\label{lem:anf-equiv}
+In $\mathscr{U}$, the lazy $\lambda$-calculus and the
+ANF lazy $\lambda$-calculus
+(Section~\ref{sec:forward-translation}) are equally
+macro-expressive.
+\end{lemma}
+
+\begin{proof}
+Every ANF term is a $\lambda$-term, so the embedding
+of the ANF fragment into the full $\lambda$-calculus is
+the identity, which is trivially macro-expressible.
+For the reverse direction, the ANF
+transformation~\cite{flanagan1993essence} consists of
+two steps, each macro-expressible:
+\begin{enumerate}
+  \item \emph{Application flattening.}
+    Replace each nested application
+    $(e_1\; e_2)\; e_3$ with
+    $\mathbf{let}\; x = e_1\; e_2 \;\mathbf{in}\;
+    x\; e_3$.
+    The syntactic abstraction is
+    $A(\cdot_1, \cdot_2, \cdot_3)
+    = \mathbf{let}\; x = \cdot_1\; \cdot_2
+    \;\mathbf{in}\; x\; \cdot_3$,
+    depending only on the three subexpressions.
+  \item \emph{Value lifting.}
+    Replace each free value~$V$ used in an application
+    position with
+    $\mathbf{let}\; x = V \;\mathbf{in}\; x$.
+    The syntactic abstraction is
+    $A(\cdot_1) = \mathbf{let}\; x = \cdot_1
+    \;\mathbf{in}\; x$.
+\end{enumerate}
+By Lemma~\ref{lem:let-macro}, each resulting
+$\mathbf{let}$-binding is itself
+macro-expressible in the $\lambda$-calculus.
+By Lemma~\ref{lem:macro-composition}, composing
+these macro-expressible translations
+yields a macro-expressible translation from the full
+$\lambda$-calculus to its ANF fragment.
+\end{proof}
+
+\begin{theorem}[Forward macro-expressibility]
+\label{thm:forward-macro}
+The translation $\mathcal{T}$
+(Section~\ref{sec:forward-translation}) is a macro-expressible
+embedding of the $\lambda$-calculus into inheritance-calculus.
+\end{theorem}
+
+\begin{proof}
+We verify condition~E4 of
+Felleisen~\cite[Definition~3.11]{felleisen1991expressive}:
+for each $\lambda$-calculus construct~$F$ of arity~$a$,
+there must exist a fixed $a$-ary syntactic abstraction
+$A_F(\cdot_1,\ldots,\cdot_a)$ over
+inheritance-calculus such that
+$\mathcal{T}(F(e_1,\ldots,e_a)) =
+A_F(\mathcal{T}(e_1),\ldots,\mathcal{T}(e_a))$.
+We check each rule of $\mathcal{T}$
+(Section~\ref{sec:forward-translation}):
+\begin{enumerate}
+  \item \emph{$\lambda$-bound variable}
+    ($x$ with de~Bruijn index $n'$).
+    This is a nullary construct (no subexpressions).
+    The syntactic abstraction is the constant
+    $A = \dbi{n'}.\mathrm{argument}$.
+  \item \emph{Let-bound variable} ($x$).
+    Nullary.
+    $A = x.\mathrm{result}$.
+  \item \emph{$\lambda$-abstraction} ($\lambda x.\, M$).
+    Unary in the body~$M$.
+    $A(\cdot_1) = \{\mathrm{argument} \mapsto \{\},\;
+    \mathrm{result} \mapsto \cdot_1\}$.
+  \item \emph{Application let-binding}
+    ($\mathbf{let}\; x = V_1\; V_2
+    \;\mathbf{in}\; M$).
+    Ternary in~$V_1$, $V_2$, and~$M$.
+    $A(\cdot_1, \cdot_2, \cdot_3) =
+    \{x \mapsto \{\cdot_1,\;
+      \mathrm{argument} \mapsto \cdot_2\},\;
+    \mathrm{result} \mapsto \cdot_3\}$.
+  \item \emph{Value let-binding}
+    ($\mathbf{let}\; x = V \;\mathbf{in}\; M$).
+    Binary in~$V$ and~$M$.
+    $A(\cdot_1, \cdot_2) =
+    \{x \mapsto \{\mathrm{result} \mapsto \cdot_1\},\;
+    \mathrm{result} \mapsto \cdot_2\}$.
+  \item \emph{Tail call} ($V_1\; V_2$).
+    Binary.\newline
+    $A(\cdot_1, \cdot_2) =
+    \{\mathrm{tailCall} \mapsto
+    \{\cdot_1,\;
+      \mathrm{argument} \mapsto \cdot_2\},\;
+    \mathrm{result} \mapsto
+    \mathrm{tailCall}.\mathrm{result}\}$.
+\end{enumerate}
+In each case the syntactic abstraction~$A_F$ is a fixed
+inheritance-calculus context whose holes are filled
+by the recursive translations of the subexpressions,
+satisfying~E4.
+\end{proof}
+
+\begin{theorem}[Nonexpressibility of inheritance]
+\label{thm:cartesian-nonexpressibility}
+The lazy $\lambda$-calculus cannot macro-express the
+inheritance constructors of $\mathscr{U}$
+(Definition~\ref{def:language-universe}).
+\end{theorem}
+
+\begin{proof}
+We apply Theorem~3.14(i) of
+Felleisen~\cite{felleisen1991expressive} to the pair
+$L_0 = \text{lazy $\lambda$-calculus}$,
+$L_1 = \mathscr{U}$.
+By Definition~\ref{def:language-universe},
+$\mathscr{U} = L_0 + \{$mixin-tree constructors$\}$
+is a conservative extension of~$L_0$
+(Definition~3.2 of
+Felleisen~\cite{felleisen1991expressive}).
+We verify the four conditions:
+\begin{enumerate}
+  \item[(i)] \emph{$L_0 \subseteq L_1$:}
+    The syntax of~$\mathscr{U}$ includes all
+    $L_0$-phrases.
+  \item[(ii)] \emph{No new $L_0$-phrases:}
+    The mixin-tree constructors do not introduce new
+    phrases in~$L_0$.
+  \item[(iii)] \emph{Disjoint constructors:}
+    The mixin-tree constructors are disjoint from the
+    $L_0$-constructors.
+  \item[(iv)] \emph{Semantics preserved:}
+    For pure $\lambda$-terms, steps~(1) and~(2) of
+    Definition~\ref{def:language-universe} are vacuous
+    and step~(3) yields lazy evaluation by Adequacy
+    (Theorem~\ref{thm:adequacy}), so
+    $\mathrm{eval}_{\mathscr{U}}$ agrees with
+    $\mathrm{eval}_{L_0}$ on $L_0$-phrases.
+\end{enumerate}
+The theorem requires us to exhibit two $L_0$-terms
+$M$ and $N$ with $M \cong_0 N$ but
+$M \not\cong_1 N$, where $\cong_0$ is operational
+equivalence in $L_0$ and $\cong_1$ is operational
+equivalence in $\mathscr{U}$.
+
+\paragraph{Operational equivalence in $L_0$}
+By B\"ohm tree
+equivalence~\cite{abramsky1990lazy}
+(Theorem~\ref{thm:full-abstraction}), for closed
+$\lambda$-terms $M$ and $N$:
+$M \cong_0 N$ iff $\mathrm{BT}(M) = \mathrm{BT}(N)$.
+
+\paragraph{Separating pair}
+Define Church booleans and Church boolean equality:
+$\mathrm{true} = \lambda t.\,\lambda f.\, t$,
+$\mathrm{false} = \lambda t.\,\lambda f.\, f$, and
+$\mathrm{eq} = \lambda a.\,\lambda b.\,
+(a\;b)\;(b\;\mathrm{false}\;\mathrm{true})$.
+Let
+\[
+  M = \mathrm{eq}\;\mathrm{false}\;\mathrm{false}
+  \qquad
+  N = \mathrm{eq}\;\mathrm{true}\;\mathrm{true}.
+\]
+Both reduce to Church~$\mathrm{true}$ in the
+lazy $\lambda$-calculus, so
+$\mathrm{BT}(M) = \mathrm{BT}(N)$ and hence
+$M \cong_0 N$.
+
+\paragraph{Distinguishing $\mathscr{U}$-context}
+We now construct a $\mathscr{U}$-context that
+separates $M$ and $N$.
+$M$ and $N$ are syntactically closed $\lambda$-terms;
+by Definition~\ref{def:language-universe}, their
+semantics in $\mathscr{U}$ is given by translating
+them to inheritance-calculus via ANF conversion followed
+by~$\mathcal{T}$.
+Under the extended ANF convention
+(Section~\ref{sec:forward-translation}), every free
+value used in an application is first bound to a name:
+\begin{align*}
+  \mathrm{ANF}(M) ={} &
+  \mathbf{let}\;\mathrm{eq} =
+  \lambda a.\,\lambda b.\,
+  \mathbf{let}\; x_1 = a\;b \;\mathbf{in}\; \\
+  &\qquad
+  \mathbf{let}\; f_1 = \mathrm{false}
+  \;\mathbf{in}\;
+  \mathbf{let}\; x_2 = b\;f_1 \;\mathbf{in}\; \\
+  &\qquad
+  \mathbf{let}\; t_1 = \mathrm{true}
+  \;\mathbf{in}\;
+  \mathbf{let}\; x_3 = x_2\;t_1
+  \;\mathbf{in}\;
+  x_1\;x_3 \\
+  & \mathbf{in}\;\;
+  \mathbf{let}\; f_1 = \mathrm{false}
+  \;\mathbf{in}\;
+  \mathbf{let}\;\mathrm{eqFalse} = \mathrm{eq}\;f_1 \\
+  &\quad
+  \;\mathbf{in}\;
+  \mathbf{let}\; f_2 = \mathrm{false}
+  \;\mathbf{in}\;
+  \mathrm{eqFalse}\;f_2
+\end{align*}
+Applying~$\mathcal{T}$:
+\begin{align*}
+  \mathcal{T}(\mathrm{ANF}(M)) \;=\; \{&
+    \mathrm{eq} \mapsto \{\mathrm{result} \mapsto
+    \mathcal{T}(\lambda a.\,\lambda b.\,\cdots)\}, \\
+    & f_1 \mapsto \{\mathrm{result} \mapsto
+    \mathcal{T}(\mathrm{false})\}, \\
+    & \mathrm{eqFalse} \mapsto
+    \{\mathrm{eq}.\mathrm{result},\;
+      \mathrm{argument} \mapsto
+    f_1.\mathrm{result}\}, \\
+    & f_2 \mapsto \{\mathrm{result} \mapsto
+    \mathcal{T}(\mathrm{false})\}, \\
+    & \mathrm{tailCall} \mapsto
+    \{\mathrm{eqFalse}.\mathrm{result},\;
+      \mathrm{argument} \mapsto
+    f_2.\mathrm{result}\}, \\
+    & \mathrm{result} \mapsto
+    \mathrm{tailCall}.\mathrm{result}
+  \;\}
+\end{align*}
+and symmetrically for $N$ with $\mathrm{true}$ in place
+of $\mathrm{false}$.
+Note that $\mathrm{eq}$ is a \emph{named child}
+of $\mathcal{T}(\mathrm{ANF}(M))$, bound via a value
+let-binding.
+Inside the translation of $\mathrm{eq}$, the inner
+$\lambda b$ scope contains the let-bindings
+for $x_1$, $f_1$, $x_2$, $t_1$, $x_3$, and a tail call.
+In particular, $\dbi{1}.\mathrm{argument}$ reaches
+the outer $\lambda a$ scope and
+$\dbi{0}.\mathrm{argument}$ reaches $\lambda b$
+itself.\footnote{These indices use the condensed
+  convention, counting only $\lambda$-scopes.
+  As noted in the translation footnote
+  (Section~\ref{sec:forward-translation}),
+  each let-binding and tail call introduces an
+  additional scope level in inheritance-calculus;
+  the formal index is correspondingly larger,
+but the target scope is the same.}
+
+The $\mathscr{U}$-context uses inheritance to add
+a $\mathrm{repr}$ record inside the $\lambda b$ scope
+of $\mathrm{eq}$ that projects the first operand.
+Define the context $C[\cdot]$ as:
+\begin{align*}
+  C[\cdot] ={} & \mathbf{let}\;
+  \mathrm{extended} = \{[\cdot],\;
+    \mathrm{eq} \mapsto \{
+      \mathrm{result} \mapsto \{ \\
+  &\quad
+        \mathrm{result} \mapsto \{
+          \mathrm{repr} \mapsto \{
+            \mathrm{firstOperand}
+            \mapsto \dbi{2}.\mathrm{argument}
+  \}\}\}\}\} \\
+  & \mathbf{in}\;
+  \mathrm{extended}.\mathrm{tailCall}.\mathrm{repr}.\mathrm{firstOperand}
+\end{align*}
+Here $[\cdot]$ is the hole.
+Note the two levels of $\mathrm{result}$ nesting in the
+mixin: the outer $\mathrm{result}$ enters the value
+let-binding wrapper for $\mathrm{eq}$, and the inner
+$\mathrm{result}$ enters the $\lambda a$ scope.
+The second $\mathrm{result}$ then contains the
+$\lambda b$ scope, so $\mathrm{repr}$ is placed at
+the $\lambda b$ scope level.
+The mixin $\{\mathrm{eq} \mapsto \{\mathrm{result}
+    \mapsto \{\mathrm{result} \mapsto
+\{\mathrm{repr} \mapsto \cdots\}\}\}\}$ is an
+inheritance-calculus expression: it uses only the
+mixin-tree constructors of $\mathscr{U}$.
+The outer $\mathbf{let}$-binding and projection are
+$\lambda$-calculus constructs (Lemma~\ref{lem:let-macro}).
+Thus $C[\cdot]$ is a valid $\mathscr{U}$-context.
+
+The de~Bruijn index $\dbi{2}$ in
+$\mathrm{repr}$ counts scope levels
+(in the condensed convention):
+$\dbi{0}$ is $\mathrm{repr}$ itself,
+$\dbi{1}$ is the $\lambda b$ scope, and
+$\dbi{2}$ is the $\lambda a$ scope.
+So $\mathrm{firstOperand}$ projects
+$\lambda a$'s argument.
+
+Since $\mathrm{eqFalse}$ (respectively $\mathrm{eqTrue}$)
+inherits $\mathrm{eq}.\mathrm{result}$,
+and $\mathrm{tailCall}$ inherits
+$\mathrm{eqFalse}.\mathrm{result}$ (the $\lambda b$
+scope), the $\mathrm{repr}$ record placed by the mixin
+at the $\lambda b$ scope level propagates through
+the inheritance chain to $\mathrm{tailCall}$.
+In $C[M]$: the $\mathrm{eqFalse}$ binding supplies
+$\mathrm{argument} \mapsto f_1.\mathrm{result}$
+(i.e.\ $\mathrm{false}$) to the $\lambda a$ scope, so
+$\mathrm{firstOperand}$ evaluates to
+$\mathrm{false} = \lambda t.\,\lambda f.\, f$.
+In $C[N]$: the $\mathrm{eqTrue}$ binding supplies
+$\mathrm{argument} \mapsto \mathrm{true}$, so
+$\mathrm{firstOperand}$ evaluates to
+$\mathrm{true} = \lambda t.\,\lambda f.\, t$.
+
+Define $D[\cdot] = (\lambda x.\, x\;\Omega\;I)\;
+C[\cdot]$.
+Then $\mathrm{eval}_{\mathscr{U}}$ holds for $D[M]$
+(since $\mathrm{false}\;\Omega\;I \to I$, which
+converges)
+but not for $D[N]$
+(since $\mathrm{true}\;\Omega\;I \to \Omega$, which
+diverges).
+Therefore $M \not\cong_1 N$.
+
+\paragraph{Conclusion}
+We have $M \cong_0 N$ but $M \not\cong_1 N$, so
+${\cong_0} \neq {(\cong_1|_{L_0})}$.
+By Theorem~3.14(i) of
+Felleisen~\cite{felleisen1991expressive},
+the lazy $\lambda$-calculus cannot macro-express the
+inheritance constructors of~$\mathscr{U}$.
+\end{proof}
+
+\begin{theorem}[Expressive asymmetry]
+\label{thm:expressive-asymmetry}
+In the language universe $\mathscr{U}$
+(Definition~\ref{def:language-universe}),
+inheritance-calculus is strictly more expressive than
+the lazy $\lambda$-calculus: it can macro-express every
+$\mathscr{U}$-construct that the $\lambda$-calculus
+can, but not conversely
+(Definition~3.17 of
+Felleisen~\cite{felleisen1991expressive}).
+\end{theorem}
+
+\begin{proof}
+We must show:
+(a)~inheritance-calculus can macro-express every
+$\mathscr{U}$-construct that the lazy $\lambda$-calculus
+can macro-express, and
+(b)~the converse fails.
+
+\paragraph{Part (b): the lazy $\lambda$-calculus $\not\geq$
+inheritance-calculus}
+The $\lambda$-calculus contains its own constructors
+($\lambda$, application, variable) and can macro-express
+$\mathbf{let}$-binding (Lemma~\ref{lem:let-macro}), but
+cannot macro-express the inheritance constructors of
+$\mathscr{U}$
+(Theorem~\ref{thm:cartesian-nonexpressibility}).
+Inheritance-calculus contains those constructors.
+Therefore the lazy $\lambda$-calculus is not at least
+as expressive as inheritance-calculus with respect
+to~$\mathscr{U}$.
+
+\paragraph{Part (a): inheritance-calculus $\geq$ the lazy
+$\lambda$-calculus}
+We show that inheritance-calculus can macro-express
+every $\mathscr{U}$-construct that the
+$\lambda$-calculus contains or can macro-express.
+The $\lambda$-calculus contains $\lambda$-abstraction,
+application, and variable; it can macro-express
+$\mathbf{let}$-binding
+(Lemma~\ref{lem:let-macro}).
+We must show that inheritance-calculus can
+macro-express all four of these constructs.
+The translation proceeds in two stages:
+\begin{enumerate}
+  \item \emph{ANF conversion.}
+    The A-normal form
+    transformation~\cite{flanagan1993essence}
+    replaces nested applications with
+    $\mathbf{let}$-bindings; it is macro-expressible
+    in the $\lambda$-calculus by
+    Lemma~\ref{lem:anf-equiv}.
+    In the reverse direction,
+    $\mathbf{let}$-bindings are macro-expressible in
+    the $\lambda$-calculus by
+    Proposition~3.7 of
+    Felleisen~\cite{felleisen1991expressive}
+    (restated as Lemma~\ref{lem:let-macro}).
+    Thus ANF conversion is a macro-expressible
+    equivalence between the $\lambda$-calculus and its
+    ANF fragment.
+  \item \emph{The translation $\mathcal{T}$.}
+    Each ANF $\lambda$-calculus construct maps to a
+    fixed syntactic abstraction over
+    inheritance-calculus
+    (Theorem~\ref{thm:forward-macro}), satisfying
+    condition~E4 of
+    Felleisen~\cite[Definition~3.11]{felleisen1991expressive}.
+\end{enumerate}
+By Lemma~\ref{lem:macro-composition}, composing the
+two macro-expressible translations gives a
+macro-expressible translation from
+the $\lambda$-calculus (with $\mathbf{let}$) into
+inheritance-calculus.
+Since inheritance-calculus trivially contains its own
+constructors, it can macro-express every
+$\mathscr{U}$-construct that the $\lambda$-calculus
+contains or can macro-express.
+\end{proof}
+
+\section{Multi-Path Self-Reference in Other Systems}
+\label{app:scala-multi-path}
+
+This appendix demonstrates that two representative systems, Scala~3
+and the NixOS module system, reject the multi-path self-reference
+pattern that inheritance-calculus handles naturally.
+
+\subsection*{Scala~3}
+
+Consider two objects that independently extend an outer class,
+each providing its own copy of an inner trait:
+
+\begin{lstlisting}[style=scala]
+class MyOuter:
+  trait MyInner:
+    def outer = MyOuter.this
+
+object Object1 extends MyOuter
+object Object2 extends MyOuter
+object HasMultipleOuters extends Object1.MyInner
+                     with Object2.MyInner
+\end{lstlisting}
+
+\noindent
+Scala~3 rejects \texttt{HasMultipleOuters} with the error:
+
+\begin{lstlisting}
+trait MyInner is extended twice
+object HasMultipleOuters cannot be instantiated since
+  it has conflicting base types
+  Object1.MyInner and Object2.MyInner
+\end{lstlisting}
+
+\noindent
+The rejection is not a surface-level restriction but a consequence
+of DOT's type-theoretic foundations~\cite{amin2016dot}.
+In DOT, an object is constructed as $\nu(x : T)\, d$, where the
+self variable~$x$ binds to a \emph{single} object.
+\texttt{Object1.MyInner} and \texttt{Object2.MyInner} are distinct
+path-dependent types, each constraining the outer self-reference
+to a different object.
+Their intersection requires \texttt{outer} to simultaneously
+return \texttt{Object1} and \texttt{Object2}, but DOT's self
+variable is single-valued, making this intersection unrealizable.
+
+The equivalent inheritance-calculus definition is:
+\begin{align*}
+\{ \quad \mathrm{MyOuter} &\mapsto \{
+    \mathrm{MyInner} \mapsto \{
+  \mathrm{outer} \mapsto \qualifiedthis{\mathrm{MyOuter}}\}\}, \\
+  \mathrm{Object1} &\mapsto \{\mathrm{MyOuter}\}, \\
+  \mathrm{Object2} &\mapsto \{\mathrm{MyOuter}\}, \\
+  \mathrm{HasMultipleOuters} &\mapsto \{
+    \mathrm{Object1}.\mathrm{MyInner},\;
+  \mathrm{Object2}.\mathrm{MyInner}\}
+\quad \}
+\end{align*}
+This is well-defined in inheritance-calculus.
+The reference
+$\qualifiedthis{\mathrm{MyOuter}}$ inside $\mathrm{outer}$
+has de~Bruijn index $n = 1$:
+starting from $\mathrm{outer}$'s enclosing scope
+$\mathrm{MyInner}$, one $\this$ step reaches
+$\mathrm{MyOuter}$.
+When $\mathrm{HasMultipleOuters}$ inherits from both
+$\mathrm{Object1}.\mathrm{MyInner}$ and
+$\mathrm{Object2}.\mathrm{MyInner}$,
+the $\this$ function (equation~\ref{eq:this}) resolves
+$\qualifiedthis{\mathrm{MyOuter}}$ by searching through
+$\supers(\mathrm{HasMultipleOuters})$ for override paths matching
+$\mathrm{MyInner}$'s definition site.
+It finds two inheritance-site paths, one through
+$\mathrm{Object1}$ and one through $\mathrm{Object2}$, and
+returns both.
+Both paths lead to records that inherit from the same
+$\mathrm{MyOuter}$, so querying
+$\mathrm{HasMultipleOuters}.\mathrm{outer}$ yields the
+$\properties$ of $\mathrm{MyOuter}$ regardless of which
+route is taken.
+Since inheritance is idempotent, the two routes contribute the
+same properties in this semantics, so no route-priority
+disambiguation rule is introduced.
+
+\subsection*{NixOS Module System}
+
+The NixOS module system rejects the same pattern with a static error.
+The translation uses the module system's own abstractions:
+\texttt{deferredModule} for traits, which are unevaluated module values imported
+into other fixpoints, and \texttt{submoduleWith} for objects, which are evaluated
+in their own fixpoints.
+
+\begin{lstlisting}[style=nix]
+let
+  lib = (import <nixpkgs> { }).lib;
+  result = lib.evalModules {
+    modules = [
+      (toplevel@{ config, ... }: {
+        # class MyOuter { trait MyInner {
+        #   def outer = MyOuter.this } }
+        options.MyOuter = lib.mkOption {
+          default = { };
+          type = lib.types.deferredModuleWith {
+            staticModules = [
+              (MyOuter: {
+                options.MyInner = lib.mkOption {
+                  default = { };
+                  type = lib.types.deferredModuleWith {
+                    staticModules = [
+                      (MyInner: {
+                        options.outer = lib.mkOption {
+                          default = { };
+                          type =
+                            lib.types.deferredModuleWith {
+                              staticModules =
+                                [ toplevel.config.MyOuter ];
+                            };
+                        };
+                      })
+                    ];
+                  };
+                };
+              })
+            ];
+          };
+        };
+        # object Object1 extends MyOuter
+        options.Object1 = lib.mkOption {
+          default = { };
+          type = lib.types.submoduleWith {
+            modules = [ toplevel.config.MyOuter ];
+          };
+        };
+        # object Object2 extends MyOuter
+        options.Object2 = lib.mkOption {
+          default = { };
+          type = lib.types.submoduleWith {
+            modules = [ toplevel.config.MyOuter ];
+          };
+        };
+        # object HasMultipleOuters extends
+        #   Object1.MyInner with Object2.MyInner
+        options.HasMultipleOuters = lib.mkOption {
+          default = { };
+          type = lib.types.submoduleWith {
+            modules = [
+            toplevel.config.Object1.MyInner
+            toplevel.config.Object2.MyInner
+          ];
+          };
+        };
+      })
+    ];
+  };
+in
+  builtins.attrNames result.config.HasMultipleOuters.outer
+\end{lstlisting}
+
+\noindent
+The NixOS module system rejects this with:
+
+\begin{lstlisting}
+error: The option `HasMultipleOuters.outer'
+  in `<unknown-file>'
+  is already declared
+  in `<unknown-file>'.
+\end{lstlisting}
+
+\noindent
+The rejection occurs because
+\texttt{Object1.\allowbreak{}My\-Inner} and
+\texttt{Object2.\allowbreak{}My\-Inner} each carry the full
+\texttt{static\-Modules} of the \texttt{My\-Inner} deferred
+module, including the declaration
+\texttt{options.\allowbreak{}outer}.
+When \texttt{My\-ObjectA} imports both, the module system's
+\texttt{merge\-Option\-Decls} encounters two declarations of the
+same option and raises a static error; it cannot express that
+both declarations originate from the same trait and should be
+unified.
+
+The rejection is analogous to Scala's ``conflicting base types''
+error above: both systems assume that each option or type member
+has a single declaration site, and reject the multi-path situation
+where two inheritance routes introduce the same declaration
+independently.
+In inheritance-calculus, the same pattern is well-defined because
+$\overrides$ (equation~\ref{eq:overrides}) recognizes that both
+routes lead to the same definition, and $\supers$
+(equation~\ref{eq:supers}) collects both inheritance-site
+contexts without duplication.
 
 \section{First-Order Semantics of the ANF Lazy
 \texorpdfstring{$\lambda$}{λ}-Calculus}
@@ -3835,8 +3944,6 @@ The semantics is given by mutually recursive set-comprehension
 equations whose well-definedness follows from the same
 termination argument as in
 Appendix~\ref{app:well-definedness}.
-No function spaces, no substitution, no reduction rules,
-no evaluation order, and no domain theory are needed.
 The central idea is that function application is modeled as
 \emph{tree grafting}: applying a function record to an argument
 splices the function's subtree into the call site, and variable
@@ -3987,14 +4094,16 @@ $p \snoc \mathrm{result}$'s perspective), then projects
 $\mathrm{tailCall}.\mathrm{result}$.
 
 \smallskip\noindent
-A $\lambda$-bound variable $\dbi{n}$ used as an inheritance
-source at an application node $p$ contributes
-$(n,\; (\mathrm{argument}))$ to $\refs(p)$:
-navigate up $n$ scope levels, then project
-$\mathrm{argument}$.
-The same applies when $\dbi{n}$ occurs as a bare value in tail
-position or as an argument value, contributing the reference to
-$\refs$ at the corresponding path.
+A $\lambda$-bound variable~$\dbi{n}$ used as an
+inheritance source at an application\linebreak
+node~$p$ contributes
+$(n,\; (\mathrm{argument}))$
+to~$\refs(p)$: navigate up~$n$ scope levels,
+then project $\mathrm{argument}$.
+The same applies when~$\dbi{n}$ occurs as a bare
+value in tail position or as an argument value,
+contributing the reference to~$\refs$
+at the corresponding path.
 
 A let-bound variable $x$ at path $p$ is resolved lexically:
 find the nearest ancestor $p'$ of $p$ such that
@@ -4073,7 +4182,7 @@ $p$'s grafts one step:
 where $\ell_* = (\ell_1, \ldots, \ell_k)$.
 The $\init(p_{\mathrm{graft}})$ passes the reference's
 \emph{enclosing scope} to $\scope$, matching the convention of
-$\resolve$~(\ref{eq:resolve}), which calls
+reference resolution~(\ref{eq:resolve}), which calls
 $\this(\{p_{\mathrm{site}}\},\; \init(p_{\mathrm{def}}),\; n)$.
 
 \paragraph{Scope resolution}
@@ -4123,8 +4232,6 @@ $\labels(p)$.
 
 \paragraph{Observational fixpoint semantics}
 The definitions above constitute the complete semantics.
-There are no reduction rules, no evaluation contexts, no
-substitution.
 Computation arises from querying progressively deeper paths
 in a lazily constructed tree: the observer drives computation
 by choosing which path to inspect, and the mutually recursive
@@ -4148,28 +4255,32 @@ divergence.
 \paragraph{Convergence}
 An ANF term $M$ \emph{converges}, written $M{\Downarrow}$,
 if there exists $n \ge 0$ such that
-$\{\mathrm{argument},\, \mathrm{result}\}
-\subseteq
-\labels(\underbrace{
-  \mathrm{result} \snoc \cdots \snoc \mathrm{result}
-}_{n})$
+\[
+  \{\mathrm{argument},\, \mathrm{result}\}
+  \;\subseteq\;
+  \labels\!\bigl(\,\underbrace{
+    \mathrm{result} \snoc \cdots \snoc \mathrm{result}
+  }_{n}\,\bigr)
+\]
 in the semantics defined by the equations above.
 This corresponds exactly to the B\"ohm
 tree~\cite{barendregt1984lambda} of the original term:
 $M$ converges iff it has a head normal form
-(Theorem~\ref{thm:adequacy}), and two terms are equivalent
-under this semantics iff they have the same B\"ohm tree
-(Theorem~\ref{thm:full-abstraction}).
-The proofs, given in Appendix~\ref{app:bohm-tree-proofs},
-apply verbatim: each equation above is the specialization
-of the corresponding mixin tree equation
-(Section~\ref{sec:mixin-trees}) to terms in the image of
-the translation $\mathcal{T}$
+(Theorem~\ref{thm:adequacy}), and two terms are
+equivalent under this semantics iff they have the same
+B\"ohm tree (Theorem~\ref{thm:full-abstraction}).
+The proofs, given in
+Appendix~\ref{app:bohm-tree-proofs}, apply verbatim:
+each equation above is the specialization of the
+corresponding mixin tree equation
+(Section~\ref{sec:mixin-trees}) to terms in the image
+of the translation~$\mathcal{T}$
 (Section~\ref{sec:forward-translation}), where the
-Single-Path Lemma (Lemma~\ref{lem:single-path}) ensures
-that the set-valued $\this$ function
-(equation~\ref{eq:this}) degenerates to the single-valued
-$\scope$ (equation~\ref{eq:lambda-scope}).
+Single-Path Lemma (Lemma~\ref{lem:single-path})
+ensures that the set-valued $\this$ function
+(equation~\ref{eq:this}) degenerates to the
+single-valued $\scope$
+(equation~\ref{eq:lambda-scope}).
 
 \begin{acks}
 Claude Code, GitHub Copilot, Gemini Code Assist, and Codex were utilized to generate sections of this Work,
