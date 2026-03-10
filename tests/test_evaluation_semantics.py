@@ -536,3 +536,83 @@ class TestMixinYamlFixpointIteration:
         qualified_this = symbol_a.qualified_this
         # A inherits from its own child, so overlays include both A and A.child
         assert len(qualified_this) == 2
+
+
+class TestLetXEqualsXInX:
+    """Tests for LetXEqualsXInX.mixin.yaml: translation T of `let x = x in x`.
+
+    In the λ-calculus, `let x = x in x` diverges under β-reduction.
+    Translation T gives: {x ↦ {result ↦ x.result}, result ↦ x.result}
+
+    With max_fixpoint_iterations=0 (single-pass, like LC): raises Bottom on cycle.
+    With max_fixpoint_iterations=100 (multi-pass, lfp): converges to ∅ children on result.
+    """
+
+    @pytest.fixture
+    def let_x_equals_x_in_x_symbol(self) -> "MixinSymbol":
+        """Load LetXEqualsXInX.mixin.yaml and return the LetXEqualsXInX symbol."""
+        from pathlib import Path
+
+        from mixinv2._mixin_directory import DirectoryMixinDefinition
+
+        tests_path = Path(__file__).parent
+        definition = DirectoryMixinDefinition(
+            inherits=(), is_public=True, underlying=tests_path
+        )
+        root = MixinSymbol(origin=(definition,))
+        return root["LetXEqualsXInX"]
+
+    def test_zero_iterations_raises_bottom(self) -> None:
+        """max_fixpoint_iterations=0 raises Bottom on x.qualified_this, matching LC divergence."""
+        from pathlib import Path
+
+        from mixinv2._mixin_directory import DirectoryMixinDefinition
+
+        token = fixpoint_cached_property.max_fixpoint_iterations.set(0)
+        try:
+            tests_path = Path(__file__).parent
+            definition = DirectoryMixinDefinition(
+                inherits=(), is_public=True, underlying=tests_path
+            )
+            root = MixinSymbol(origin=(definition,))
+            symbol = root["LetXEqualsXInX"]
+
+            with pytest.raises(Bottom):
+                # x inherits from x.result via qualified this, creating cycle:
+                # x.qualified_this → BFS → x.result.overlays →
+                # _generate_overlays → x.qualified_this → REENTRY
+                symbol["x"].qualified_this
+        finally:
+            fixpoint_cached_property.max_fixpoint_iterations.reset(token)
+
+    def test_zero_iterations_result_also_raises_bottom(self) -> None:
+        """max_fixpoint_iterations=0 raises Bottom on result.qualified_this too."""
+        from pathlib import Path
+
+        from mixinv2._mixin_directory import DirectoryMixinDefinition
+
+        token = fixpoint_cached_property.max_fixpoint_iterations.set(0)
+        try:
+            tests_path = Path(__file__).parent
+            definition = DirectoryMixinDefinition(
+                inherits=(), is_public=True, underlying=tests_path
+            )
+            root = MixinSymbol(origin=(definition,))
+            symbol = root["LetXEqualsXInX"]
+
+            with pytest.raises(Bottom):
+                symbol["result"].qualified_this
+        finally:
+            fixpoint_cached_property.max_fixpoint_iterations.reset(token)
+
+    def test_hundred_iterations_converges(
+        self, let_x_equals_x_in_x_symbol: "MixinSymbol"
+    ) -> None:
+        """max_fixpoint_iterations=100 converges: result has ∅ children."""
+        result_symbol = let_x_equals_x_in_x_symbol["result"]
+        # Under lfp, the cycle converges: x.result inherits from itself,
+        # yielding ∅ children (no abstraction shape found)
+        qualified_this = result_symbol.qualified_this
+        assert len(qualified_this) == 2
+        # result has no children (∅ properties = divergence in LC semantics)
+        assert list(result_symbol.keys()) == []

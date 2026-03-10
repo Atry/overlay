@@ -652,7 +652,18 @@ After $n$ steps the frontier contains the answer:
 \end{equation}}%
 At each step $\init$ shortens $p_{\mathrm{def}}$ by one label
 and $n$ decreases by one.
-Since $n$ is a nonnegative integer, the recursion terminates.
+Since $n$ is a nonnegative integer, the recursion terminates.%
+\footnote{If no matching pair
+  $(p_{\mathrm{site}},\; p_{\mathrm{override}})$ exists
+  at some step, the frontier becomes the empty set, and
+  $\resolve$ returns $\varnothing$: the reference has no
+  target, and no properties are inherited.
+  This is the most self-consistent semantics for the
+  untyped calculus.
+  MIXINv2\selfcite{~\cite{mixin2025}}{~(supplementary
+  material)} is stricter: its resolver rejects
+  references whose frontier becomes empty, reporting a
+resolution error at compile time.}
 
 This completes the chain of definitions needed to compute $\properties(p)$.
 
@@ -3023,34 +3034,33 @@ convergence preservation still holds:
   then $\mathcal{T}(N)$ converges at
   depth~$n - 1$, and vice versa.
 
-  As a minimal illustration, consider transitive
-  closure on a cyclic graph.  In the lazy
-  $\lambda$-calculus, the na\"ive recursive
-  definition
+  As a minimal illustration, the $\lambda$-term
+  $\mathbf{let}\; x = x \;\mathbf{in}\; x$
+  diverges under $\beta$-reduction (unfolding
+  $x$ produces $x$ again, \emph{ad infinitum}).
+  Translation~$\mathcal{T}$ gives
   \[
-    \mathbf{let}\; \mathit{path} =
-    \lambda x.\, \lambda y.\,
-    \mathit{edge}\; x\; y
-    \;\lor\;
-    \exists z.\,
-    \mathit{edge}\; x\; z
-    \;\land\;
-    \mathit{path}\; z\; y
+    \{x \mapsto \{\mathrm{result} \mapsto
+      x.\mathrm{result}\},\;
+    \mathrm{result} \mapsto x.\mathrm{result}\}
   \]
-  diverges (stack overflow) when the graph
-  contains cycles, because
-  $\mathit{path}\; a\; b$ unfolds
-  $\mathit{path}\; a\; b$ again without
-  memoization.
-  The inheritance-calculus can express the same
-  computation using cyclic self-reference
-  (multiple inheritance paths that revisit the
-  same scope), and $\mathrm{lfp}(T_P)$
-  converges by iterating from~$\bot$ until
-  the set of reachable pairs stabilizes---exactly
-  as in Datalog's bottom-up evaluation.
-  Appendix~\ref{app:datalog-encoding} gives the
-  full encoding.
+  where $x.\mathrm{result}$ inherits from
+  itself, creating a cyclic dependency.
+  Under single-pass evaluation
+  ($\mathit{max\_fixpoint\_iterations} = 0$),
+  the cycle raises~$\bot$, matching the
+  $\lambda$-calculus divergence.
+  Under $\mathrm{lfp}(T_P)$, fixpoint iteration
+  detects the cycle and converges:
+  $\mathrm{properties}(\mathrm{root}) =
+  \{x, \mathrm{result}\}$ and
+  $\mathrm{properties}(\mathrm{root} \triangleright
+  \mathrm{result}) = \varnothing$,
+  reflecting that the value is undefined
+  (no abstraction shape).
+  Appendix~\ref{app:datalog-encoding} gives a
+  more motivated example (Datalog transitive
+  closure on cyclic graphs).
 \end{itemize}
 
 \subsection{Adequacy}

@@ -1,0 +1,29 @@
+# Translation T of the λ-term: let x = x in x
+#
+# In the λ-calculus, this term diverges under β-reduction:
+#   let x = x in x
+#   → (λx. x) ((λx. x) (...))   -- infinite unfolding
+#
+# Translation T (value let-binding rule):
+#   T(let x = V in M) = {x ↦ {result ↦ T(V)}, result ↦ T(M)}
+#
+# Here V = x (let-bound) and M = x (let-bound), so:
+#   T(V) = x.result   (let-bound variable rule)
+#   T(M) = x.result   (let-bound variable rule)
+#
+# Result: {x ↦ {result ↦ x.result}, result ↦ x.result}
+#
+# The self-reference "x.result inherits from x.result" is encoded via
+# qualified this: [LetXEqualsXInX, ~, x, result]. This creates a cycle
+# in qualified_this computation:
+#   x.qualified_this → BFS → x.result.overlays →
+#   _generate_overlays → x.qualified_this → REENTRY
+#
+# With max_fixpoint_iterations=0: raises Bottom (like LC divergence)
+# With max_fixpoint_iterations>0: converges via fixpoint iteration
+#   properties(root) = {x, result}, properties(root ▷ result) = ∅
+
+x:
+  - [LetXEqualsXInX, ~, x, result]
+  - result: []
+result: [LetXEqualsXInX, ~, x, result]
