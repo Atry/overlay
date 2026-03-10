@@ -692,11 +692,11 @@ re-entrant calls (cycles in the dependency graph)
 return the current accumulator rather than diverging.
 Denotationally, the six equations define a monotone
 immediate consequence
-operator~$T_P$~\cite{vanemden1976semantics}---their
-right-hand sides use only $\cup$, $\in$, equality, and
+operator~$T_P$~\cite{vanemden1976semantics}
+whose right-hand sides use only $\cup$, $\in$, equality, and
 positive set comprehension, with no negation, set
-difference, or complement---so
-by the Knaster--Tarski
+difference, or complement.
+By the Knaster--Tarski
 theorem~\cite{tarski1955lattice}, $T_P$ has a unique
 least fixed point $\mathrm{lfp}(T_P)$, which serves as
 the denotational semantics.
@@ -2076,15 +2076,16 @@ semantics in which they converge instead of diverging.
 \paragraph{Denotational semantics of inheritance}
 Cook~\cite{cook1989denotational} gave the first denotational
 semantics of inheritance, modeling objects as recursive records.
-Inheritance is composition of \emph{generators}---functions from self
-to complete object---and \emph{wrappers}---functions that modify
-generators---solved by a fixed-point construction.
+Inheritance is composition of \emph{generators}
+(functions from self to complete object) and
+\emph{wrappers} (functions that modify generators),
+solved by a fixed-point construction.
 Cook's key insight is that inheritance is a general mechanism
 applicable to any form of recursive definition, not only
 object-oriented methods. This insight is one of the starting points of the
 present work.
-The model has four primitives---records, functions, generators, and
-wrappers---and requires a fixed-point combinator. Composition is
+The model has four primitives (records, functions, generators, and
+wrappers) and requires a fixed-point combinator. Composition is
 asymmetric: a wrapper modifies a generator but not vice versa.
 The fixed-point construction relies on Scott continuity in a
 domain of functions. The resulting denotations are not directly
@@ -2453,11 +2454,10 @@ Specifically:
     by ascending from~$\bot$.
 
   \item \textbf{Sound failure.}
-    When tabling cannot determine the answer---either
-    because the iteration budget is exhausted
-    (signalled by an explicit exception) or because
-    of an infinite non-cyclic chain (stack
-    overflow)---it raises an error rather than
+    When tabling cannot determine the answer,
+    whether because the iteration budget is exhausted
+    or because of an infinite non-cyclic chain,
+    it raises an error rather than
     returning a wrong answer.
 \end{enumerate}
 \end{theorem}
@@ -4377,8 +4377,9 @@ in Haskell: each constant must provide a fixed set of
 properties that the encoding's generic patterns rely on.
 Inheritance-calculus has no built-in derivation mechanism,
 so the boilerplate is written out manually; however, the
-amount of boilerplate per constant is $O(1)$---it does not
-grow with the domain size $|D|$---so adding a new constant
+amount of boilerplate per constant is $O(1)$
+and does not grow with the domain size $|D|$,
+so adding a new constant
 does not require modifying any existing scope, preserving
 the expression-problem property.
 
