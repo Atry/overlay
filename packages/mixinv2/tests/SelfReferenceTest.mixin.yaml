@@ -1,10 +1,10 @@
 # A inherits from its own child via qualified this.
 # This creates a cycle in qualified_this computation:
 #   A.qualified_this → BFS processes A's references →
-#   get_symbols returns A.child → processing A.child.overlays →
-#   _generate_overlays calls A.qualified_this → REENTRY
+#   get_symbols returns A.child → processing A.child.overrides →
+#   _generate_overrides calls A.qualified_this → REENTRY
 #
-# With max_fixpoint_iterations=0: raises Bottom on reentry
+# With max_fixpoint_iterations=0: raises FixpointRecursionError on reentry
 # With max_fixpoint_iterations>0: converges via fixpoint iteration
 
 A:

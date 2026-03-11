@@ -15,6 +15,14 @@
   columns=flexible,
 }
 
+\lstdefinestyle{haskell}{
+  language=Haskell,
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  showstringspaces=false,
+  columns=flexible,
+}
+
 \lstdefinestyle{nix}{
   language=,
   basicstyle=\ttfamily\small,
@@ -74,7 +82,7 @@
 \thanks{This work was conducted independently prior to the author's employment at Figure AI.}
 
 \begin{abstract}
-  Just as the $\lambda$-calculus uses three primitives (abstraction, application, variable) as the foundation of functional programming, inheritance-calculus uses three primitives (record, definition, inheritance) as the foundation of declarative programming. By unifying classes, methods, objects, and properties under a single record abstraction, the calculus models inheritance simply as set union. Consequently, composition is inherently commutative, idempotent, and associative, structurally eliminating the multiple-inheritance linearization problem. Its semantics is first-order, denotational, and fixpoint-computable. These three properties extend to the lazy $\lambda$-calculus, since B\"ohm tree equivalence~\cite{barendregt1984lambda} is fully abstract for a sublanguage of inheritance-calculus, except that recursive $\lambda$-programs that diverge under $\beta$-reduction may converge under $\mathrm{lfp}(T_P)$. Inheritance-calculus is distilled from MIXINv2, a practical implementation in which the same code acts as different function colors~\cite{nystrom2015color}; ordinary arithmetic yields the relational semantics of logic programming~\cite{vanemden1976semantics}; self-reference resolves to multiple targets; and programs are immune to the Expression Problem~\cite{wadler1998expression}. This makes inheritance-calculus strictly more expressive than the $\lambda$-calculus in both common sense and Felleisen's sense~\cite{felleisen1991expressive}.
+  Just as the $\lambda$-calculus uses three primitives (abstraction, application, variable) as the foundation of functional programming, inheritance-calculus uses three primitives (record, definition, inheritance) as the foundation of declarative programming. By unifying classes, methods, objects, and properties under a single record abstraction, the calculus models inheritance simply as set union. Consequently, composition is inherently commutative, idempotent, and associative, structurally eliminating the multiple-inheritance linearization problem. Its semantics is first-order, denotational, and computable by tabling~\cite{tamaki1986old}. These three properties extend to the $\lambda$-calculus, since B\"ohm tree equivalence~\cite{barendregt1984lambda} is fully abstract for the first-iteration approximation of a sublanguage of inheritance-calculus. As a corollary, this establishes a convergence hierarchy among eager, lazy, and fixpoint $\lambda$-calculi sharing the same syntax. Inheritance-calculus is distilled from MIXINv2, a practical implementation in which the same code acts as different function colors~\cite{nystrom2015color}; ordinary arithmetic yields the relational semantics of logic programming~\cite{vanemden1976semantics}; self-reference resolves to multiple targets; and programs are immune to the Expression Problem~\cite{wadler1998expression}. This makes inheritance-calculus strictly more expressive than the $\lambda$-calculus in both common sense and Felleisen's sense~\cite{felleisen1991expressive}.
 \end{abstract}
 
 \begin{CCSXML}
@@ -295,7 +303,7 @@ All tests are mechanically verified against expected output snapshots.
       definitions~\cite{aczel1977inductive} over paths
       and labels, where quantifiers range over paths and labels,
     never over functions or predicates.},
-    denotational, and fixpoint-computable.
+    denotational, and computable by tabling~\cite{tamaki1986old}.
   \item The mixin tree \emph{is} the call stack.
     Self-reference resolves to \emph{multiple objects}.
     Since inheritance
@@ -311,9 +319,9 @@ All tests are mechanically verified against expected output snapshots.
     inheritance-calculus's first-order equations.
     Appendix~\ref{app:lambda-fixpoint} reformulates this
     semantics directly on ANF\@.
-    As a corollary, some $\lambda$-terms that diverge
-    in the $\lambda$-calculus converge under
-    $\mathrm{lfp}(T_P)$ after translation
+    As a corollary, this establishes a convergence hierarchy
+    among the eager, lazy, and fixpoint $\lambda$-calculi
+    sharing the same syntax
     (Section~\ref{sec:translation};
     Remark~\ref{rem:convergence-lfp}).
   \item Inheritance-calculus is strictly more expressive than
@@ -2995,46 +3003,49 @@ the post-reduct.
 
 \paragraph{Extension to $\mathrm{lfp}(T_P)$ semantics}
 \label{rem:convergence-lfp}
-The proof above works directly with the six
-equations~(\ref{eq:properties})--(\ref{eq:this}),
-not with any particular evaluation strategy.
-We distinguish two consequences of switching from
-single-pass evaluation to multi-pass tabled evaluation
-(computing $\mathrm{lfp}(T_P)$ via iterated
-application of~$T_P$;
-see Appendix~\ref{app:well-definedness}).
+The denotational semantics of inheritance-calculus is
+$\mathrm{lfp}(T_P)$
+(Appendix~\ref{app:well-definedness}).
+Tabled evaluation~\cite{tamaki1986old,chen1996tabled}
+computes $\mathrm{lfp}(T_P)$ by iterating:
+$T_P\!\uparrow\!0 = \bot$,
+$T_P\!\uparrow\!1 = T_P(\bot)$,
+$T_P\!\uparrow\!2 = T_P(T_P(\bot))$,
+\ldots\ until convergence
+(Theorem~\ref{thm:tabling-soundness}).
+We now relate two points in this sequence to the
+$\lambda$-calculus.
 
 \begin{description}
-\item[Head-reduction preservation is maintained.]
+\item[$T_P\!\uparrow\!1$ corresponds to
+$\beta$-reduction.]
 The Result-Step Lemma
 (Lemma~\ref{lem:result-step}) establishes a
 structural isomorphism between the equation
 systems of $\mathcal{T}(M)$ and
 $\mathcal{T}(N)$, shifted by one
 $\mathrm{result}$ step.
-This isomorphism preserves monotonicity, so
-$\mathrm{lfp}(T_P)$ yields the same answer on
-both sides (modulo the depth shift):
-if $\mathcal{T}(M)$ converges at depth~$n$ under
-$\mathrm{lfp}$, then $\mathcal{T}(N)$ converges at
-depth~$n - 1$, and vice versa.
-For $\lambda$-calculus--translated programs, the
-Single-Path Lemma
-(Lemma~\ref{lem:single-path}) ensures that no
-cycles arise in the dependency graph (each scope
-level has exactly one inheritance source), so
-single-pass and multi-pass evaluation produce
-identical results in this fragment.
+This isomorphism is purely structural and holds
+for any number of iterations.
+$T_P\!\uparrow\!1$ evaluates each equation once,
+with re-entrant calls returning~$\bot$
+(the value from $T_P\!\uparrow\!0$);
+this matches the convergence behavior
+of lazy $\beta$-reduction.
+The Adequacy theorem
+(Theorem~\ref{thm:adequacy}) and the
+full abstraction theorem
+(Theorem~\ref{thm:full-abstraction})
+are proved at this level.
 
-\item[Agreement with the $\lambda$-calculus is
-not maintained in general.]
-For programs beyond the $\lambda$-calculus
-fragment that introduce cyclic dependencies,
+\item[$\mathrm{lfp}(T_P)$ is strictly more
+defined than $\beta$-reduction.]
 $\mathrm{lfp}(T_P)$ may converge where
-the $\lambda$-calculus diverges.
-This means $\mathrm{lfp}(T_P)$ evaluation is
-\emph{strictly more defined} than
-$\beta$-reduction on the translated image:
+$\beta$-reduction diverges.
+We call this sublanguage with $\mathrm{lfp}(T_P)$
+semantics the \emph{fixpoint $\lambda$-calculus};
+it shares the same syntax as the lazy $\lambda$-calculus
+but has strictly greater computational power.
 $M{\Downarrow}_\lambda$ implies
 $\mathcal{T}(M){\Downarrow}_{\mathrm{lfp}}$,
 but not conversely.
@@ -3051,11 +3062,10 @@ Translation~$\mathcal{T}$ gives
 \]
 where $x.\mathrm{result}$ inherits from
 itself, creating a cyclic dependency.
-Under single-pass evaluation
-($\mathit{max\_fixpoint\_iterations} = 0$),
-the cycle raises~$\bot$, matching the
+Under $T_P\!\uparrow\!1$,
+the cycle returns~$\bot$, matching the
 $\lambda$-calculus divergence.
-Under $\mathrm{lfp}(T_P)$, fixpoint iteration
+Under $\mathrm{lfp}(T_P)$, further iteration
 detects the cycle and converges:
 $\mathrm{properties}(\mathrm{root}) =
 \{x, \mathrm{result}\}$ and
@@ -3949,12 +3959,16 @@ routes lead to the same definition, and $\supers$
 (equation~\ref{eq:supers}) collects both inheritance-site
 contexts without duplication.
 
-\section{First-Order Semantics of the ANF Lazy
+\section{First-Order Semantics of the ANF Fixpoint
 \texorpdfstring{$\lambda$}{λ}-Calculus}
 \label{app:lambda-fixpoint}
 
-This appendix presents a first-order semantics of the lazy
-$\lambda$-calculus in A-normal form (ANF).
+This appendix presents a first-order semantics of the
+$\lambda$-calculus in A-normal form (ANF),
+which we call the \emph{fixpoint $\lambda$-calculus}:
+it shares the same syntax as the lazy $\lambda$-calculus
+but replaces $\beta$-reduction with $\mathrm{lfp}(T_P)$
+evaluation.
 The semantics is given by mutually recursive set-comprehension
 equations whose well-definedness follows from the same
 termination argument as in
@@ -4786,6 +4800,37 @@ chain condition on a finite lattice.
 which restricts each iteration to rules that use at
 least one newly derived fact, is a natural
 optimisation left for future work.
+
+\paragraph{The recursive rule as monadic pseudocode}
+The recursive rule above roughly corresponds to the
+following pseudocode (Haskell-like syntax with
+\texttt{RebindableSyntax} semantics, where do-notation
+desugars to a \texttt{Set}-based bind):
+\begin{lstlisting}[style=haskell]
+{-# LANGUAGE RebindableSyntax, OverloadedLists #-}
+s >>= f = unions [f x | x <- s]
+return x = [x]
+guard True  = [()]
+guard False = []
+edge = [("a","b"), ("b","c"), ("c","a")]
+path = edge <> do
+  (x, y0) <- edge
+  (y1, z) <- path
+  guard (y0 == y1)
+  return (x, z)
+\end{lstlisting}
+However, this monadic program does not converge because
+\texttt{path} is defined recursively.%
+\footnote{Enabling the \texttt{RecursiveDo} extension does not help:
+\texttt{mfix} ties a knot at the \emph{element} level via laziness,
+whereas the transitive closure equation requires a
+fixed point at the \emph{container} level---finding a
+set~$S$ such that $S = F(S)$.}
+Inheritance-calculus solves this through tabled evaluation
+(Section~\ref{sec:mixin-trees}), which computes the
+least fixed point of the $T_P$ operator by iterating
+over the lattice of mixin trees---precisely the
+container-level fixed point that the pseudocode above cannot express.
 
 \subsection{Semantic Correspondence with Standard Datalog}
 \label{sec:datalog-semantics}

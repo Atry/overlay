@@ -60,7 +60,7 @@ def _symbol_tree_snapshot(
     """Build a snapshot dict of the symbol subtree.
 
     For each node, captures:
-    - other_overlays: list of paths of qualified_this keys (excluding self)
+    - other_overrides: list of paths of qualified_this keys (excluding self)
     - children: recursive dict of child symbols (only for scope symbols)
 
     Detects cycles via _ancestors to avoid infinite recursion on
@@ -71,7 +71,7 @@ def _symbol_tree_snapshot(
     if _ancestors is None:
         _ancestors = _collect_tree_ancestors(symbol)
 
-    other_overlays = tuple(
+    other_overrides = tuple(
         sorted(_format_path(super_symbol) for super_symbol in symbol.qualified_this if super_symbol is not symbol)
     )
 
@@ -85,11 +85,11 @@ def _symbol_tree_snapshot(
             seen_keys.add(key)
             child = symbol[key]
             if _has_cyclic_inheritance(child, child_ancestors):
-                children[str(key)] = {"other_overlays": "<cycle>"}
+                children[str(key)] = {"other_overrides": "<cycle>"}
                 continue
             children[str(key)] = _symbol_tree_snapshot(child, child_ancestors)
 
-    result: dict[str, Any] = {"other_overlays": other_overlays}
+    result: dict[str, Any] = {"other_overrides": other_overrides}
     if children:
         result["children"] = children
     return result

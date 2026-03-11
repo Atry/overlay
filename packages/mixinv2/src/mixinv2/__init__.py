@@ -19,7 +19,7 @@ Runtime:
     - :func:`evaluate`
 
 Exceptions:
-    - :class:`Bottom`
+    - :class:`FixpointRecursionError`
 
 Reference types (parameters to :func:`extend`):
     - :class:`AbsoluteReference`
@@ -43,7 +43,7 @@ from mixinv2._core import patch_many as patch_many
 from mixinv2._core import public as public
 from mixinv2._core import resource as resource
 from mixinv2._core import scope as scope
-from mixinv2._core import Bottom as Bottom
+from mixinv2._core import FixpointRecursionError as FixpointRecursionError
 from mixinv2._core import fixpoint_cached_property as fixpoint_cached_property
 from mixinv2._runtime import evaluate as evaluate
 

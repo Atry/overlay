@@ -59,5 +59,6 @@ include = [
     "packages/mixinv2-library/src",
     "packages/mixinv2-examples/src",
     "packages/mixinv2-examples/tests",
-    "tests",
+    "packages/mixinv2/tests",
+    "packages/mixinv2-library/tests",
 ]

@@ -16,10 +16,10 @@
 # The self-reference "x.result inherits from x.result" is encoded via
 # qualified this: [LetXEqualsXInX, ~, x, result]. This creates a cycle
 # in qualified_this computation:
-#   x.qualified_this → BFS → x.result.overlays →
-#   _generate_overlays → x.qualified_this → REENTRY
+#   x.qualified_this → BFS → x.result.overrides →
+#   _generate_overrides → x.qualified_this → REENTRY
 #
-# With max_fixpoint_iterations=0: raises Bottom (like LC divergence)
+# With max_fixpoint_iterations=0: raises FixpointRecursionError (like LC divergence)
 # With max_fixpoint_iterations>0: converges via fixpoint iteration
 #   properties(root) = {x, result}, properties(root ▷ result) = ∅
 

@@ -655,7 +655,8 @@ def evaluate(
 
         from mixinv2._core import fixpoint_cached_property
         fixpoint_cached_property.max_fixpoint_iterations.set(0)   # single-pass
-        fixpoint_cached_property.max_fixpoint_iterations.set(100) # multi-pass (default)
+        fixpoint_cached_property.max_fixpoint_iterations.set(100) # bounded multi-pass
+        fixpoint_cached_property.max_fixpoint_iterations.set(FixpointIterationSentinel.UNLIMITED) # unbounded (default)
 
     :param namespaces: Modules or namespace definitions (decorated with @scope) to resolve.
     :param modules_public: If True, modules are marked as public, making their submodules

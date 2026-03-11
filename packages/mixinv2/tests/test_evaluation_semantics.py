@@ -1,4 +1,4 @@
-"""Tests for fixpoint_cached_property.max_fixpoint_iterations and Bottom exception behavior."""
+"""Tests for fixpoint_cached_property.max_fixpoint_iterations and FixpointRecursionError exception behavior."""
 
 from collections import defaultdict
 from typing import Callable
@@ -6,7 +6,7 @@ from typing import Callable
 import pytest
 
 from mixinv2 import (
-    Bottom,
+    FixpointRecursionError,
     LexicalReference,
     extend,
     patch,
@@ -15,6 +15,7 @@ from mixinv2 import (
     scope,
 )
 from mixinv2._core import (
+    FixpointIterationSentinel,
     MixinSymbol,
     _accumulate_defaultdict_set,
     fixpoint_cached_property,
@@ -227,9 +228,9 @@ class TestMaxFixpointIterationsComposition:
 class TestZeroIterationSpecific:
     """Tests specific to max_fixpoint_iterations=0."""
 
-    def test_defaults_to_100_iterations(self) -> None:
-        """Default max_fixpoint_iterations is 100."""
-        assert fixpoint_cached_property.max_fixpoint_iterations.get() == 100
+    def test_defaults_to_unlimited_iterations(self) -> None:
+        """Default max_fixpoint_iterations is FixpointIterationSentinel.UNLIMITED."""
+        assert fixpoint_cached_property.max_fixpoint_iterations.get() is FixpointIterationSentinel.UNLIMITED
 
         @scope
         class Namespace:
@@ -272,7 +273,7 @@ class TestDivergentConvergenceBehavior:
     whose least fixpoint is computed iteratively when max_fixpoint_iterations > 0.
 
     With max_fixpoint_iterations=0, cyclic dependencies in the ``this``
-    function raise ``Bottom`` because reentry is detected with no iterations
+    function raise ``FixpointRecursionError`` because reentry is detected with no iterations
     remaining to converge.
 
     The cycle pattern arises from self-referential λ-terms such as the
@@ -302,9 +303,9 @@ class TestDivergentConvergenceBehavior:
         over set-valued lattices.
 
         The mutual dependence mirrors the cycle that arises in
-        ``qualified_this`` when a scope's overlays depend on the
+        ``qualified_this`` when a scope's overrides depend on the
         qualified-this of another scope, which in turn depends on the
-        first scope's overlays.
+        first scope's overrides.
         """
 
         class TransitiveClosureNode:
@@ -359,13 +360,13 @@ class TestDivergentConvergenceBehavior:
         assert reachable_b["y"] == {3, 4}
 
     def test_zero_iterations_raises_bottom_on_mutual_recursion(self) -> None:
-        """max_fixpoint_iterations=0 raises Bottom on mutual recursion.
+        """max_fixpoint_iterations=0 raises FixpointRecursionError on mutual recursion.
 
         With no fixpoint iterations allowed, the mutual dependency between
         A and B triggers reentry detection.  Unlike the old
         INDEXED_HYLOMORPHISM (which had no reentry detection and caused
         Python's natural stack overflow), max_fixpoint_iterations=0 detects
-        the reentry immediately and raises Bottom with the incomplete result.
+        the reentry immediately and raises FixpointRecursionError with the incomplete result.
         """
         token = fixpoint_cached_property.max_fixpoint_iterations.set(0)
         try:
@@ -373,7 +374,7 @@ class TestDivergentConvergenceBehavior:
                 initial_a={"x": {1, 2}},
                 initial_b={"y": {3, 4}},
             )
-            with pytest.raises(Bottom) as exception_info:
+            with pytest.raises(FixpointRecursionError) as exception_info:
                 node_a.reachable
             assert isinstance(exception_info.value.incomplete_result, defaultdict)
         finally:
@@ -427,21 +428,64 @@ class TestDivergentConvergenceBehavior:
         assert reachable_a["c"] == {3}
 
 
-class TestBottomException:
-    """Tests for the Bottom exception class."""
+class TestUnlimitedIterationsOmega:
+    """Tests that UNLIMITED iterations causes RecursionError (not FixpointRecursionError) for divergent computations."""
+
+    def test_omega_raises_recursion_error_not_bottom(self) -> None:
+        """With UNLIMITED, a divergent fixpoint hits Python's native RecursionError.
+
+        This simulates the Omega combinator: a computation that never converges.
+        With a finite limit, the fixpoint loop would raise FixpointRecursionError after exhausting
+        iterations. With UNLIMITED, the itertools.count() loop runs indefinitely,
+        and eventually Python's recursion limit is hit within a single iteration's
+        computation, raising a native RecursionError (not FixpointRecursionError).
+        """
+        iteration_count = 0
+
+        class OmegaNode:
+            def __init__(self) -> None:
+                self.__dict__["_other"] = None
+
+            def set_other(self, other: "OmegaNode") -> None:
+                self.__dict__["_other"] = other
+
+            @fixpoint_cached_property(bottom=lambda: 0)
+            def divergent(self) -> int:
+                nonlocal iteration_count
+                iteration_count += 1
+                if iteration_count > 200:
+                    raise RecursionError("simulated stack overflow after 200 iterations")
+                # Return alternating values so it never converges
+                return self._other.divergent + 1
+
+        node_a = OmegaNode()
+        node_b = OmegaNode()
+        node_a.set_other(node_b)
+        node_b.set_other(node_a)
+
+        with pytest.raises(RecursionError) as exception_info:
+            node_a.divergent
+        # The error should be a native RecursionError, NOT a FixpointRecursionError
+        assert not isinstance(exception_info.value, FixpointRecursionError)
+        # Verify we actually ran past the old default of 100
+        assert iteration_count > 100
+
+
+class TestFixpointRecursionErrorException:
+    """Tests for the FixpointRecursionError exception class."""
 
     def test_bottom_is_recursion_error_subclass(self) -> None:
-        assert issubclass(Bottom, RecursionError)
+        assert issubclass(FixpointRecursionError, RecursionError)
 
     def test_negative_max_fixpoint_iterations_raises_bottom(self) -> None:
         """Negative max_fixpoint_iterations is meaningless; ContextVar accepts any int."""
         # ContextVar accepts any int value, but negative values are nonsensical.
         # The fixpoint loop uses range(max_iterations), so negative values
-        # produce zero iterations and raise Bottom on reentry (same as 0).
+        # produce zero iterations and raise FixpointRecursionError on reentry (same as 0).
         pass
 
     def test_bottom_carries_incomplete_result(self) -> None:
-        """max_fixpoint_iterations=1 on a system needing 2+ iterations raises Bottom with partial result."""
+        """max_fixpoint_iterations=1 on a system needing 2+ iterations raises FixpointRecursionError with partial result."""
         token = fixpoint_cached_property.max_fixpoint_iterations.set(1)
         try:
 
@@ -471,7 +515,7 @@ class TestBottomException:
             node_a.set_other(node_b)
             node_b.set_other(node_a)
 
-            with pytest.raises(Bottom) as exception_info:
+            with pytest.raises(FixpointRecursionError) as exception_info:
                 node_a.reachable
             # The incomplete result should be a defaultdict(set) with partial data
             assert isinstance(exception_info.value.incomplete_result, defaultdict)
@@ -487,10 +531,10 @@ class TestMixinYamlFixpointIteration:
     This creates a cycle in the ``qualified_this`` BFS:
 
         A.qualified_this → BFS processes A's references →
-        get_symbols returns A.child → A.child.overlays →
-        _generate_overlays calls A.qualified_this → REENTRY
+        get_symbols returns A.child → A.child.overrides →
+        _generate_overrides calls A.qualified_this → REENTRY
 
-    With max_fixpoint_iterations=0, this raises Bottom.
+    With max_fixpoint_iterations=0, this raises FixpointRecursionError.
     With max_fixpoint_iterations≥1, fixpoint iteration converges.
     """
 
@@ -509,7 +553,7 @@ class TestMixinYamlFixpointIteration:
         return root["SelfReferenceTest"]
 
     def test_zero_iterations_raises_bottom(self) -> None:
-        """max_fixpoint_iterations=0 raises Bottom on self-referencing qualified_this."""
+        """max_fixpoint_iterations=0 raises FixpointRecursionError on self-referencing qualified_this."""
         from pathlib import Path
 
         from mixinv2._mixin_directory import DirectoryMixinDefinition
@@ -523,7 +567,7 @@ class TestMixinYamlFixpointIteration:
             root = MixinSymbol(origin=(definition,))
             symbol = root["SelfReferenceTest"]["A"]
 
-            with pytest.raises(Bottom):
+            with pytest.raises(FixpointRecursionError):
                 symbol.qualified_this
         finally:
             fixpoint_cached_property.max_fixpoint_iterations.reset(token)
@@ -534,7 +578,7 @@ class TestMixinYamlFixpointIteration:
         """max_fixpoint_iterations=100 converges for self-referencing qualified_this."""
         symbol_a = self_reference_symbol["A"]
         qualified_this = symbol_a.qualified_this
-        # A inherits from its own child, so overlays include both A and A.child
+        # A inherits from its own child, so overrides include both A and A.child
         assert len(qualified_this) == 2
 
 
@@ -544,7 +588,7 @@ class TestLetXEqualsXInX:
     In the λ-calculus, `let x = x in x` diverges under β-reduction.
     Translation T gives: {x ↦ {result ↦ x.result}, result ↦ x.result}
 
-    With max_fixpoint_iterations=0 (single-pass, like LC): raises Bottom on cycle.
+    With max_fixpoint_iterations=0 (single-pass, like LC): raises FixpointRecursionError on cycle.
     With max_fixpoint_iterations=100 (multi-pass, lfp): converges to ∅ children on result.
     """
 
@@ -563,7 +607,7 @@ class TestLetXEqualsXInX:
         return root["LetXEqualsXInX"]
 
     def test_zero_iterations_raises_bottom(self) -> None:
-        """max_fixpoint_iterations=0 raises Bottom on x.qualified_this, matching LC divergence."""
+        """max_fixpoint_iterations=0 raises FixpointRecursionError on x.qualified_this, matching LC divergence."""
         from pathlib import Path
 
         from mixinv2._mixin_directory import DirectoryMixinDefinition
@@ -577,16 +621,16 @@ class TestLetXEqualsXInX:
             root = MixinSymbol(origin=(definition,))
             symbol = root["LetXEqualsXInX"]
 
-            with pytest.raises(Bottom):
+            with pytest.raises(FixpointRecursionError):
                 # x inherits from x.result via qualified this, creating cycle:
-                # x.qualified_this → BFS → x.result.overlays →
-                # _generate_overlays → x.qualified_this → REENTRY
+                # x.qualified_this → BFS → x.result.overrides →
+                # _generate_overrides → x.qualified_this → REENTRY
                 symbol["x"].qualified_this
         finally:
             fixpoint_cached_property.max_fixpoint_iterations.reset(token)
 
     def test_zero_iterations_result_also_raises_bottom(self) -> None:
-        """max_fixpoint_iterations=0 raises Bottom on result.qualified_this too."""
+        """max_fixpoint_iterations=0 raises FixpointRecursionError on result.qualified_this too."""
         from pathlib import Path
 
         from mixinv2._mixin_directory import DirectoryMixinDefinition
@@ -600,7 +644,7 @@ class TestLetXEqualsXInX:
             root = MixinSymbol(origin=(definition,))
             symbol = root["LetXEqualsXInX"]
 
-            with pytest.raises(Bottom):
+            with pytest.raises(FixpointRecursionError):
                 symbol["result"].qualified_this
         finally:
             fixpoint_cached_property.max_fixpoint_iterations.reset(token)

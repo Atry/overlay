@@ -341,4 +341,4 @@ The full language specification is in :doc:`specification`.
 
 The semantics of MIXINv2 are grounded in the
 `inheritance-calculus <https://arxiv.org/abs/2602.16291>`_, a formal calculus of
-overlays.
+deep-mergeable mixins.

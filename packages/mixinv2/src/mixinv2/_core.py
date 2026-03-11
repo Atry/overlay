@@ -536,6 +536,7 @@ from enum import Enum, auto
 from functools import cached_property
 import importlib
 import importlib.util
+import math
 from inspect import Parameter, signature
 import itertools
 import logging
@@ -651,12 +652,12 @@ _fixpoint_context_var: ContextVar[_FixpointContext | None] = ContextVar(
 )
 
 
-class Bottom(RecursionError):
+class FixpointRecursionError(RecursionError):
     """Raised when fixpoint iteration is exhausted or reentry is detected with no iterations remaining.
 
     Carries the best approximation computed so far in ``incomplete_result``.
     As a ``RecursionError`` subclass, existing code that catches ``RecursionError``
-    will also catch ``Bottom``.
+    will also catch ``FixpointRecursionError``.
     """
 
     incomplete_result: object
@@ -691,6 +692,10 @@ def _accumulate_defaultdict_set(
     return changed
 
 
+class FixpointIterationSentinel(Enum):
+    UNLIMITED = math.inf
+
+
 class fixpoint_cached_property:
     """A cached_property that supports mutual-recursion via least fixpoint iteration.
 
@@ -707,15 +712,17 @@ class fixpoint_cached_property:
 
     The class-level ``max_fixpoint_iterations`` ContextVar controls the
     maximum number of digest rounds.  ``0`` disables fixpoint iteration
-    and raises ``Bottom`` on reentry.  Default ``100`` iterates until
-    convergence or raises ``Bottom`` if not converged::
+    and raises ``FixpointRecursionError`` on reentry.  Default
+    ``FixpointIterationSentinel.UNLIMITED`` iterates until convergence or
+    until Python's stack is exhausted::
 
         fixpoint_cached_property.max_fixpoint_iterations.set(0)   # single-pass
-        fixpoint_cached_property.max_fixpoint_iterations.set(100) # multi-pass (default)
+        fixpoint_cached_property.max_fixpoint_iterations.set(100) # bounded multi-pass
+        fixpoint_cached_property.max_fixpoint_iterations.set(FixpointIterationSentinel.UNLIMITED) # unbounded (default)
     """
 
-    max_fixpoint_iterations: ClassVar[ContextVar[int]] = ContextVar(
-        "fixpoint_cached_property.max_fixpoint_iterations", default=100
+    max_fixpoint_iterations: ClassVar[ContextVar[int | FixpointIterationSentinel]] = ContextVar(
+        "fixpoint_cached_property.max_fixpoint_iterations", default=FixpointIterationSentinel.UNLIMITED
     )
 
     def __init__(
@@ -748,8 +755,11 @@ class fixpoint_cached_property:
         _fixpoint_clearable_attrs.add(self.attrname)
 
     @classmethod
-    def _get_max_iterations(cls) -> int:
-        return cls.max_fixpoint_iterations.get()
+    def _get_max_iterations(cls) -> int | float:
+        raw = cls.max_fixpoint_iterations.get()
+        if isinstance(raw, FixpointIterationSentinel):
+            return raw.value
+        return raw
 
     def __get__(self, instance: object, owner: type = None) -> object:
         if instance is None:
@@ -757,8 +767,8 @@ class fixpoint_cached_property:
 
         # Fast path: already cached
         cache = instance.__dict__
-        value = cache.get(self.attrname)
-        if value is not None:
+        value = cache.get(self.attrname, _FIXPOINT_SENTINEL)
+        if value is not _FIXPOINT_SENTINEL:
             max_iterations = self._get_max_iterations()
             if max_iterations == 0:
                 return value
@@ -787,7 +797,7 @@ class fixpoint_cached_property:
             try:
                 if max_iterations == 0:
                     # Zero-iteration mode: compute once with reentry detection.
-                    # Reentry raises Bottom instead of infinite recursion.
+                    # Reentry raises FixpointRecursionError instead of infinite recursion.
                     context.computing.add(key)
                     result = self.func(instance)
                     cache[self.attrname] = result
@@ -796,7 +806,7 @@ class fixpoint_cached_property:
                 approximation = self._bottom()
                 accumulator = self._bottom() if self._accumulate is not None else None
                 previous_result = _FIXPOINT_SENTINEL
-                for iteration in range(max_iterations):
+                for iteration in itertools.count():
                     context.computing.add(key)
                     context.add_participant(instance)
                     result = self.func(instance)
@@ -834,11 +844,12 @@ class fixpoint_cached_property:
                     context.computing.clear()
                     context.reentrant = False
 
-                raise Bottom(
-                    f"fixpoint_cached_property '{self.attrname}' did not converge "
-                    f"after {max_iterations} iterations",
-                    incomplete_result=approximation,
-                )
+                    if iteration + 1 >= max_iterations:
+                        raise FixpointRecursionError(
+                            f"fixpoint_cached_property '{self.attrname}' did not converge "
+                            f"after {max_iterations} iterations",
+                            incomplete_result=approximation,
+                        )
             finally:
                 _fixpoint_context_var.reset(token)
         elif key in context.computing:
@@ -846,18 +857,18 @@ class fixpoint_cached_property:
             context.reentrant = True
             context.add_participant(instance)
             if max_iterations == 0:
-                raise Bottom(
+                raise FixpointRecursionError(
                     f"fixpoint_cached_property '{self.attrname}': "
                     f"reentry detected with max_fixpoint_iterations=0",
                     incomplete_result=self._bottom(),
                 )
             # Check the instance cache first, then fall back to saved
             # approximations from the previous iteration.
-            approximation = cache.get(self.attrname)
-            if approximation is not None:
+            approximation = cache.get(self.attrname, _FIXPOINT_SENTINEL)
+            if approximation is not _FIXPOINT_SENTINEL:
                 return approximation
-            saved = context.approximations.get(key)
-            if saved is not None:
+            saved = context.approximations.get(key, _FIXPOINT_SENTINEL)
+            if saved is not _FIXPOINT_SENTINEL:
                 return saved
             return self._bottom()
         else:
@@ -909,7 +920,7 @@ class _fixpoint_dependent_property:
         if value is not None:
             return value
 
-        if fixpoint_cached_property.max_fixpoint_iterations.get() > 0:
+        if fixpoint_cached_property._get_max_iterations() > 0:
             # Register as participant so clear_participant_caches can
             # invalidate this cached value between fixpoint iterations.
             context = _fixpoint_context_var.get()
@@ -1532,7 +1543,7 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
         accumulate=_accumulate_defaultdict_set,
     )
     def qualified_this(self) -> Mapping["MixinSymbol", Collection[MixinSymbol]]:
-        """Map each overlay of ``self`` to the outer scopes that instantiate it.
+        """Map each override of ``self`` to the outer scopes that instantiate it.
 
         Uses BFS over the inheritance graph: starting from ``self``, each
         symbol is expanded through its ``unions`` and their
@@ -1540,10 +1551,10 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
 
         Corresponds to the ``this`` function in the inheritance-calculus paper::
 
-            this(p, p_def) = { p_site | (p_site, p_overlay) in supers(p),
-                                        s.t. p_overlay = p_def }
+            this(p, p_def) = { p_site | (p_site, p_override) in supers(p),
+                                        s.t. p_override = p_def }
 
-        :return: Mapping from each overlay (definition-site symbol) to the
+        :return: Mapping from each override (definition-site symbol) to the
             set of outer scopes (initialization contexts) through which it
             is reached.
         """
@@ -1552,7 +1563,7 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
             pending: deque[MixinSymbol] = deque((self,))
             while pending:
                 current = pending.popleft()
-                for union in current.overlays:
+                for union in current.overrides:
                     outers = visited[union]
                     if current.outer is OuterSentinel.ROOT:
                         continue
@@ -1566,7 +1577,7 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
             e.add_note(f"While resolving qualified_this for {self.path}...")
             raise
 
-    def _generate_overlays(self) -> Iterator["MixinSymbol"]:
+    def _generate_overrides(self) -> Iterator["MixinSymbol"]:
         yield self
         match self.origin:
             case Nested(outer=outer, key=key):
@@ -1575,8 +1586,8 @@ class MixinSymbol(HasDict, Mapping[Hashable, "MixinSymbol"], Symbol):
                         yield outer_union[key]
 
     @fixpoint_dependent
-    def overlays(self):
-        return frozenset(self._generate_overlays())
+    def overrides(self):
+        return frozenset(self._generate_overrides())
 
 
 class OuterSentinel(Enum):
