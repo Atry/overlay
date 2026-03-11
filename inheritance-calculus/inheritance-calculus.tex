@@ -87,7 +87,7 @@
 \thanks{This work was conducted independently prior to the author's employment at Figure AI.}
 
 \begin{abstract}
-  Just as the $\lambda$-calculus uses three primitives (abstraction, application, variable) as the foundation of functional programming, inheritance-calculus uses three primitives (record, definition, inheritance) as the foundation of declarative programming. By unifying classes, methods, objects, and properties under a single record abstraction, the calculus models inheritance simply as set union. Consequently, composition is inherently commutative, idempotent, and associative, structurally eliminating the multiple-inheritance linearization problem. Its semantics is first-order, denotational, and computable by tabling~\cite{tamaki1986old}. These three properties extend to the $\lambda$-calculus, since B\"ohm tree equivalence~\cite{barendregt1984lambda} is fully abstract for the first-iteration approximation of a sublanguage of inheritance-calculus. As a corollary, this establishes a convergence hierarchy among eager, lazy, and fixpoint $\lambda$-calculi sharing the same $\lambda$-syntax. Inheritance-calculus is distilled from MIXINv2, a practical implementation in which the same code acts as different function colors~\cite{nystrom2015color}; ordinary arithmetic yields the relational semantics of logic programming~\cite{vanemden1976semantics}; self-reference resolves to multiple objects; and programs are immune to the Expression Problem~\cite{wadler1998expression}. This makes inheritance-calculus strictly more expressive than the $\lambda$-calculus in both common sense and Felleisen's sense~\cite{felleisen1991expressive}.
+  Just as the $\lambda$-calculus uses three primitives (abstraction, application, variable) as the foundation of functional programming, inheritance-calculus uses three primitives (record, definition, inheritance) as the foundation of declarative programming. By unifying classes, methods, objects, and properties under a single record abstraction, the calculus models inheritance simply as set union. Consequently, composition is inherently commutative, idempotent, and associative, structurally eliminating the multiple-inheritance linearization problem. Its semantics is first-order, denotational, and computable by tabling~\cite{tamaki1986-tabled-resolution}. These three properties extend to the $\lambda$-calculus, since B\"ohm tree equivalence~\cite{barendregt1984-lambda-calculus} is fully abstract for the first-iteration approximation of a sublanguage of inheritance-calculus. As a corollary, this establishes a convergence hierarchy among eager, lazy, and fixpoint $\lambda$-calculi sharing the same $\lambda$-syntax. Inheritance-calculus is distilled from MIXINv2, a practical implementation in which the same code acts as different function colors~\cite{nystrom2015-function-color}; ordinary arithmetic yields the relational semantics of logic programming~\cite{vanemden1976-predicate-logic-semantics}; self-reference resolves to multiple objects; and programs are immune to the Expression Problem~\cite{wadler1998-expression-problem}. This makes inheritance-calculus strictly more expressive than the $\lambda$-calculus in both common sense and Felleisen's sense~\cite{felleisen1991-expressive-power}.
 \end{abstract}
 
 \begin{CCSXML}
@@ -150,9 +150,9 @@
 \label{sec:introduction}
 
 Declarative and configuration languages are ubiquitous in modern software
-engineering. Systems such as NixOS modules~\cite{dolstra2010nixos,nixosmodules},
+engineering. Systems such as NixOS modules~\cite{dolstra2010-nixos,nixosmodules},
 Jsonnet~\cite{jsonnet}, Hydra~\cite{hydra2023}, CUE~\cite{cue2019}, Dhall~\cite{dhall2017},
-Kustomize~\cite{kustomize}, and JSON Patch~\cite{rfc6902} all provide mechanisms for composing
+Kustomize~\cite{kustomize}, and JSON Patch~\cite{rfc6902-json-patch} all provide mechanisms for composing
 structured data through inheritance or merging. Among these, the NixOS
 module system stands out: its recursive attribute set merging with
 fixpoint semantics and deferred modules~\cite{nixosmodules} achieves
@@ -170,8 +170,8 @@ The $\lambda$-calculus serves as the foundational computational model for
 functional programming. No analogous calculus exists for declarative
 programming. This gap matters because the two paradigms differ in
 fundamental ways. Configuration languages are inherently declarative:
-their values are \emph{immutable} and they have \emph{no first-class
-functions}. At first glance, Turing completeness appears incompatible
+their values are immutable and they have no first-class
+functions. At first glance, Turing completeness appears incompatible
 with these constraints. The three classical models of computation each
 violate at least one of them:
 
@@ -196,13 +196,13 @@ explicit functions, is expressive enough to configure entire operating
 systems.
 
 Conventionally, the value domain of configuration languages is assumed
-to consist of finite, well-founded structures---initial algebras in the
+to consist of finite, well-founded structures, which serve as initial algebras in the
 sense of universal algebra. We challenge this assumption. Configuration
 values are better understood as lazily observable, possibly infinite
 structures, where
 semantics is determined by the observer and a finite prefix suffices
 for any finite observation. The \texttt{nixpkgs} package
-collection~\cite{dolstra2006purely} (over 100{,}000
+collection~\cite{dolstra2006-purely-functional-deployment} (over 100{,}000
 packages) behaves as a lazily observed structure in practice, allowing any
 single package to be evaluated without materializing the entire set.
 Guided by this observation, we set out to reduce the
@@ -217,7 +217,7 @@ and inheritance) and no functions or let-bindings.
 In developing real programs in MIXINv2, including boolean logic,
 natural number arithmetic, and a web application, the
 linearization problem of mixin-based
-systems~\cite{bracha1990mixin,c3linearization} did not arise.
+systems~\cite{bracha1990-mixin-inheritance,barrett1996-c3-linearization} did not arise.
 Inheritance is inherently commutative,
 idempotent, and associative (Section~\ref{sec:mixin-trees}).
 Self-reference naturally resolves to \emph{multiple targets} rather than
@@ -229,16 +229,16 @@ The mixin tree \emph{is} the call stack, and qualified this resolution
 is a first-order set-theoretic query over paths.
 We also found that boolean logic and arithmetic, implemented as separate
 MIXINv2 files, extend in both dimensions of the Expression
-Problem~\cite{wadler1998expression} without any dedicated mechanism.
+Problem~\cite{wadler1998-expression-problem} without any dedicated mechanism.
 Church-encoded values automatically form trie structures, and
 operations on tries automatically become Cartesian products, so that
 adding $\{1,2\}$ to $\{3,4\}$ yields $\{4,5,6\}$---the
-relational semantics of logic programming~\cite{vanemden1976semantics}
+relational semantics of logic programming~\cite{vanemden1976-predicate-logic-semantics}
 (Section~\ref{sec:case-study}).
 Furthermore, the same web
 application MIXINv2 file runs under both Python asyncio and synchronous
 execution without modification, an instance of function color
-blindness~\cite{nystrom2015color}
+blindness~\cite{nystrom2015-function-color}
 (Section~\ref{sec:practical-function-color}).
 
 This paper distills these observations into \textbf{inheritance-calculus},
@@ -259,7 +259,7 @@ Inheritance-calculus enables open extension that changes
 operational equivalence on $\lambda$-terms, establishing that
 inheritance-calculus is strictly more expressive than
 the lazy $\lambda$-calculus in
-Felleisen's sense~\cite{felleisen1991expressive}
+Felleisen's sense~\cite{felleisen1991-expressive-power}
 (Section~\ref{sec:asymmetry}).
 
 Just as the $\lambda$-calculus uses three primitives (abstraction,
@@ -305,10 +305,10 @@ All tests are mechanically verified against expected output snapshots.
       inputs and outputs are paths and sets of paths,
       never functions;
       and the judgments are first-order inductive
-      definitions~\cite{aczel1977inductive} over paths
+      definitions~\cite{aczel1977-inductive-definitions} over paths
       and labels, where quantifiers range over paths and labels,
     never over functions or predicates.},
-    denotational, and computable by tabling~\cite{tamaki1986old}.
+    denotational, and computable by tabling~\cite{tamaki1986-tabled-resolution}.
   \item The mixin tree \emph{is} the call stack.
     Self-reference resolves to \emph{multiple targets}.
     Since inheritance
@@ -331,15 +331,15 @@ All tests are mechanically verified against expected output snapshots.
     Remark~\ref{rem:convergence-lfp}).
   \item Inheritance-calculus is strictly more expressive than
     the lazy $\lambda$-calculus in Felleisen's
-    sense~\cite{felleisen1991expressive}
+    sense~\cite{felleisen1991-expressive-power}
     (Section~\ref{sec:asymmetry}).
   \item We observe further properties: immunity to
     nonextensibility in the sense of the
-    Expression Problem~\cite{wadler1998expression}
+    Expression Problem~\cite{wadler1998-expression-problem}
     (Section~\ref{sec:expression-problem}), relational semantics of logic
     programming from ordinary arithmetic
     (Section~\ref{sec:case-study}), and function color
-    blindness~\cite{nystrom2015color}
+    blindness~\cite{nystrom2015-function-color}
     (Section~\ref{sec:practical-function-color}).
 \end{itemize}
 
@@ -350,8 +350,8 @@ through a case study of Nat arithmetic.
 \label{sec:syntax}
 
 Let $e$ denote an expression.
-Let $\ell$ denote a label (property name).
-Let $k$ denote a nonnegative integer (path length).
+Let $\ell$ denote a label\footnote{A label serves as a property name.}.
+Let $k$ denote a nonnegative integer\footnote{The integer $k$ typically denotes a path length.}.
 
 \begin{align*}
   e \quad ::= \quad & \{c_1,\; \ldots,\; c_m\}
@@ -391,7 +391,7 @@ notations:
     $\ell_{\mathrm{up}}$ names the target enclosing scope.
   \item[Indexed form]
     $\dbi{n}.\ell_{\mathrm{down},1}\ldots\ell_{\mathrm{down},k}$,
-    where $n \ge 0$ is a de~Bruijn index~\cite{debruijn1972lambda}:
+    where $n \ge 0$ is a de~Bruijn index~\cite{debruijn1972-nameless-dummies}:
     $n = 0$ refers to the reference's enclosing scope,
     and each increment of $n$ moves one scope level further out.
 \end{description}
@@ -413,7 +413,7 @@ Inheritance sources do not create additional scope levels.
   \item $\qualifiedthis{\mathrm{Foo}}$ (equivalently, $\dbi{n}$ where
     $\mathrm{Foo}$ is $n$ steps above the enclosing scope)
     retrieves the record named $\mathrm{Foo}$.
-  \item $\qualifiedthis{\mathrm{Foo}}.\ell$ (equivalently, $\dbi{n}.\ell$)
+  \item $\qualifiedthis{\mathrm{Foo}}.\ell$, or equivalently, $\dbi{n}.\ell$,
     projects property $\ell$ from $\mathrm{Foo}$.
   \item When $k = 0$, the reference inherits the entire
     enclosing scope, which may produce an infinitely deep tree.
@@ -434,13 +434,13 @@ inherited properties or to bypass variable shadowing.
 \label{sec:mixin-trees}
 
 In object-oriented programming, a
-\emph{mixin}~\cite{bracha1990mixin} is a fragment of behavior
+\emph{mixin}~\cite{bracha1990-mixin-inheritance} is a fragment of behavior
 that can be composed onto a class via inheritance.
 Inheritance-calculus has a single abstraction, the
 \emph{deep-mergeable mixin},%
 \footnote{Where no ambiguity arises, we write simply ``mixin.''
   The distinction from the Bracha--Cook
-  mixin~\cite{bracha1990mixin} is detailed in
+  mixin~\cite{bracha1990-mixin-inheritance} is detailed in
 Section~\ref{sec:related-work}.}
 which can simultaneously serve as field, method, class, and
 object, because there are no opaque methods: every value is
@@ -692,24 +692,24 @@ Because the functions are pure and order-independent,
 the reflexive-transitive closure $\bases^*$
 in~(\ref{eq:supers}) may be explored breadth-first or
 depth-first without affecting the result;
-paths may be \emph{interned} so that structural equality
+paths may be interned so that structural equality
 reduces to pointer equality;
 and the six functions form a memoizable
 dynamic-programming recurrence keyed by paths.
 
 Operationally, evaluation uses \emph{tabled
-evaluation}~\cite{tamaki1986old,chen1996tabled}:
+evaluation}~\cite{tamaki1986-tabled-resolution}:
 each query is memoised on first encounter, and
-re-entrant calls (cycles in the dependency graph)
+re-entrant calls, which correspond to cycles in the dependency graph,
 return the current accumulator rather than diverging.
 Denotationally, the six equations define a monotone
 immediate consequence
-operator~$T_P$~\cite{vanemden1976semantics}
+operator~$T_P$~\cite{vanemden1976-predicate-logic-semantics}
 whose right-hand sides use only $\cup$, $\in$, equality, and
 positive set comprehension, with no negation, set
 difference, or complement.
 By the Knaster--Tarski
-theorem~\cite{tarski1955lattice}, $T_P$ has a unique
+theorem~\cite{tarski1955-lattice-fixpoint-theorem}, $T_P$ has a unique
 least fixed point $\mathrm{lfp}(T_P)$, which serves as
 the denotational semantics.
 Appendix~\ref{app:well-definedness} proves that tabled
@@ -796,7 +796,7 @@ termination.
 \label{sec:forward-translation}
 
 The following translation maps the $\lambda$-calculus in
-A-normal form (ANF)~\cite{flanagan1993essence} to inheritance-calculus.
+A-normal form (ANF)~\cite{flanagan1993-essence-compiling-continuations} to inheritance-calculus.
 In ANF, every intermediate result is bound to a name and each
 expression contains at most one application.
 We extend the standard ANF grammar with a \emph{value binding}
@@ -816,7 +816,7 @@ via a lexical reference (Appendix~\ref{app:expressiveness}).}
   \end{array}
 \]
 Every $\lambda$-term can be mechanically converted to ANF by
-naming intermediate results (and, optionally, naming values),
+naming intermediate results\footnote{This can optionally include naming values as well},
 and every ANF term is a $\lambda$-term, so ANF is neither a
 restriction nor an extension of the $\lambda$-calculus.
 The ANF structure matches inheritance-calculus naturally: each
@@ -871,13 +871,13 @@ accesses its $\mathrm{argument}$ slot.%
   if a $\lambda$-bound variable crosses $k$ intervening
   $\mathbf{let}$-binding or tail-call scopes
   (that is, $k$ counts the $\mathbf{let}$- and tail-call
-  constructs on the path from the variable occurrence
+    constructs on the path from the variable occurrence
   to its binding $\lambda$ in the ANF syntax tree),
   its inheritance-calculus
   index is $n' = n + k$,
   not~$n$.
   Let-bound variables are unaffected, as they use
-  lexical references ($x.\mathrm{result}$) rather than
+  lexical references (such as $x.\mathrm{result}$) rather than
   de~Bruijn indices.
   We assume that the synthetic labels introduced by the
   translation ($\mathrm{argument}$, $\mathrm{result}$,
@@ -908,7 +908,7 @@ In the tail-call rule, the fresh label $\mathrm{tailCall}$ serves
 the same purpose, and $\mathrm{result}$ projects the answer.
 In the application and tail-call cases, the inheritance that
 performs the application is
-\emph{encapsulated} behind a named property, so its internal
+encapsulated behind a named property, so its internal
 structure (the $\mathrm{argument}$ and $\mathrm{result}$ labels
 of the callee) does not leak to the enclosing scope.
 
@@ -924,7 +924,7 @@ inheritance-calculus.
 The translation $\mathcal{T}$ induces an elementary semantics on the $\lambda$-calculus
 via the mixin tree equations~(\ref{eq:properties})--(\ref{eq:this}).
 We show that the induced semantics corresponds precisely to the
-B\"ohm tree~\cite{barendregt1984lambda} of the original $\lambda$-term.
+B\"ohm tree~\cite{barendregt1984-lambda-calculus} of the original $\lambda$-term.
 
 A mixin tree $T$ \emph{converges}, written $T{\Downarrow}$,
 if following finitely many $\mathrm{result}$ projections from
@@ -980,10 +980,10 @@ inheritance-calculus,
 using only recursive evaluation of set-comprehension
 equations over paths and sets of paths.
 The prior higher-order semantic frameworks
-of~\cite{scott1972continuous,wadsworth1976semantics,abramsky2000full,hyland2000full,barendregt1984lambda}
+of~\cite{scott1972-continuous-lattices,wadsworth1976-scott-d-infinity-models,abramsky2000-full-abstraction-pcf,hyland2000-full-abstraction-pcf,barendregt1984-lambda-calculus}
 are thereby shown to be faithful to this first-order
 semantics: they agree with the equations on B\"ohm tree
-equivalence~\cite{barendregt1984lambda}.%
+equivalence~\cite{barendregt1984-lambda-calculus}.%
 \footnote{Composing $\mathcal{T}$ with the equations of
   Section~\ref{sec:mixin-trees} yields a first-order semantics
   of the $\lambda$-calculus in which function application is
@@ -1020,7 +1020,7 @@ separated by a context that mixes $\lambda$-calculus and
 inheritance-calculus constructors, inheriting new observable
 projections onto an existing definition via open extension.
 By Felleisen's expressiveness
-criterion~\cite{felleisen1991expressive}, inheritance-calculus is
+criterion~\cite{felleisen1991-expressive-power}, inheritance-calculus is
 strictly more expressive than the lazy $\lambda$-calculus
 (Theorem~\ref{thm:expressive-asymmetry}):
 the $\lambda$-calculus can be macro-expressed in
@@ -1307,7 +1307,7 @@ returns $\mathrm{True}$.
 No existing file was modified.
 $\mathrm{NatEquality}$, a new operation, and $\mathrm{Boolean}$,
 a new data type, each required only a new file: extensibility in both
-dimensions of the Expression Problem~\cite{wadler1998expression}.
+dimensions of the Expression Problem~\cite{wadler1998-expression-problem}.
 
 \paragraph{Tree-level inheritance and return types}
 \label{sec:discussion-expression-problem}
@@ -1321,8 +1321,8 @@ values from $\mathrm{NatFactory}$, and $\mathrm{NatEquality}$
 independently adds $\mathrm{Equal}$ to the same factory.
 Inheriting both causes the values returned by $\mathrm{Plus}$ to
 carry $\mathrm{Equal}$ automatically, without modifying either file.
-In object algebras~\cite{oliveira2012extensibility} and finally
-tagless interpreters~\cite{carette2009finally}, independently defined
+In object algebras~\cite{oliveira2012-object-algebras} and finally
+tagless interpreters~\cite{carette2009-finally-tagless}, independently defined
 operations do not automatically enrich each other's return types;
 additional boilerplate or type-class machinery is required.
 
@@ -1344,7 +1344,7 @@ classes extend the same outer class's trait, triggers a
 (Appendix~\ref{app:scala-multi-path}), because DOT's self variable
 is single-valued and cannot resolve through multiple inheritance
 routes simultaneously.
-The Expression Problem can still be \emph{solved} in Scala using
+The Expression Problem can still be solved in Scala using
 object algebras or similar patterns, but composing independently
 defined operations inherently produces multi-path inheritance to
 shared schemas, which DOT's single-valued self variable cannot
@@ -1459,7 +1459,7 @@ Below we explain why they arise from the three primitives.
     and formalize this: new operations and data types are added,
     and new observable projections are introduced.
     This is the extensibility that the
-    Expression Problem~\cite{wadler1998expression} demands.%
+    Expression Problem~\cite{wadler1998-expression-problem} demands.%
     \footnote{As an untyped calculus, inheritance-calculus cannot violate
       the extensibility requirement of the Expression Problem but does
       not encounter its type-safety requirement.
@@ -1472,10 +1472,10 @@ Below we explain why they arise from the three primitives.
     nonextensible constructs, where extensibility is opt-in:
     frameworks must encode nonextensible constructs into extensible
     constructs using sophisticated
-    mechanisms~\cite{liang1995monad, lammel2003scrap, loh2006open,
-      swierstra2008data, carette2009finally, oliveira2012extensibility,
-      kiselyov2013extensible, wu2014effect, kiselyov2015freer,
-    wang2016trivially, leijen2017type, poulsen2023hefty},
+    mechanisms~\cite{liang1995-monad-transformers, lammel2003-scrap-your-boilerplate, loh2006-open-data-types,
+      swierstra2008-data-types-a-la-carte, carette2009-finally-tagless, oliveira2012-object-algebras,
+      kiselyov2013-extensible-effects, wu2014-effect-handlers-in-scope, kiselyov2015-freer-monads,
+    wang2016-expression-problem-trivially, leijen2017-row-typed-algebraic-effects, poulsen2023-hefty-algebras},
     and code that uses nonextensible constructs
     cannot be extended unless rewritten in the framework.
     Section~\ref{sec:semantic-variants} analyzes why deep merge
@@ -1491,12 +1491,12 @@ Below we explain why they arise from the three primitives.
     under both synchronous and asynchronous
     runtimes\selfcite{~\cite{mixin2025}}{~(supplementary
     material)}, an instance of function color
-    blindness~\cite{nystrom2015color}.
+    blindness~\cite{nystrom2015-function-color}.
     The mechanism is dependency injection via inheritance:
     business logic declares empty slots, and the assembly
     inherits an FFI module that fills them, so the same
     business logic accepts implementations of any color.%
-    \footnote{Function color~\cite{nystrom2015color} arises when
+    \footnote{Function color~\cite{nystrom2015-function-color} arises when
       effectful functions have signatures $a \to f\,b$ (Kleisli
       arrows), requiring monadic bind to compose and making the
       effect $f$ visible at every call site.
@@ -1537,7 +1537,7 @@ For mainstream programming languages the AST is not directly a
 named tree, since anonymous expression positions and implicit
 scopes lack labels.
 After ANF
-transformation~\cite{flanagan1993essence}, however, every intermediate
+transformation~\cite{flanagan1993-essence-compiling-continuations}, however, every intermediate
 result is bound to a name, and the remaining anonymous positions%
 \footnote{For example, the body of a $\mathbf{let}$.}
 can be assigned synthetic
@@ -1577,7 +1577,7 @@ target.
       & variable, constructor,
       type class dispatch,
       \texttt{import}, \ldots \\[3pt]
-      Scala (multi-paradigm)
+      Scala\footnote{Scala is a multi-paradigm language.}
       & class, trait, object, method,
       block, conditional, \texttt{match},
       \texttt{while}, \texttt{throw}, \ldots
@@ -1632,7 +1632,7 @@ associativity~(A), and by their extensibility model.
     Conflict rejection
     & $\checkmark$ & $\checkmark$ & $\checkmark$
     & none on overlap
-    & Harper--Pierce~\cite{harper1991record} \\
+    & Harper--Pierce~\cite{harper1991-symmetric-record-concatenation} \\
     Priority merge
     & $\times$ & $\times$ & $\checkmark$
     & universal & Jsonnet~\texttt{+}, Nix~\texttt{//} \\
@@ -1661,12 +1661,12 @@ associativity~(A), and by their extensibility model.
     the identities are satisfied because the compositions that
     would test them are refused.
     Conflict rejection prevents extending existing
-    labels~\cite{harper1991record}, precisely the composability that the
-    Expression Problem~\cite{wadler1998expression} requires.
+    labels~\cite{harper1991-symmetric-record-concatenation}, precisely the composability that the
+    Expression Problem~\cite{wadler1998-expression-problem} requires.
 
   \item[Priority merge]
     One source takes
-    precedence~\cite{jsonnet,dolstra2010nixos},
+    precedence~\cite{jsonnet,dolstra2010-nixos},
     so $A + B \neq B + A$, introducing
     an ordering dependency.
 
@@ -1680,13 +1680,13 @@ associativity~(A), and by their extensibility model.
     multi-paradigm, because method calls, virtual
     dispatch, and type-class resolution all reduce to
     $\beta$-reduction.
-    The Expression Problem~\cite{wadler1998expression} is hard
+    The Expression Problem~\cite{wadler1998-expression-problem} is hard
     in all of them for the same reason:
     extensibility is opt-in.
     The frameworks that simulate immunity to nonextensibility
     (visitor pattern,
-      object algebras~\cite{oliveira2012extensibility},
-    finally tagless interpreters~\cite{carette2009finally})
+      object algebras~\cite{oliveira2012-object-algebras},
+    finally tagless interpreters~\cite{carette2009-finally-tagless})
     are the machinery needed to work around this limitation.
 
   \item[Conditional incorporation]
@@ -1734,7 +1734,7 @@ We examine the three known candidates.
     composition occurs.
     In the equations,
     $\resolve$~(\ref{eq:resolve}) calls
-    $\this$~(\ref{eq:this}), which walks the \emph{inherited}
+    $\this$~(\ref{eq:this}), which walks the inherited
     tree structure; late binding is what allows
     $\this$ to see properties contributed by later-composed
     mixins.
@@ -1800,14 +1800,14 @@ We examine the three known candidates.
     This rejects nested extensions where two independently authored
     modules define the same option, a composition that arises
     when solving the Expression
-    Problem~\cite{wadler1998expression}
+    Problem~\cite{wadler1998-expression-problem}
     (Section~\ref{sec:expression-problem}).
 
     Our first three implementations of MIXINv2 used
     standard techniques for self-reference resolution: closure-based
-    fixed points following Cook~\cite{cook1989denotational}, and
+    fixed points following Cook~\cite{cook1989-denotational-inheritance}, and
     stack-based environment lookup using de~Bruijn
-    indices~\cite{debruijn1972lambda}.
+    indices~\cite{debruijn1972-nameless-dummies}.
     All three produced subtle bugs when inheritance introduced
     multiple routes to the same enclosing scope.
     The difficulty was structural.
@@ -1839,11 +1839,11 @@ alternatives at both levels.
     & JS spread \\
     & Conflict rejection
     & same-label extensions rejected
-    & Harper--Pierce~\cite{harper1991record} \\
+    & Harper--Pierce~\cite{harper1991-symmetric-record-concatenation} \\
     & Priority merge
     & ordering dependency
     & Jsonnet~\texttt{+}~\cite{jsonnet},
-    Nix~\texttt{//}~\cite{dolstra2010nixos} \\
+    Nix~\texttt{//}~\cite{dolstra2010-nixos} \\
     & $\beta$-reduction
     & opt-in extensibility
     & Java, Haskell, Scala, \ldots \\
@@ -1889,16 +1889,16 @@ remained.
 \subsection{Computational Models and \texorpdfstring{$\lambda$}{λ}-Calculus Semantics}
 
 \paragraph{Minimal Turing-complete models}
-Sch\"onfinkel~\cite{schonfinkel1924} and
-Curry~\cite{curry1958combinatory} showed that the
+Sch\"onfinkel~\cite{schonfinkel1924-combinatory-logic} and
+Curry~\cite{curry1958-combinatory-logic} showed that the
 $\lambda$-calculus reduces to three combinators $S$, $K$, $I$
-($I$ is redundant: $I = SKK$).
+\footnote{The $I$ combinator is redundant since $I = SKK$.}.
 The bracket abstraction that compiles $\lambda$-terms to SKI
 is mechanical but incurs exponential blow-up in term size;
 no new computational patterns emerge beyond those already
 present in the $\lambda$-calculus.
 Semantically, the two share the same models:
-Meyer~\cite{meyer1982model} showed that combinatory algebras
+Meyer~\cite{meyer1982-model-of-lambda-calculus} showed that combinatory algebras
 satisfying five additional conditions are exactly lambda
 algebras.
 No independent semantic domain for SKI has ever been
@@ -1906,7 +1906,7 @@ exhibited from which $\lambda$-calculus semantics could be
 derived. The direction has always been the reverse:
 Scott's $D_\infty$ was built for the $\lambda$-calculus,
 and SKI was interpreted inside it afterwards.
-Dolan~\cite{dolan2013mov} showed that the x86 \texttt{mov}
+Dolan~\cite{dolan2013-mov-turing-complete} showed that the x86 \texttt{mov}
 instruction alone is Turing complete by exploiting
 addressing modes as implicit arithmetic on mutable memory;
 the resulting programs are correct but provide no
@@ -1915,7 +1915,7 @@ The Turing Machine itself, while universal, lacks random
 access: reading a cell at distance~$d$ requires $d$
 sequential tape movements.
 Each of these models achieves Turing completeness by
-\emph{removing} structure from an existing model:
+removing structure from an existing model:
 fewer abstractions, worse ergonomics, no new expressiveness.
 None of these reductions exhibits emergent phenomena
 absent from the model it reduces.
@@ -1991,45 +1991,44 @@ The semantics of the $\lambda$-calculus can be defined in
 several fundamentally different ways.
 \emph{Operational semantics} takes $\beta$-reduction
 $(\lambda x.\,M)\,N \to M[N/x]$ as the primitive notion of
-computation~\cite{church1936unsolvable,church1941calculi,barendregt1984lambda}.
+computation~\cite{church1936-lambda-calculus,church1941-calculi-of-lambda-conversion,barendregt1984-lambda-calculus}.
 This requires capture-avoiding substitution, a mechanism whose
 subtleties motivated de~Bruijn
-indices~\cite{debruijn1972lambda} and explicit substitution
-calculi~\cite{abadi1991explicit}.
+indices~\cite{debruijn1972-nameless-dummies} and explicit substitution
+calculi~\cite{abadi1991-explicit-substitutions}.
 It also requires a choice of evaluation
 strategy: call-by-name versus
-call-by-value~\cite{plotkin1975callbyname} or the lazy
-strategy of Abramsky~\cite{abramsky1990lazy}.
-\emph{Denotational semantics}~\cite{scott1970outline,scott1976data}
+call-by-value~\cite{plotkin1975-call-by-name-call-by-value} or the lazy
+strategy of Abramsky~\cite{abramsky1990-lazy-lambda-calculus}.
+\emph{Denotational semantics}~\cite{scott1970-mathematical-theory-of-computation,scott1976-data-types-as-lattices}
 interprets terms in a mathematical domain, but giving meaning
 to $\beta$-reduction requires a reflexive domain
 $D \cong [D \to D]$, which has no set-theoretic solution by
 Cantor's theorem. Scott's $D_\infty$ resolves this by
 constructing $D$ as an inverse limit of continuous
-lattices~\cite{scott1972continuous}.
+lattices~\cite{scott1972-continuous-lattices}.
 The resulting semantics is adequate but not fully
-abstract~\cite{plotkin1977lcf,milner1977fully}:
+abstract~\cite{plotkin1977-lcf-as-programming-language,milner1977-fully-abstract-models}:
 it identifies terms that observational equivalence
-distinguishes~\cite{plotkin1975callbyname}.
-\emph{Game semantics}~\cite{abramsky2000full,hyland2000full,nickau1994hereditarily}
+distinguishes.
+\emph{Game semantics}~\cite{abramsky2000-full-abstraction-pcf,hyland2000-full-abstraction-pcf,nickau1994-hereditarily-sequential-functionals}
 achieves full abstraction for PCF and for the lazy
-$\lambda$-calculus~\cite{abramsky1993lazy,abramsky1995games}
-at the cost of considerably more intricate mathematical
-machinery (arenas, strategies, innocence conditions).
+$\lambda$-calculus~\cite{abramsky1993-full-abstraction-lazy-lambda,abramsky1995-games-full-abstraction-lazy-lambda},
+requiring arenas, strategies, and innocence conditions.
 In each of these approaches, the function space $[D \to D]$
 is the central obstacle: operational semantics needs it
-implicitly (via substitution), denotational semantics
+implicitly via substitution. In contrast, denotational semantics
 constructs it explicitly, and game semantics refines it via
 strategies.
-None of these approaches is first-order;%
+Each of these approaches involves higher-order structure%
 \footnote{Function spaces
   in denotational semantics, strategies
   in game semantics, and substitution
 in operational semantics.}
-none eliminates the function space from the semantic domain;
-and none unifies denotational and operational semantics
-into a single first-order definition.
-All three also inherit $\beta$-reduction's divergence on
+and retains the function space in its semantic domain.
+The denotational and operational accounts remain separate
+formalisms in each case.
+All three inherit $\beta$-reduction's divergence on
 recursive programs: a na\"ive transitive closure on a cyclic
 graph, for instance, diverges in every framework.
 
@@ -2041,66 +2040,62 @@ These models eliminate Scott topology but not the function
 space itself: they remain higher-order, encoding $[D \to D]$
 inside $D$ via injections, intersection types, or multiset
 relations.
-\emph{Graph models}~\cite{engeler1981algebras,plotkin1993set}
+\emph{Graph models}~\cite{engeler1981-algebras-and-combinators,plotkin1993-set-theoretic-lambda-models}
 encode functions via a web injection on powerset lattices;
-Bucciarelli and Salibra~\cite{bucciarelli2008graph}
+Bucciarelli and Salibra~\cite{bucciarelli2008-graph-lambda-theories}
 proved that the greatest sensible graph theory equals the
 B\"ohm tree theory~$\mathcal{B}$.
-\emph{Filter models}~\cite{barendregt1983filter,coppo1978type}
+\emph{Filter models}~\cite{barendregt1983-filter-lambda-model,coppo1978-intersection-type-assignment}
 interpret a term as the set of intersection types derivable
 for it;
-Dezani-Ciancaglini et al.~\cite{dezani1998intersection}
+Dezani-Ciancaglini et al.~\cite{dezani1998-intersection-types-bohm-trees}
 showed that the BCD filter model's $\lambda$-theory
 coincides exactly with B\"ohm tree equality.
-\emph{Relational models}~\cite{ehrhard2005finiteness,bucciarelli2001phase}
+\emph{Relational models}~\cite{ehrhard2005-finiteness-spaces,bucciarelli2001-phase-semantics-exponentials}
 arise from the relational semantics of linear logic via
 finite multisets;
-Ehrhard~\cite{ehrhard2005finiteness} showed that a standard
+Ehrhard~\cite{ehrhard2005-finiteness-spaces} showed that a standard
 reflexive object for the pure $\lambda$-calculus cannot
 exist in this category.
-All three families are semantic \emph{models}: they interpret
+All three families are semantic models: they interpret
 $\lambda$-terms in an external mathematical structure and
-validate $\beta$-reduction as an equation in that structure.
-None is a self-contained calculus with its own primitives
-into which the $\lambda$-calculus embeds.
-None is first-order, since the function space is encoded, not
-eliminated.
-And none provides a fully abstract denotational semantics of
-the lazy $\lambda$-calculus without higher-order machinery.
+validate $\beta$-reduction as an equation in that structure,
+rather than defining an independent calculus with its own
+primitives.
+Each encodes the function space rather than eliminating it,
+and each requires higher-order machinery to obtain full
+abstraction for the lazy $\lambda$-calculus.
 
 \paragraph{Recursive equations and fixpoint semantics}
-Van~Emden and Kowalski~\cite{vanemden1976semantics} showed that
+Van~Emden and Kowalski~\cite{vanemden1976-predicate-logic-semantics} showed that
 the semantics of predicate logic as a programming language admits
 three equivalent characterizations:
-operational (SLD resolution), model-theoretic (least Herbrand
-model), and fixed-point (least fixed point of the immediate
-consequence operator~$T_P$ on the powerset of ground atoms).
-Aczel~\cite{aczel1977inductive} gave a systematic treatment of
+operational\footnote{Typically SLD resolution.}, model-theoretic\footnote{Based on least Herbrand models.}, and fixed-point\footnote{Namely, the least fixed point of the immediate consequence operator~$T_P$ on the powerset of ground atoms.}.
+Aczel~\cite{aczel1977-inductive-definitions} gave a systematic treatment of
 inductive definitions via monotone operators on powerset lattices,
 providing the logical foundations that Datalog-style semantics
 rests on.
-Leroy and Grall~\cite{leroy2006coinductive} treated divergence
-in big-step semantics via coinductive definitions;
-in inheritance-calculus, divergence already emerges as
-non-termination of recursive evaluation, so no separate
-coinductive formulation is needed.
-None of these prior frameworks has been applied to a first-order
-domain of paths to obtain a fully abstract semantics of the lazy
-$\lambda$-calculus without function spaces, substitution, or
-reduction rules.
-In particular, Van~Emden and Kowalski's $T_P$ computes
-$\mathrm{lfp}$ for recursive Datalog programs, but has not
-been used to give recursive $\lambda$-programs a fixpoint
-semantics in which they converge instead of diverging.
+Leroy and Grall~\cite{leroy2006-coinductive-big-step} treated divergence
+in big-step semantics via coinductive definitions,
+requiring a separate coinductive judgment to account for
+non-termination alongside the inductive evaluation judgment.
+Van~Emden and Kowalski's $T_P$ computes
+$\mathrm{lfp}$ for recursive Datalog programs over a
+first-order domain.
+Conventional $\lambda$-calculus semantics requires function
+spaces in the semantic domain, and recursive $\lambda$-terms
+ordinarily diverge under $\beta$-reduction;
+using $T_P$ over a first-order domain to give the
+$\lambda$-calculus a fixpoint semantics has not been explored.
 
 \subsection{Inheritance, Objects, and Records}
 
 \paragraph{Denotational semantics of inheritance}
-Cook~\cite{cook1989denotational} gave the first denotational
+Cook~\cite{cook1989-denotational-inheritance} gave the first denotational
 semantics of inheritance, modeling objects as recursive records.
 Inheritance is composition of \emph{generators}
-(functions from self to complete object) and
-\emph{wrappers} (functions that modify generators),
+\footnote{These are functions from self to complete object.} and
+\emph{wrappers}\footnote{Wrappers are functions that modify generators.},
 solved by a fixed-point construction.
 Cook's key insight is that inheritance is a general mechanism
 applicable to any form of recursive definition, not only
@@ -2115,16 +2110,16 @@ executable, so a separate operational semantics is needed to
 define method dispatch and object construction at runtime.
 
 \paragraph{Mixins and traits}
-Bracha and Cook~\cite{bracha1990mixin} formalized mixins as
+Bracha and Cook~\cite{bracha1990-mixin-inheritance} formalized mixins as
 abstract subclasses, that is, functions from a superclass parameter to a
 subclass.
 Because mixin application is function composition, it is
 \emph{neither commutative nor idempotent}; the C3 linearization
-algorithm~\cite{c3linearization} was later developed to impose a
+algorithm~\cite{barrett1996-c3-linearization} was later developed to impose a
 deterministic order.
-Sch\"arli et al.~\cite{scharli2003traits} introduced traits,
+Sch\"arli et al.~\cite{scharli2003-traits} introduced traits,
 whose composition is commutative but rejects same-name
-conflicts~\cite{ducasse2006traits}.
+conflicts~\cite{ducasse2006-traits-fine-grained-reuse}.
 Both mechanisms operate at the \emph{method level}: composing two
 definitions of the same name results in an override or a conflict,
 not a recursive merge of nested structure.
@@ -2133,29 +2128,29 @@ and the composition mechanism itself is not Turing complete.
 Neither mixins nor traits are deep-mergeable.
 
 \paragraph{Object and record calculi}
-Abadi and Cardelli~\cite{abadi1996theory} treat objects as the
+Abadi and Cardelli~\cite{abadi1996-theory-of-objects} treat objects as the
 primitive notion, but methods are functions that take self as a
 parameter and object extension is asymmetric.
-Boudol~\cite{boudol2004recursive} showed that self-referential
+Boudol~\cite{boudol2004-recursive-record-semantics} showed that self-referential
 records require an unsafe fixed-point operator whose
 well-definedness depends on the evaluation strategy.
-Harper and Pierce~\cite{harper1991record} gave a record
+Harper and Pierce~\cite{harper1991-symmetric-record-concatenation} gave a record
 calculus with symmetric concatenation that rejects same-label
 composition;
-Cardelli~\cite{cardelli1992extensible} studied extensible records
+Cardelli~\cite{cardelli1992-extensible-records} studied extensible records
 with subtyping;
-R\'emy~\cite{remy1989type} introduced row polymorphism for
+R\'emy~\cite{remy1989-row-polymorphism} introduced row polymorphism for
 records and variants in ML.
 All of these calculi operate on \emph{flat} records: there is
 no recursive merging of nested structure, no lazy observation,
 and self-reference requires an explicit fixed-point combinator.
 
 \paragraph{Family polymorphism and DOT}
-Ernst~\cite{ernst2001family} introduced family polymorphism;
-Ernst, Ostermann, and Cook~\cite{ernst2006virtual}
+Ernst~\cite{ernst2001-family-polymorphism} introduced family polymorphism;
+Ernst, Ostermann, and Cook~\cite{ernst2006-virtual-class-calculus}
 formalized it in the virtual class calculus, where classes are
 accessed via path expressions \texttt{this.out.C}.
-Amin et al.~\cite{amin2016dot} formalized path-dependent types
+Amin et al.~\cite{amin2016-dependent-object-types} formalized path-dependent types
 in the DOT calculus, the theoretical foundation of Scala.
 In both frameworks, each path resolves to a
 \emph{single} class in a \emph{single} enclosing object.
@@ -2172,7 +2167,7 @@ resolution.
 
 \paragraph{Configuration languages}
 CUE~\cite{cue2019} unifies types and values in a single lattice
-where unification (\texttt{\&}) is commutative, associative, and
+where unification, denoted by \texttt{\&}, is commutative, associative, and
 idempotent.
 CUE's design was motivated by Google's Borg Configuration
 Language (GCL), which used graph unification.
@@ -2191,7 +2186,7 @@ $\lambda$-calculus with records, where composition is a record merge
 operator, not an inheritance mechanism.
 
 \paragraph{Module systems and deep merge}
-The NixOS module system~\cite{dolstra2010nixos,nixosmodules}
+The NixOS module system~\cite{dolstra2010-nixos,nixosmodules}
 composes modules by \emph{recursively merging nested attribute sets},
 not by linearization or method-level override, which is the same deep-merge
 semantics that distinguishes tree-level inheritance from method-level
@@ -2235,7 +2230,7 @@ making the inheritance-calculus patterns explicit rather than ad~hoc.
 
 \paragraph{Union file systems}
 \label{sec:practical-union-fs}
-Union file systems (UnionFS, OverlayFS, AUFS) layer multiple directory
+Union file systems, such as UnionFS, OverlayFS, and AUFS, layer multiple directory
 hierarchies to present a unified view. Their semantics resembles
 inheritance-calculus in that later layers override earlier layers and files from all
 layers remain accessible, but without a formal foundation these systems
@@ -2273,13 +2268,13 @@ result. Formalizing the soundness of these checks, that is, proving that
 well-typed programs do not produce dangling references at
 runtime, is one direction of future work.
 Such a formalization would relate to the DOT
-calculus~\cite{amin2016dot} in a manner analogous to how
+calculus~\cite{amin2016-dependent-object-types} in a manner analogous to how
 inheritance-calculus relates to the $\lambda$-calculus: a Typed
 inheritance-calculus can be viewed as DOT without $\lambda$, retaining
 path-dependent types while replacing functions with
 mixin inheritance.
 A formal type system would be amenable to mechanization in proof
-assistants (Coq, Agda) for verifying type safety, progress, and
+assistants, such as Coq and Agda, for verifying type safety, progress, and
 preservation properties.
 
 Beyond soundness of the existing checks, additional type system
@@ -2294,7 +2289,7 @@ Totality checking would enforce such declarations statically,
 rejecting inheritances that leave required slots unfilled.
 
 \subsection{Standard Library}
-The remaining items concern the \emph{standard library}: they require
+The remaining items concern the standard library: they require
 no extensions to the calculus or type system, but involve nontrivial
 encodings within the existing framework.
 
@@ -2305,7 +2300,7 @@ $\{\mathrm{Zero},\; \mathrm{Odd},\; \mathrm{half} \mapsto \mathrm{Zero}\}$).
 This is the natural trie semantics of the
 calculus, and the basis for solving the Expression Problem
 (Section~\ref{sec:expression-problem}).
-However, many operations (e.g., equality testing) assume that values
+However, many operations, such as equality testing, assume that values
 are \emph{linear}, inhabiting exactly one data constructor.
 The observer pattern (Section~\ref{sec:case-study}) does not enforce
 this: applied to a multi-data-constructor value, all callbacks fire and
@@ -2330,7 +2325,7 @@ Closed matching, where exactly one branch is taken, can be encoded as
 a \emph{visitor chain}: a linked list of if-then-else nodes, each
 testing one data constructor and falling through on mismatch.
 This is analogous to GHC.Generics' $\mathrm{(:+:)}$ sum
-representation~\cite{magalhaes2010generic}, where each link
+representation~\cite{magalhaes2010-generic-deriving}, where each link
 corresponds to one summand.
 An important consequence is that such chains do \emph{not}
 commute, as they have a fixed order, and therefore cannot be extended
@@ -2361,7 +2356,7 @@ constructs.
 This section establishes well-definedness by showing that
 the six equations define a monotone operator whose least
 fixed point is computed soundly by tabled
-evaluation~\cite{tamaki1986old,chen1996tabled}.
+evaluation~\cite{tamaki1986-tabled-resolution}.
 
 \begin{definition}[Dependency graph]\label{def:dependency-graph}
   Fix an AST with its primitive functions $\defines$ and
@@ -2393,7 +2388,7 @@ evaluation~\cite{tamaki1986old,chen1996tabled}.
   equivalently, it assigns to each query~$q$ a set
   $M(q) \subseteq \mathcal{V}_q$ of candidate answers.
   The \emph{immediate consequence
-  operator}~\cite{vanemden1976semantics}
+  operator}~\cite{vanemden1976-predicate-logic-semantics}
   $T_P$ maps a query--answer map~$M$ to a new
   query--answer map~$T_P(M)$ by evaluating, for each
   query~$q$, the right-hand side of the equation that
@@ -2430,7 +2425,7 @@ evaluation~\cite{tamaki1986old,chen1996tabled}.
   $\Bigl(\prod_{q \in \mathcal{Q}} \mathcal{P}(\mathcal{V}_q), \subseteq\Bigr)$
   is also complete.
   By the Knaster--Tarski
-  theorem~\cite{tarski1955lattice},
+  theorem~\cite{tarski1955-lattice-fixpoint-theorem},
   every monotone function on a complete lattice has a
   unique least fixed point.
 \end{proof}
@@ -2461,7 +2456,7 @@ evaluation~\cite{tamaki1986old,chen1996tabled}.
 
     \item \textbf{Monotone accumulation.}
       The tabling accumulator only grows between
-      iterations (via set union); no fact is ever
+      iterations via set union; no fact is ever
       removed.
 
     \item \textbf{Correct fixpoint detection.}
@@ -2469,7 +2464,7 @@ evaluation~\cite{tamaki1986old,chen1996tabled}.
       all sub-queries were fully computed with no
       approximation, and the result is exact.
       If re-entry occurred but the accumulator is
-      stable (no new facts were added), the
+      stable, meaning no new facts were added, the
       accumulator equals
       $\mathrm{lfp}(T_P)$ restricted to the reachable
       queries, because it is a pre-fixed point reached
@@ -2535,7 +2530,7 @@ program:
   \item \textbf{Cyclic, finite per-query domain.}
     Multiple passes converge by the ascending chain
     condition on a finite
-    lattice~\cite{bancilhon1986amateur}.
+    lattice~\cite{bancilhon1986-recursive-query-strategies}.
     This is the Datalog case
     (Section~\ref{sec:recursive-rules}).
   \item \textbf{Infinite reachable subgraph.}
@@ -2566,7 +2561,7 @@ lazy, and fixpoint $\lambda$-calculi.
 \subsection{B\"ohm Trees}
 
 We briefly recall the definition of B\"ohm
-trees~\cite{barendregt1984lambda}.
+trees~\cite{barendregt1984-lambda-calculus}.
 A \emph{head reduction} $M \to_h M'$ contracts
 the outermost $\beta$-redex only: if $M$ has the form
 $(\lambda x.\, e)\; v\; M_1 \cdots M_k$, then
@@ -2592,7 +2587,7 @@ is an infinite labeled tree defined by:
 \]
 B\"ohm tree equivalence $\mathrm{BT}(M) = \mathrm{BT}(N)$ is the
 standard observational equivalence of the lazy
-$\lambda$-calculus~\cite{abramsky1993lazy}.
+$\lambda$-calculus~\cite{abramsky1993-full-abstraction-lazy-lambda,abramsky1995-games-full-abstraction-lazy-lambda}.
 
 \subsection{Path Encoding}
 
@@ -2602,8 +2597,8 @@ When the translation $\mathcal{T}$ is applied to an ANF
 $\lambda$-term, the resulting mixin tree has a specific shape:
 \begin{itemize}
   \item An abstraction $\lambda x.\, M$ translates to a record
-    with own properties $\{\mathrm{argument}, \mathrm{result}\}$
-    (the \emph{abstraction shape}).
+    with own properties $\{\mathrm{argument}, \mathrm{result}\}$,
+    which is referred to as the \emph{abstraction shape}.
   \item A $\mathbf{let}$-binding
     $\mathbf{let}\; x = V_1\; V_2 \;\mathbf{in}\; M$ translates
     to a record with own properties $\{x, \mathrm{result}\}$,
@@ -2624,7 +2619,7 @@ Each B\"ohm tree position is a sequence of navigation steps from
 the root.
 In the B\"ohm tree, the possible steps at a node
 $\lambda x_1 \ldots x_m.\; y\; M_1 \cdots M_k$ are:
-entering the body (peeling off one abstraction layer) and
+entering the body by peeling off one abstraction layer, and
 entering the $i$-th argument $M_i$ of the head variable.
 In the mixin tree, these correspond to following the
 $\mathrm{result}$ label (for entering the body) and the
@@ -2632,7 +2627,7 @@ $\mathrm{argument}$ label after $\this$ resolution (for
 entering an argument position).
 
 Rather than comparing absolute paths across different mixin
-trees (which would be sensitive to internal structure), we
+trees, which would be sensitive to internal structure; hence, we
 observe only the \emph{convergence} behavior accessible via
 the $\mathrm{result}$ projection.
 Recall the definition of inheritance-convergence
@@ -2872,7 +2867,7 @@ substitution.  We make this precise.
   \mathbf{let}\; z = V'[V/x]
   \;\mathbf{in}\; M'[V/x]$.
   By induction on $V'$ and $M'$, the properties under both
-  subtrees ($z$ and $\mathrm{result}$) coincide.
+  subtrees, specifically $z$ and $\mathrm{result}$, coincide.
   In particular, occurrences of~$z$ in $M'$ are translated as the
   lexical reference $z.\mathrm{result}$ on both sides, so the
   wrapper introduced by the value $\mathbf{let}$-binding is
@@ -2892,7 +2887,7 @@ in the $\lambda$-calculus.
 We make this precise.
 
 \begin{lemma}[Result-step]\label{lem:result-step}
-  Let $(\lambda x.\, M)\; V$ be a tail call (a $\beta$-redex).
+  Let $(\lambda x.\, M)\; V$ be a tail call, which is a $\beta$-redex.
   Then for every path $p$ and label $\ell$:
   \[
     \ell \in \properties\!\bigl(\,
@@ -3030,7 +3025,7 @@ We make this precise.
 The denotational semantics of inheritance-calculus is
 $\mathrm{lfp}(T_P)$
 (Appendix~\ref{app:well-definedness}).
-Tabled evaluation~\cite{tamaki1986old,chen1996tabled}
+Tabled evaluation~\cite{tamaki1986-tabled-resolution}
 computes $\mathrm{lfp}(T_P)$ by iterating:
 $T_P\!\uparrow\!0 = \bot$,
 $T_P\!\uparrow\!1 = T_P(\bot)$,
@@ -3099,7 +3094,7 @@ $\lambda$-calculus.
     $\mathrm{properties}(\mathrm{root} \triangleright
     \mathrm{result}) = \varnothing$,
     reflecting that the value is undefined
-    (no abstraction shape).
+    , thus having no abstraction shape.
     Appendix~\ref{app:datalog-encoding} gives a
     more motivated example (Datalog transitive
     closure on cyclic graphs).
@@ -3124,7 +3119,8 @@ the $\mathrm{result}$ chain to find the eventual value.
   We show $\mathcal{T}(M)$ converges at depth $\le k$ by
   induction on $k$.
 
-  \emph{Base case} ($k = 0$): $M$ is already an abstraction
+  \paragraph{Base case ($k = 0$)}
+  $M$ is already an abstraction
   $\lambda x.\, M'$.
   Then $\mathcal{T}(M) =
   \{\mathrm{argument} \mapsto \{\},\;
@@ -3135,7 +3131,8 @@ the $\mathrm{result}$ chain to find the eventual value.
   the recursive evaluation returns them without further
   recursion, and $\mathcal{T}(M)$ converges at depth $n = 0$.
 
-  \emph{Inductive step} ($k \ge 1$): $M$ is not an abstraction,
+  \paragraph{Inductive step ($k \ge 1$)}
+  $M$ is not an abstraction,
   so $M$ is either a tail call, an application
   $\mathbf{let}$-binding, or a value
   $\mathbf{let}$-binding.
@@ -3161,7 +3158,8 @@ the $\mathrm{result}$ chain to find the eventual value.
   Suppose $\mathcal{T}(M){\Downarrow}$ at depth $n$.
   We show $M$ has a head normal form by induction on $n$.
 
-  \emph{Base case} ($n = 0$): the root of $\mathcal{T}(M)$ has
+  \paragraph{Base case ($n = 0$)}
+  The root of $\mathcal{T}(M)$ has
   abstraction shape
   $\{\mathrm{argument}, \mathrm{result}\}$.
   Only the abstraction rule $\mathcal{T}(\lambda x.\, M')$
@@ -3175,7 +3173,8 @@ the $\mathrm{result}$ chain to find the eventual value.
   Therefore $M$ is an abstraction, hence already in head normal
   form.
 
-  \emph{Inductive step} ($n \ge 1$): the abstraction shape
+  \paragraph{Inductive step ($n \ge 1$)}
+  The abstraction shape
   appears at depth $n$ but not at depth $0$.
   By the base case argument, $M$ is not an abstraction, so at the
   head position of this closed top-level ANF term, $M$ is either
@@ -3194,7 +3193,7 @@ the $\mathrm{result}$ chain to find the eventual value.
   in $\mathcal{T}(M)$, where $N$ is the head reduct.
   So $\mathcal{T}(N)$ converges at depth $n - 1$.
   Since $M$ is closed and head reduction preserves closedness
-  (substituting a closed value for the only free variable),
+  , which substitutes a closed value for the only free variable,
   $N$ is a closed ANF term.
   By the induction hypothesis, $N$ has a head normal
   form, and since $M \to_h N$, so does $M$.
@@ -3224,7 +3223,7 @@ that preserves and reflects B\"ohm tree equivalence.
 \noindent
 The subscript $\lambda$ emphasizes that the quantification ranges
 over $\lambda$-calculus contexts, not over all inheritance-calculus contexts.
-This definition observes only convergence (a single bit), but
+This definition observes only convergence\footnote{Convergence provides exactly a single bit of information.}, but
 quantifying over all $\lambda$-contexts makes it a fine-grained
 equivalence: different contexts can supply different arguments
 and project different results, probing every aspect of the
@@ -3241,7 +3240,7 @@ term's behavior within the $\lambda$-definable fragment.
   \medskip\noindent
   ($\Leftarrow$)
   Suppose $\mathrm{BT}(M) = \mathrm{BT}(N)$.
-  B\"ohm tree equivalence is a congruence~\cite{barendregt1984lambda},
+  B\"ohm tree equivalence is a congruence~\cite{barendregt1984-lambda-calculus},
   so for every context $C[\cdot]$,
   $\mathrm{BT}(C[M]) = \mathrm{BT}(C[N])$.
   In particular, $C[M]$ has a head normal form iff $C[N]$ does.
@@ -3255,9 +3254,9 @@ term's behavior within the $\lambda$-definable fragment.
   Suppose $\mathrm{BT}(M) \neq \mathrm{BT}(N)$.
   B\"ohm tree equivalence coincides with observational
   equivalence for the lazy
-  $\lambda$-calculus~\cite{abramsky1993lazy}:
+  $\lambda$-calculus~\cite{abramsky1993-full-abstraction-lazy-lambda,abramsky1995-games-full-abstraction-lazy-lambda}:
   there exists a context $C[\cdot]$ such that $C[M]$ converges
-  and $C[N]$ diverges (or vice versa).
+  and $C[N]$ diverges, or vice versa.
   By Theorem~\ref{thm:adequacy},
   $\mathcal{T}(C[M]){\Downarrow}$ and
   $\mathcal{T}(C[N]){\Uparrow}$.
@@ -3269,7 +3268,7 @@ The proof rests on two pillars: Adequacy
 (Theorem~\ref{thm:adequacy}), which is our contribution, and
 the classical result that B\"ohm tree equivalence equals
 observational equivalence for the lazy
-$\lambda$-calculus~\cite{abramsky1993lazy}.
+$\lambda$-calculus~\cite{abramsky1993-full-abstraction-lazy-lambda,abramsky1995-games-full-abstraction-lazy-lambda}.
 The prior higher-order frameworks are thereby shown to be
 faithful to the first-order semantics, without needing to
 define or compare absolute paths inside mixin trees.
@@ -3277,7 +3276,7 @@ define or compare absolute paths inside mixin trees.
 \section{Expressive Asymmetry: Proofs}
 \label{app:expressiveness}
 
-\begin{definition}[Macro-expressibility, after Felleisen~\cite{felleisen1991expressive}]
+\begin{definition}[Macro-expressibility, after Felleisen~\cite{felleisen1991-expressive-power}]
   \label{def:macro-expressibility}
   A construct $C$ of language $\mathscr{L}_1$ is \emph{macro-expressible}
   in language $\mathscr{L}_0$ if there exists a translation $\mathcal{E}$
@@ -3317,7 +3316,7 @@ define or compare absolute paths inside mixin trees.
   Let $\mathscr{U}$ be the language whose constructors are
   the union of the constructors of inheritance-calculus,
   the constructors of the lazy $\lambda$-calculus
-  ($\lambda$-abstraction, application, variable), and
+  , including $\lambda$-abstraction, application, and variable, and
   $\mathbf{let}$-binding.
   The semantics of $\mathscr{U}$ is given by translating
   every $\mathscr{U}$-program to inheritance-calculus in
@@ -3327,7 +3326,7 @@ define or compare absolute paths inside mixin trees.
       subexpression (i.e.\ every subtree whose root
         and all internal nodes use only $\lambda$-calculus
       constructors) to A-normal
-      form~\cite{flanagan1993essence}.
+      form~\cite{flanagan1993-essence-compiling-continuations}.
     \item Apply the translation $\mathcal{T}$
       (Section~\ref{sec:forward-translation}) to every ANF
       $\lambda$-calculus subexpression.
@@ -3375,7 +3374,7 @@ recursive evaluation of inheritance-calculus
 (Section~\ref{sec:mixin-trees}) is a semi-decision
 procedure, so $\mathrm{eval}_{\mathscr{U}}$ is
 recursively enumerable, as required by
-Felleisen's framework~\cite{felleisen1991expressive}.
+Felleisen's framework~\cite{felleisen1991-expressive-power}.
 
 \begin{lemma}[$\mathbf{let}$-binding is macro-expressible
   in the lazy $\lambda$-calculus]
@@ -3392,7 +3391,7 @@ Felleisen's framework~\cite{felleisen1991expressive}.
   with a $\lambda$-expression that depends only on the
   two subexpressions $e_1$ and~$e_2$.
   This is Proposition~3.7 of
-  Felleisen~\cite{felleisen1991expressive}.
+  Felleisen~\cite{felleisen1991-expressive-power}.
 \end{proof}
 
 \begin{lemma}[Equal expressiveness of the lazy
@@ -3409,7 +3408,7 @@ Felleisen's framework~\cite{felleisen1991expressive}.
   of the ANF fragment into the full $\lambda$-calculus is
   the identity, which is trivially macro-expressible.
   For the reverse direction, the ANF
-  transformation~\cite{flanagan1993essence} consists of
+  transformation~\cite{flanagan1993-essence-compiling-continuations} consists of
   two steps, each macro-expressible:
   \begin{enumerate}
     \item \emph{Application flattening.}
@@ -3448,7 +3447,7 @@ Felleisen's framework~\cite{felleisen1991expressive}.
 
 \begin{proof}
   We verify condition~E4 of
-  Felleisen~\cite[Definition~3.11]{felleisen1991expressive}:
+  Felleisen~\cite[Definition~3.11]{felleisen1991-expressive-power}:
   for each $\lambda$-calculus construct~$F$ of arity~$a$,
   there must exist a fixed $a$-ary syntactic abstraction
   $A_F(\cdot_1,\ldots,\cdot_a)$ over
@@ -3460,13 +3459,13 @@ Felleisen's framework~\cite{felleisen1991expressive}.
   \begin{enumerate}
     \item \emph{$\lambda$-bound variable}
       ($x$ with de~Bruijn index $n'$).
-      This is a nullary construct (no subexpressions).
+      This is a nullary construct and therefore has no subexpressions.
       The syntactic abstraction is the constant
       $A = \dbi{n'}.\mathrm{argument}$.
     \item \emph{Let-bound variable} ($x$).
       Nullary.
       $A = x.\mathrm{result}$.
-    \item \emph{$\lambda$-abstraction} ($\lambda x.\, M$).
+    \item \emph{$\lambda$-abstraction}, denoted $\lambda x.\, M$.
       Unary in the body~$M$.
       $A(\cdot_1) = \{\mathrm{argument} \mapsto \{\},\;
       \mathrm{result} \mapsto \cdot_1\}$.
@@ -3508,14 +3507,14 @@ Felleisen's framework~\cite{felleisen1991expressive}.
 
 \begin{proof}
   We apply Theorem~3.14(i) of
-  Felleisen~\cite{felleisen1991expressive} to the pair
+  Felleisen~\cite{felleisen1991-expressive-power} to the pair
   $L_0 = \text{lazy $\lambda$-calculus}$,
   $L_1 = \mathscr{U}$.
   By Definition~\ref{def:language-universe},
   $\mathscr{U} = L_0 + \{$mixin-tree constructors$\}$
   is a conservative extension of~$L_0$
   (Definition~3.2 of
-  Felleisen~\cite{felleisen1991expressive}).
+  Felleisen~\cite{felleisen1991-expressive-power}).
   We verify the four conditions:
   \begin{enumerate}
     \item[(i)] \emph{$L_0 \subseteq L_1$:}
@@ -3543,7 +3542,7 @@ Felleisen's framework~\cite{felleisen1991expressive}.
 
   \paragraph{Operational equivalence in $L_0$}
   By B\"ohm tree
-  equivalence~\cite{abramsky1990lazy}
+  equivalence~\cite{abramsky1993-full-abstraction-lazy-lambda,abramsky1995-games-full-abstraction-lazy-lambda}
   (Theorem~\ref{thm:first-order-semantics}), for closed
   $\lambda$-terms $M$ and $N$:
   $M \cong_0 N$ iff $\mathrm{BT}(M) = \mathrm{BT}(N)$.
@@ -3624,7 +3623,7 @@ Felleisen's framework~\cite{felleisen1991expressive}.
   \end{align*}
   and symmetrically for $N$ with $\mathrm{true}$ in place
   of $\mathrm{false}$.
-  Note that $\mathrm{eq}$ is a \emph{named child}
+  Note that $\mathrm{eq}$ is a named child
   of $\mathcal{T}(\mathrm{ANF}(M))$, bound via a value
   let-binding.
   Inside the translation of $\mathrm{eq}$, the inner
@@ -3717,7 +3716,7 @@ Felleisen's framework~\cite{felleisen1991expressive}.
   We have $M \cong_0 N$ but $M \not\cong_1 N$, so
   ${\cong_0} \neq {(\cong_1|_{L_0})}$.
   By Theorem~3.14(i) of
-  Felleisen~\cite{felleisen1991expressive},
+  Felleisen~\cite{felleisen1991-expressive-power},
   the lazy $\lambda$-calculus cannot macro-express the
   inheritance constructors of~$\mathscr{U}$.
 \end{proof}
@@ -3731,7 +3730,7 @@ Felleisen's framework~\cite{felleisen1991expressive}.
   $\mathscr{U}$-construct that the $\lambda$-calculus
   can, but not conversely
   (Definition~3.17 of
-  Felleisen~\cite{felleisen1991expressive}).
+  Felleisen~\cite{felleisen1991-expressive-power}).
 \end{theorem}
 
 \begin{proof}
@@ -3769,7 +3768,7 @@ Felleisen's framework~\cite{felleisen1991expressive}.
   \begin{enumerate}
     \item \emph{ANF conversion.}
       The A-normal form
-      transformation~\cite{flanagan1993essence}
+      transformation~\cite{flanagan1993-essence-compiling-continuations}
       replaces nested applications with
       $\mathbf{let}$-bindings; it is macro-expressible
       in the $\lambda$-calculus by
@@ -3778,7 +3777,7 @@ Felleisen's framework~\cite{felleisen1991expressive}.
       $\mathbf{let}$-bindings are macro-expressible in
       the $\lambda$-calculus by
       Proposition~3.7 of
-      Felleisen~\cite{felleisen1991expressive}
+      Felleisen~\cite{felleisen1991-expressive-power}
       (restated as Lemma~\ref{lem:let-macro}).
       Thus ANF conversion is a macro-expressible
       equivalence between the $\lambda$-calculus and its
@@ -3789,7 +3788,7 @@ Felleisen's framework~\cite{felleisen1991expressive}.
       inheritance-calculus
       (Theorem~\ref{thm:forward-macro}), satisfying
       condition~E4 of
-      Felleisen~\cite[Definition~3.11]{felleisen1991expressive}.
+      Felleisen~\cite[Definition~3.11]{felleisen1991-expressive-power}.
   \end{enumerate}
   By Lemma~\ref{lem:macro-composition}, composing the
   two macro-expressible translations gives a
@@ -3837,7 +3836,7 @@ object HasMultipleOuters cannot be instantiated since
 
 \noindent
 The rejection is not a surface-level restriction but a consequence
-of DOT's type-theoretic foundations~\cite{amin2016dot}.
+of DOT's type-theoretic foundations~\cite{amin2016-dependent-object-types}.
 In DOT, an object is constructed as $\nu(x : T)\, d$, where the
 self variable~$x$ binds to a \emph{single} object.
 \texttt{Object1.MyInner} and \texttt{Object2.MyInner} are distinct
@@ -3881,7 +3880,7 @@ $\mathrm{MyOuter}$, so querying
 $\mathrm{HasMultipleOuters}.\mathrm{outer}$ yields the
 $\properties$ of $\mathrm{MyOuter}$ regardless of which
 route is taken.
-Because attribute resolution aggregates results via set union (which is intrinsically idempotent), identical property definitions from the two routes merge without conflict. Thus, the calculus eliminates the need for any artificial route-priority or linearization rules.
+Because attribute resolution aggregates results via set union (which is an intrinsically idempotent operation), identical property definitions from the two routes merge without conflict. Thus, the calculus eliminates the need for any artificial route-priority or linearization rules.
 
 \subsection*{NixOS Module System}
 
@@ -4036,7 +4035,7 @@ Every $\lambda$-term can be mechanically converted to ANF by
 naming intermediate results; ANF is neither a restriction nor
 an extension of the $\lambda$-calculus.
 Variables use de~Bruijn indices: $\dbi{n}$ counts the number
-of enclosing \emph{scope levels} (record braces) between the
+of enclosing scope levels, represented by record braces, between the
 reference and its binder, following the same convention as
 inheritance-calculus.
 In particular, a $\lambda$-bound variable that crosses $k$
@@ -4325,7 +4324,7 @@ if there exists $n \ge 0$ such that
 \]
 in the semantics defined by the equations above.
 This corresponds exactly to the B\"ohm
-tree~\cite{barendregt1984lambda} of the original term:
+tree~\cite{barendregt1984-lambda-calculus} of the original term:
 $M$ converges iff it has a head normal form
 (Theorem~\ref{thm:adequacy}), and two terms are
 equivalent under this semantics iff they have the same
@@ -4448,15 +4447,14 @@ the expression-problem property.
   \item[WithVisitorTail]
     Maps each constant $d$ to its sub-trie entry
     $\mathrm{TailMap}.d$, labeled as $\mathrm{VisitorTail}$.
-    This provides the \emph{right-hand} (visitor) side of a
-    join: when two relations' $\mathrm{VisitorMap}$ entries are
+    This provides the right-hand side of a join\footnote{In the context of the visitor pattern, this acts as the visitor.}: when two relations' $\mathrm{VisitorMap}$ entries are
     composed, $\mathrm{VisitorTail}$ carries the joined
     relation's row data for the matched constant.
 
   \item[WithVisiteeTail]
     Maps each constant $d$ to its sub-trie entry
     $\mathrm{TailMap}.d$, labeled as $\mathrm{VisiteeTail}$.
-    This provides the \emph{left-hand} (visitee) side: the
+    This provides the left-hand side\footnote{This acts as the visitee.}: the
     relation being iterated. Together,
     $\mathrm{WithVisitorTail}$ and $\mathrm{WithVisiteeTail}$
     enable value-level joins where only constants present
@@ -4467,7 +4465,7 @@ the expression-problem property.
     $\mathrm{Replaced}$ scope that inherits the label $d$
     but substitutes $\mathrm{TailMap}.d$ with
     $\mathrm{NewTail}$.
-    This is the \emph{output construction} mechanism: it
+    This is the output construction mechanism: it
     builds output tuples by substituting new sub-tries into
     constant wrappers.
     Crucially, $\mathrm{Replacement}$ is defined on the
@@ -4819,16 +4817,16 @@ $\mathrm{path}$ triggers further evaluation through
 the recursive body, and the trie union ($\supers$)
 accumulates all reachable tuples.
 This corresponds exactly to \emph{Naive
-evaluation}~\cite{bancilhon1986amateur} of the
+evaluation}~\cite{bancilhon1986-recursive-query-strategies} of the
 $T_P$
-operator~\cite{vanemden1976semantics}:
+operator~\cite{vanemden1976-predicate-logic-semantics}:
 each iteration applies every rule to the current
 fact set and adds newly derived facts.
 Because Datalog-encoded relations have finitely many
 constants per query, the per-query answer domain is
 finite, and convergence is guaranteed by the ascending
 chain condition on a finite lattice.
-\emph{Semi-Naive} evaluation~\cite{bancilhon1986amateur},
+\emph{Semi-Naive} evaluation~\cite{bancilhon1986-recursive-query-strategies},
 which restricts each iteration to rules that use at
 least one newly derived fact, is a natural
 optimisation left for future work.
@@ -4892,7 +4890,7 @@ When the $Y$-join matches constant $b$ (present in both
 $\mathrm{edge}$'s first column), the $\mathrm{Visitor}$ for
 $b$ receives $\mathrm{VisitorTail} = \mathrm{edge}.\mathrm{TailMap}.b$
 (containing only~$c$), and $\mathrm{Replacement}$ constructs
-a single output tuple $(a, c)$---not all of $\{a,b,c\}$.
+a single output tuple $(a, c)$, rather than all of $\{a,b,c\}$.
 
 This value-level precision arises because each constant's
 $\mathrm{Replacement}$ operates on $\mathrm{TailMap}.d$
