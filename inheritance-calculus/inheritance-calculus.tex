@@ -82,7 +82,7 @@
 \thanks{This work was conducted independently prior to the author's employment at Figure AI.}
 
 \begin{abstract}
-  Just as the $\lambda$-calculus uses three primitives (abstraction, application, variable) as the foundation of functional programming, inheritance-calculus uses three primitives (record, definition, inheritance) as the foundation of declarative programming. By unifying classes, methods, objects, and properties under a single record abstraction, the calculus models inheritance simply as set union. Consequently, composition is inherently commutative, idempotent, and associative, structurally eliminating the multiple-inheritance linearization problem. Its semantics is first-order, denotational, and computable by tabling~\cite{tamaki1986old}. These three properties extend to the $\lambda$-calculus, since B\"ohm tree equivalence~\cite{barendregt1984lambda} is fully abstract for the first-iteration approximation of a sublanguage of inheritance-calculus. As a corollary, this establishes a convergence hierarchy among eager, lazy, and fixpoint $\lambda$-calculi sharing the same $\lambda$-syntax. Inheritance-calculus is distilled from MIXINv2, a practical implementation in which the same code acts as different function colors~\cite{nystrom2015color}; ordinary arithmetic yields the relational semantics of logic programming~\cite{vanemden1976semantics}; self-reference resolves to multiple targets; and programs are immune to the Expression Problem~\cite{wadler1998expression}. This makes inheritance-calculus strictly more expressive than the $\lambda$-calculus in both common sense and Felleisen's sense~\cite{felleisen1991expressive}.
+  Just as the $\lambda$-calculus uses three primitives (abstraction, application, variable) as the foundation of functional programming, inheritance-calculus uses three primitives (record, definition, inheritance) as the foundation of declarative programming. By unifying classes, methods, objects, and properties under a single record abstraction, the calculus models inheritance simply as set union. Consequently, composition is inherently commutative, idempotent, and associative, structurally eliminating the multiple-inheritance linearization problem. Its semantics is first-order, denotational, and computable by tabling~\cite{tamaki1986old}. These three properties extend to the $\lambda$-calculus, since B\"ohm tree equivalence~\cite{barendregt1984lambda} is fully abstract for the first-iteration approximation of a sublanguage of inheritance-calculus. As a corollary, this establishes a convergence hierarchy among eager, lazy, and fixpoint $\lambda$-calculi sharing the same $\lambda$-syntax. Inheritance-calculus is distilled from MIXINv2, a practical implementation in which the same code acts as different function colors~\cite{nystrom2015color}; ordinary arithmetic yields the relational semantics of logic programming~\cite{vanemden1976semantics}; self-reference resolves to multiple objects; and programs are immune to the Expression Problem~\cite{wadler1998expression}. This makes inheritance-calculus strictly more expressive than the $\lambda$-calculus in both common sense and Felleisen's sense~\cite{felleisen1991expressive}.
 \end{abstract}
 
 \begin{CCSXML}
@@ -215,7 +215,7 @@ linearization problem of mixin-based
 systems~\cite{bracha1990mixin,c3linearization} did not arise.
 Inheritance is inherently commutative,
 idempotent, and associative (Section~\ref{sec:mixin-trees}).
-Self-reference naturally resolves to \emph{multiple objects} rather than
+Self-reference naturally resolves to \emph{multiple targets} rather than
 one. Prior systems such as Scala and the NixOS module system assume
 single-object resolution and reject the multi-path situation.
 Self-referential records require no fixed-point combinator
@@ -305,7 +305,7 @@ All tests are mechanically verified against expected output snapshots.
     never over functions or predicates.},
     denotational, and computable by tabling~\cite{tamaki1986old}.
   \item The mixin tree \emph{is} the call stack.
-    Self-reference resolves to \emph{multiple objects}.
+    Self-reference resolves to \emph{multiple targets}.
     Since inheritance
     is idempotent, all objects contribute equally.
   \item The $\lambda$-calculus macro-expresses into
@@ -371,8 +371,7 @@ The $\mapsto$ in $\ell \mapsto e$ defines a property.
 MIXINv2 also provides scalar types through a
 foreign-function interface (FFI); inheritance-calculus is what remains
 after removing the FFI.
-None of the examples in this paper uses the FFI; scalars
-did not arise.
+None of the examples in this paper uses the FFI; no scalar values are needed in the examples.
 
 \paragraph{Inheritance}
 An inheritance is written as a reference
@@ -1318,7 +1317,7 @@ tagless interpreters~\cite{carette2009finally}, independently defined
 operations do not automatically enrich each other's return types;
 additional boilerplate or type-class machinery is required.
 
-Multi-path qualified this (equation~\ref{eq:this}) is essential.
+Multi-target qualified this (equation~\ref{eq:this}) is essential.
 In the test file above, $\mathrm{NatPlus}.\mathrm{Successor}$ and
 $\mathrm{NatEquality}.\mathrm{Successor}$ both inherit
 $\mathrm{NatData}.\mathrm{Successor}$.
@@ -2122,7 +2121,7 @@ definitions of the same name results in an override or a conflict,
 not a recursive merge of nested structure.
 Both presuppose the $\lambda$-calculus: method bodies are functions,
 and the composition mechanism itself is not Turing complete.
-Neither mixins nor traits are therefore deep-mergeable.
+Neither mixins nor traits are deep-mergeable.
 
 \paragraph{Object and record calculi}
 Abadi and Cardelli~\cite{abadi1996theory} treat objects as the
@@ -2176,7 +2175,7 @@ Jsonnet~\cite{jsonnet} provides object inheritance via the
 \texttt{+} operator with mixin semantics: composition is
 \emph{not} commutative since the right-hand side wins on scalar
 conflicts, and deep merging requires explicit opt-in via the \texttt{+:}
-syntax) on a per-field basis, so deep merge is
+syntax on a per-field basis, so deep merge is
 available but not the default.
 Dhall~\cite{dhall2017} takes a functional approach: it is a typed
 $\lambda$-calculus with records, where composition is a record merge
@@ -2295,7 +2294,7 @@ can freely merge any two mixins, and a value may simultaneously
 inhabit multiple data constructors (e.g.,
 $\{\mathrm{Zero},\; \mathrm{Odd},\; \mathrm{half} \mapsto \mathrm{Zero}\}$).
 This is the natural trie semantics of the
-calculus, and the basis for solving the expression problem
+calculus, and the basis for solving the Expression Problem
 (Section~\ref{sec:expression-problem}).
 However, many operations (e.g., equality testing) assume that values
 are \emph{linear}, inhabiting exactly one data constructor.
@@ -2356,194 +2355,204 @@ fixed point is computed soundly by tabled
 evaluation~\cite{tamaki1986old,chen1996tabled}.
 
 \begin{definition}[Dependency graph]\label{def:dependency-graph}
-Fix an AST with its primitive functions $\defines$ and
-$\inherits$.
-The \emph{dependency graph}~$G$ has as vertices all
-semantic-function applications
-($\properties(p)$, $\supers(p)$, $\overrides(p)$,
-  $\bases(p)$, $\resolve(\ldots)$,
-$\this(\ldots)$) that arise from the AST\@.
-There is a directed edge from vertex~$u$ to vertex~$v$
-whenever computing~$u$ via
-equations~(\ref{eq:properties})--(\ref{eq:this})
-requires the value of~$v$.
+  Fix an AST with its primitive functions $\defines$ and
+  $\inherits$.
+  The \emph{dependency graph}~$G$ has as vertices all
+  semantic-function applications
+  ($\properties(p)$, $\supers(p)$, $\overrides(p)$,
+    $\bases(p)$, $\resolve(\ldots)$,
+  $\this(\ldots)$) that arise from the AST\@.
+  There is a directed edge from vertex~$u$ to vertex~$v$
+  whenever computing~$u$ via
+  equations~(\ref{eq:properties})--(\ref{eq:this})
+  requires the value of~$v$.
 \end{definition}
 
 \begin{definition}[Immediate consequence operator $T_P$]%
-\label{def:tp-operator}
-Let $\mathcal{Q}$ be the set of all
-semantic-function queries
-(vertices of~$G$).
-For each query $q \in \mathcal{Q}$, let
-$\mathcal{V}_q$ be the set of answer values of the
-appropriate shape for~$q$
-(paths, sets of paths, or sets of pairs of paths,
-depending on the equation defining~$q$).
-A \emph{query--answer map} is an element of the
-pointwise product
-$\prod_{q \in \mathcal{Q}} \mathcal{P}(\mathcal{V}_q)$;
-equivalently, it assigns to each query~$q$ a set
-$M(q) \subseteq \mathcal{V}_q$ of candidate answers.
-The \emph{immediate consequence
-operator}~\cite{vanemden1976semantics}
-$T_P$ maps a query--answer map~$M$ to a new
-query--answer map~$T_P(M)$ by evaluating, for each
-query~$q$, the right-hand side of the equation that
-defines~$q$, interpreting every sub-query~$q'$ by
-the current approximation~$M(q')$.
+  \label{def:tp-operator}
+  Let $\mathcal{Q}$ be the set of all
+  semantic-function queries
+  (vertices of~$G$).
+  For each query $q \in \mathcal{Q}$, let
+  $\mathcal{V}_q$ be the set of answer values of the
+  appropriate shape for~$q$
+  (paths, sets of paths, or sets of pairs of paths,
+  depending on the equation defining~$q$).
+  A \emph{query--answer map} is an element of the
+  pointwise product
+  $\prod_{q \in \mathcal{Q}} \mathcal{P}(\mathcal{V}_q)$;
+  equivalently, it assigns to each query~$q$ a set
+  $M(q) \subseteq \mathcal{V}_q$ of candidate answers.
+  The \emph{immediate consequence
+  operator}~\cite{vanemden1976semantics}
+  $T_P$ maps a query--answer map~$M$ to a new
+  query--answer map~$T_P(M)$ by evaluating, for each
+  query~$q$, the right-hand side of the equation that
+  defines~$q$, interpreting every sub-query~$q'$ by
+  the current approximation~$M(q')$.
 \end{definition}
 
 \begin{lemma}[Monotonicity]\label{lem:monotonicity}
-The operator $T_P$ is monotone on the complete lattice
-$\Bigl(\prod_{q \in \mathcal{Q}} \mathcal{P}(\mathcal{V}_q),\; \subseteq\Bigr)$.
+  The operator $T_P$ is monotone on the complete lattice
+  $\Bigl(\prod_{q \in \mathcal{Q}} \mathcal{P}(\mathcal{V}_q),\; \subseteq\Bigr)$.
 \end{lemma}
 
 \begin{proof}
-Each equation's right-hand side is built from
-$\cup$, $\in$, equality tests, and positive set
-comprehension $\{\, x \mid x \in S, \ldots \,\}$.
-None of the six equations uses negation, set
-difference, or complement.
-Therefore, if $M \subseteq M'$ (pointwise), then
-$T_P(M) \subseteq T_P(M')$.
+  Each equation's right-hand side is built from
+  $\cup$, $\in$, equality tests, and positive set
+  comprehension $\{\, x \mid x \in S, \ldots \,\}$.
+  None of the six equations uses negation, set
+  difference, or complement.
+  Therefore, if $M \subseteq M'$ (pointwise), then
+  $T_P(M) \subseteq T_P(M')$.
 \end{proof}
 
 \begin{theorem}[Existence and uniqueness of
-$\mathrm{lfp}(T_P)$]\label{thm:lfp-exists}
-The operator $T_P$ has a unique least fixed point
-$\mathrm{lfp}(T_P)$.
+  $\mathrm{lfp}(T_P)$]\label{thm:lfp-exists}
+  The operator $T_P$ has a unique least fixed point
+  $\mathrm{lfp}(T_P)$.
 \end{theorem}
 
 \begin{proof}
-Each powerset lattice
-$(\mathcal{P}(\mathcal{V}_q), \subseteq)$
-is complete,
-so the pointwise product lattice
-$\Bigl(\prod_{q \in \mathcal{Q}} \mathcal{P}(\mathcal{V}_q), \subseteq\Bigr)$
-is also complete.
-By the Knaster--Tarski
-theorem~\cite{tarski1955lattice},
-every monotone function on a complete lattice has a
-unique least fixed point.
+  Each powerset lattice
+  $(\mathcal{P}(\mathcal{V}_q), \subseteq)$
+  is complete,
+  so the pointwise product lattice
+  $\Bigl(\prod_{q \in \mathcal{Q}} \mathcal{P}(\mathcal{V}_q), \subseteq\Bigr)$
+  is also complete.
+  By the Knaster--Tarski
+  theorem~\cite{tarski1955lattice},
+  every monotone function on a complete lattice has a
+  unique least fixed point.
 \end{proof}
 
 \begin{theorem}[Well-definedness]\label{thm:well-defined}
-The semantic functions
-$\properties$, $\supers$, $\overrides$, $\bases$,
-$\resolve$, $\this$ are well-defined:
-their denotational semantics is
-$\mathrm{lfp}(T_P)$, the unique least fixed point of
-the immediate consequence operator.
+  The semantic functions
+  $\properties$, $\supers$, $\overrides$, $\bases$,
+  $\resolve$, $\this$ are well-defined:
+  their denotational semantics is
+  $\mathrm{lfp}(T_P)$, the unique least fixed point of
+  the immediate consequence operator.
 \end{theorem}
 
 \begin{theorem}[Tabling soundness]%
-\label{thm:tabling-soundness}
-Tabled evaluation of
-equations~(\ref{eq:properties})--(\ref{eq:this})
-never returns a wrong answer, even when the
-dependency graph~$G$ is infinite.
-Specifically:
-\begin{enumerate}
-  \item \textbf{Soundness (no false positives).}
-    Every fact returned by tabling was produced by
-    evaluating some equation's right-hand side on its
-    inputs.
-    By induction on the evaluation trace, every
-    returned fact belongs to $\mathrm{lfp}(T_P)$.
+  \label{thm:tabling-soundness}
+  Tabled evaluation of
+  equations~(\ref{eq:properties})--(\ref{eq:this})
+  never returns a wrong answer, even when the
+  dependency graph~$G$ is infinite.
+  Specifically:
+  \begin{enumerate}
+    \item \textbf{Soundness (no false positives).}
+      Every fact returned by tabling was produced by
+      evaluating some equation's right-hand side on its
+      inputs.
+      By induction on the evaluation trace, every
+      returned fact belongs to $\mathrm{lfp}(T_P)$.
 
-  \item \textbf{Monotone accumulation.}
-    The tabling accumulator only grows between
-    iterations (via set union); no fact is ever
-    removed.
+    \item \textbf{Monotone accumulation.}
+      The tabling accumulator only grows between
+      iterations (via set union); no fact is ever
+      removed.
 
-  \item \textbf{Correct fixpoint detection.}
-    If no sub-query was re-entered during evaluation,
-    all sub-queries were fully computed with no
-    approximation, and the result is exact.
-    If re-entry occurred but the accumulator is
-    stable (no new facts were added), the
-    accumulator equals
-    $\mathrm{lfp}(T_P)$ restricted to the reachable
-    queries, because it is a pre-fixed point reached
-    by ascending from~$\bot$.
+    \item \textbf{Correct fixpoint detection.}
+      If no sub-query was re-entered during evaluation,
+      all sub-queries were fully computed with no
+      approximation, and the result is exact.
+      If re-entry occurred but the accumulator is
+      stable (no new facts were added), the
+      accumulator equals
+      $\mathrm{lfp}(T_P)$ restricted to the reachable
+      queries, because it is a pre-fixed point reached
+      by ascending from~$\bot$.
 
-  \item \textbf{Sound failure.}
-    When tabling cannot determine the answer,
-    whether because the iteration budget is exhausted
-    or because of an infinite non-cyclic chain,
-    it raises an error rather than
-    returning a wrong answer.
-\end{enumerate}
+    \item \textbf{Sound failure.}
+      When tabling cannot determine the answer,
+      whether because the iteration budget is exhausted
+      or because of an infinite non-cyclic chain,
+      it raises an error rather than
+      returning a wrong answer.
+  \end{enumerate}
 \end{theorem}
 
 \begin{proof}
-For~(1), each returned fact is the output of some
-equation's right-hand side applied to previously
-returned facts; by induction, all inputs are in
-$\mathrm{lfp}(T_P)$, so the output is too (by
-monotonicity and the fixed-point property).
+  For~(1), each returned fact is the output of some
+  equation's right-hand side applied to previously
+  returned facts; by induction, all inputs are in
+  $\mathrm{lfp}(T_P)$, so the output is too (by
+  monotonicity and the fixed-point property).
 
-For~(2), the implementation accumulates via
-$A \leftarrow A \cup T_P(A)$, which is monotone in~$A$.
+  For~(2), the implementation accumulates via
+  $A \leftarrow A \cup T_P(A)$, which is monotone in~$A$.
 
-For~(3), when no reentry occurs, the evaluation is
-ordinary memoised recursion on a finite acyclic
-reachable subgraph, so every sub-query is computed
-exactly and no approximation is involved.
-When reentry occurs, let $R \subseteq \mathcal{Q}$ be
-the set of queries reachable from the initial query,
-and let $T_P^R$ denote the restriction of $T_P$ to
-maps on~$R$.
-If the accumulator is stable, i.e.\
-$A = A \cup T_P^R(A)$, then
-$T_P^R(A) \subseteq A$, so $A$ is a pre-fixed point
-of~$T_P^R$.
+  For~(3), when no reentry occurs, the evaluation is
+  ordinary memoised recursion on a finite acyclic
+  reachable subgraph, so every sub-query is computed
+  exactly and no approximation is involved.
+  When reentry occurs, let $R \subseteq \mathcal{Q}$ be
+  the set of queries reachable from the initial query,
+  and let $T_P^R$ denote the restriction of $T_P$ to
+  maps on~$R$.
+  If the accumulator is stable, i.e.\
+  $A = A \cup T_P^R(A)$, then
+  $T_P^R(A) \subseteq A$, so $A$ is a pre-fixed point
+  of~$T_P^R$.
 
-By~(1), every fact ever added to the accumulator was
-produced by some right-hand side evaluation and
-therefore belongs to $\mathrm{lfp}(T_P^R)$.
-Hence $A \subseteq \mathrm{lfp}(T_P^R)$.
+  By~(1), every fact ever added to the accumulator was
+  produced by some right-hand side evaluation and
+  therefore belongs to $\mathrm{lfp}(T_P^R)$.
+  Hence $A \subseteq \mathrm{lfp}(T_P^R)$.
 
-Conversely, by the Knaster--Tarski characterization
-of the least fixed point as the least pre-fixed
-point, $\mathrm{lfp}(T_P^R)$ is contained in every
-pre-fixed point of~$T_P^R$, in particular in~$A$.
-Thus $\mathrm{lfp}(T_P^R) \subseteq A$.
+  Conversely, by the Knaster--Tarski characterization
+  of the least fixed point as the least pre-fixed
+  point, $\mathrm{lfp}(T_P^R)$ is contained in every
+  pre-fixed point of~$T_P^R$, in particular in~$A$.
+  Thus $\mathrm{lfp}(T_P^R) \subseteq A$.
 
-Therefore $A = \mathrm{lfp}(T_P^R)$, i.e.\ the stable
-accumulator equals the exact denotation on the
-reachable queries.
+  Therefore $A = \mathrm{lfp}(T_P^R)$, i.e.\ the stable
+  accumulator equals the exact denotation on the
+  reachable queries.
 
-For~(4), budget exhaustion and stack overflow both
-produce exceptions, never silent wrong answers.
+  For~(4), budget exhaustion and stack overflow both
+  produce exceptions, never silent wrong answers.
 \end{proof}
 
 \paragraph{Termination}
 Whether evaluation terminates depends on the
 program:
 \begin{itemize}
-\item \textbf{Acyclic, finite reachable subgraph.}
-  One pass suffices; evaluation terminates.
-\item \textbf{Cyclic, finite per-query domain.}
-  Multiple passes converge by the ascending chain
-  condition on a finite
-  lattice~\cite{bancilhon1986amateur}.
-  This is the Datalog case
-  (Section~\ref{sec:recursive-rules}).
-\item \textbf{Infinite reachable subgraph.}
-  Evaluation may diverge; this is inherent to
-  Turing-completeness and not a defect of the
-  evaluation strategy.
+  \item \textbf{Acyclic, finite reachable subgraph.}
+    One pass suffices; evaluation terminates.
+  \item \textbf{Cyclic, finite per-query domain.}
+    Multiple passes converge by the ascending chain
+    condition on a finite
+    lattice~\cite{bancilhon1986amateur}.
+    This is the Datalog case
+    (Section~\ref{sec:recursive-rules}).
+  \item \textbf{Infinite reachable subgraph.}
+    Evaluation may diverge; this is inherent to
+    Turing completeness and not a defect of the
+    evaluation strategy.
 \end{itemize}
 
 \section{B\"ohm Tree Correspondence: Proofs}
 \label{app:bohm-tree-proofs}
 
-This appendix contains the full proofs of Adequacy
-(Theorem~\ref{thm:adequacy}) and the first-order
-semantics theorem
-(Theorem~\ref{thm:full-abstraction}) stated in
-Section~\ref{sec:bohm-tree}.
+This appendix proves two results about the sublanguage of
+inheritance-calculus corresponding to the $\lambda$-calculus
+(Section~\ref{sec:bohm-tree}).
+First, the first-iteration approximation
+$T_P\!\uparrow\!1$ is fully abstract with respect to
+B\"ohm tree equivalence
+(Theorems~\ref{thm:adequacy} and~\ref{thm:full-abstraction}),
+establishing that the first iteration coincides with
+the lazy $\lambda$-calculus.
+Second, the full $\mathrm{lfp}(T_P)$ semantics---the
+fixpoint $\lambda$-calculus---is strictly more defined:
+$\lambda$-terms that diverge under $\beta$-reduction
+may converge (Remark~\ref{rem:convergence-lfp}),
+establishing a convergence hierarchy among the eager,
+lazy, and fixpoint $\lambda$-calculi.
 
 \subsection{B\"ohm Trees}
 
@@ -2560,17 +2569,17 @@ y\; M_1 \cdots M_k$ where $y$ is a variable.
 The \emph{B\"ohm tree} $\mathrm{BT}(M)$ of a $\lambda$-term $M$
 is an infinite labeled tree defined by:
 \[
-\mathrm{BT}(M) =
-\begin{cases}
-  \bot & \text{if } M \text{ has no HNF} \\[6pt]
-  \lambda x_1 \ldots x_m.\;
-  y\bigl(\mathrm{BT}(M_1),\; \ldots,\; \mathrm{BT}(M_k)\bigr)
-  &
-  \begin{aligned}[t]
-    &\text{if } M \to^*_h \\[-2pt]
-    &\lambda x_1 \ldots x_m.\; y\; M_1 \cdots M_k
-  \end{aligned}
-\end{cases}
+  \mathrm{BT}(M) =
+  \begin{cases}
+    \bot & \text{if } M \text{ has no HNF} \\[6pt]
+    \lambda x_1 \ldots x_m.\;
+    y\bigl(\mathrm{BT}(M_1),\; \ldots,\; \mathrm{BT}(M_k)\bigr)
+    &
+    \begin{aligned}[t]
+      &\text{if } M \to^*_h \\[-2pt]
+      &\lambda x_1 \ldots x_m.\; y\; M_1 \cdots M_k
+    \end{aligned}
+  \end{cases}
 \]
 B\"ohm tree equivalence $\mathrm{BT}(M) = \mathrm{BT}(N)$ is the
 standard observational equivalence of the lazy
@@ -2583,22 +2592,22 @@ and paths in the mixin tree.
 When the translation $\mathcal{T}$ is applied to an ANF
 $\lambda$-term, the resulting mixin tree has a specific shape:
 \begin{itemize}
-\item An abstraction $\lambda x.\, M$ translates to a record
-  with own properties $\{\mathrm{argument}, \mathrm{result}\}$
-  (the \emph{abstraction shape}).
-\item A $\mathbf{let}$-binding
-  $\mathbf{let}\; x = V_1\; V_2 \;\mathbf{in}\; M$ translates
-  to a record with own properties $\{x, \mathrm{result}\}$,
-  where $x$ holds the encapsulated application
-  $\{\mathcal{T}(V_1),\; \mathrm{argument} \mapsto
-  \mathcal{T}(V_2)\}$.
-\item A tail call $V_1\; V_2$ translates to a record with own
-  properties $\{\mathrm{tailCall}, \mathrm{result}\}$, where
-  $\mathrm{tailCall}$ holds the encapsulated application and
-  $\mathrm{result}$ projects
-  $\mathrm{tailCall}.\mathrm{result}$.
-\item A variable $x$ with de~Bruijn index $n$ translates to
-  an indexed reference $\dbi{n}.\mathrm{argument}$.
+  \item An abstraction $\lambda x.\, M$ translates to a record
+    with own properties $\{\mathrm{argument}, \mathrm{result}\}$
+    (the \emph{abstraction shape}).
+  \item A $\mathbf{let}$-binding
+    $\mathbf{let}\; x = V_1\; V_2 \;\mathbf{in}\; M$ translates
+    to a record with own properties $\{x, \mathrm{result}\}$,
+    where $x$ holds the encapsulated application
+    $\{\mathcal{T}(V_1),\; \mathrm{argument} \mapsto
+    \mathcal{T}(V_2)\}$.
+  \item A tail call $V_1\; V_2$ translates to a record with own
+    properties $\{\mathrm{tailCall}, \mathrm{result}\}$, where
+    $\mathrm{tailCall}$ holds the encapsulated application and
+    $\mathrm{result}$ projects
+    $\mathrm{tailCall}.\mathrm{result}$.
+  \item A variable $x$ with de~Bruijn index $n$ translates to
+    an indexed reference $\dbi{n}.\mathrm{argument}$.
 \end{itemize}
 
 \noindent
@@ -2624,7 +2633,7 @@ reduction step in the $\lambda$-calculus: a tail call's
 $\mathrm{result}$ projects through the encapsulated
 application, and a $\mathbf{let}$-binding's $\mathrm{result}$
 enters the continuation.
-The abstraction shape at the end signals that a weak head
+The abstraction shape at the end signals that a head
 normal form has been reached.
 
 \subsection{Single-Path Lemma}
@@ -2634,109 +2643,109 @@ general case of multi-path mixin inheritance.
 For translated $\lambda$-terms, we show it degenerates to
 single-path resolution.
 
-\begin{lemma}[Single Path]\label{lem:single-path}
-For any closed ANF $\lambda$-term $M$, at every invocation of
-$\this(S,\; p_{\mathrm{def}},\; n)$ during evaluation of
-$\mathcal{T}(M)$, the frontier set $S$ contains exactly one
-path.
+\begin{lemma}[Single-Path]\label{lem:single-path}
+  For any closed ANF $\lambda$-term $M$, at every invocation of
+  $\this(S,\; p_{\mathrm{def}},\; n)$ during evaluation of
+  $\mathcal{T}(M)$, the frontier set $S$ contains exactly one
+  path.
 \end{lemma}
 
 \begin{proof}
-By case analysis on the translation rules of~$\mathcal{T}$.
-Since $\mathcal{T}$ is compositional, the structural invariant
-established for each rule propagates to all inherited subtrees:
-every subtree appearing in the mixin tree is itself the image of
-some sub-term under~$\mathcal{T}$, so the invariant holds
-throughout the runtime composition.
+  By case analysis on the translation rules of~$\mathcal{T}$.
+  Since $\mathcal{T}$ is compositional, the structural invariant
+  established for each rule propagates to all inherited subtrees:
+  every subtree appearing in the mixin tree is itself the image of
+  some sub-term under~$\mathcal{T}$, so the invariant holds
+  throughout the runtime composition.
 
-\paragraph{Case $\mathcal{T}(\lambda x.\, M)
-  = \{\mathrm{argument} \mapsto \{\},\;
-\mathrm{result} \mapsto \mathcal{T}(M)\}$}
-This is a record literal with
-$\defines = \{\mathrm{argument}, \mathrm{result}\}$ and
-no inheritance sources, so $\inherits = \varnothing$.
-At the root path $p$, we have $\overrides(p) = \{p\}$ (a single
-path) since there are no inheritance sources to introduce
-additional branches.
-Inside $\mathcal{T}(M)$, any reference to $x$ is
-$\dbi{n}.\mathrm{argument}$ where $n$ is the de~Bruijn index
-pointing to this scope level.
-Since $\mathcal{T}(\lambda x.\, M)$ introduces exactly one
-scope level, there is exactly one
-mixin at that level, hence $\this$ finds exactly one matching
-pair $(p_{\mathrm{site}},\; p_{\mathrm{override}})$ in $\supers$.
+  \paragraph{Case $\mathcal{T}(\lambda x.\, M)
+    = \{\mathrm{argument} \mapsto \{\},\;
+  \mathrm{result} \mapsto \mathcal{T}(M)\}$}
+  This is a record literal with
+  $\defines = \{\mathrm{argument}, \mathrm{result}\}$ and
+  no inheritance sources, so $\inherits = \varnothing$.
+  At the root path $p$, we have $\overrides(p) = \{p\}$ (a single
+  path) since there are no inheritance sources to introduce
+  additional branches.
+  Inside $\mathcal{T}(M)$, any reference to $x$ is
+  $\dbi{n}.\mathrm{argument}$ where $n$ is the de~Bruijn index
+  pointing to this scope level.
+  Since $\mathcal{T}(\lambda x.\, M)$ introduces exactly one
+  scope level, there is exactly one
+  mixin at that level, hence $\this$ finds exactly one matching
+  pair $(p_{\mathrm{site}},\; p_{\mathrm{override}})$ in $\supers$.
 
-\paragraph{Case
-  $\mathcal{T}(\mathbf{let}\; x = V_1\; V_2
-  \;\mathbf{in}\; M)
-  = \{x \mapsto \{\mathcal{T}(V_1),\;
-    \mathrm{argument} \mapsto \mathcal{T}(V_2)\},\;
-\mathrm{result} \mapsto \mathcal{T}(M)\}$}
-The outer record has own properties $\{x, \mathrm{result}\}$
-and no inheritance sources at the outer level
-($\inherits = \varnothing$), so $\overrides(\text{root})
-= \{\text{root}\}$.
-Inside the $x$ subtree, the inheritance
-$\{\mathcal{T}(V_1),\; \mathrm{argument} \mapsto
-\mathcal{T}(V_2)\}$ has exactly one inheritance source
-($\mathcal{T}(V_1)$), creating exactly one $\bases$ entry.
-By induction on $V_1$, the single-path property holds inside
-$\mathcal{T}(V_1)$.
-Inside $\mathcal{T}(M)$, the induction hypothesis applies
-directly.
+  \paragraph{Case
+    $\mathcal{T}(\mathbf{let}\; x = V_1\; V_2
+    \;\mathbf{in}\; M)
+    = \{x \mapsto \{\mathcal{T}(V_1),\;
+      \mathrm{argument} \mapsto \mathcal{T}(V_2)\},\;
+  \mathrm{result} \mapsto \mathcal{T}(M)\}$}
+  The outer record has own properties $\{x, \mathrm{result}\}$
+  and no inheritance sources at the outer level
+  ($\inherits = \varnothing$), so $\overrides(\text{root})
+  = \{\text{root}\}$.
+  Inside the $x$ subtree, the inheritance
+  $\{\mathcal{T}(V_1),\; \mathrm{argument} \mapsto
+  \mathcal{T}(V_2)\}$ has exactly one inheritance source
+  ($\mathcal{T}(V_1)$), creating exactly one $\bases$ entry.
+  By induction on $V_1$, the single-path property holds inside
+  $\mathcal{T}(V_1)$.
+  Inside $\mathcal{T}(M)$, the induction hypothesis applies
+  directly.
 
-\paragraph{Case
-  $\mathcal{T}(\mathbf{let}\; x = V
-  \;\mathbf{in}\; M)
-  = \{x \mapsto \{\mathrm{result} \mapsto \mathcal{T}(V)\},\;
-\mathrm{result} \mapsto \mathcal{T}(M)\}$}
-The outer record has own properties $\{x, \mathrm{result}\}$
-and no inheritance sources at the outer level, so
-$\overrides(\text{root}) = \{\text{root}\}$.
-The $x$ subtree is itself a record literal with own
-property $\{\mathrm{result}\}$ and no inheritance
-sources.
-Thus neither entering the bound value nor entering the
-body introduces branching in $\supers$.
-By induction, the single-path property holds inside both
-$\mathcal{T}(V)$ and $\mathcal{T}(M)$.
+  \paragraph{Case
+    $\mathcal{T}(\mathbf{let}\; x = V
+    \;\mathbf{in}\; M)
+    = \{x \mapsto \{\mathrm{result} \mapsto \mathcal{T}(V)\},\;
+  \mathrm{result} \mapsto \mathcal{T}(M)\}$}
+  The outer record has own properties $\{x, \mathrm{result}\}$
+  and no inheritance sources at the outer level, so
+  $\overrides(\text{root}) = \{\text{root}\}$.
+  The $x$ subtree is itself a record literal with own
+  property $\{\mathrm{result}\}$ and no inheritance
+  sources.
+  Thus neither entering the bound value nor entering the
+  body introduces branching in $\supers$.
+  By induction, the single-path property holds inside both
+  $\mathcal{T}(V)$ and $\mathcal{T}(M)$.
 
-\paragraph{Case $\mathcal{T}(V_1\; V_2) =
-  \{\mathrm{tailCall} \mapsto
-    \{\mathcal{T}(V_1),\; \mathrm{argument} \mapsto
-    \mathcal{T}(V_2)\},\;
-    \mathrm{result} \mapsto
-\mathrm{tailCall}.\mathrm{result}\}$}
-Identical to the $\mathbf{let}$-binding case: the outer record
-has own properties $\{\mathrm{tailCall}, \mathrm{result}\}$
-with no inheritance sources at the outer level, and the
-$\mathrm{tailCall}$ subtree contains exactly one inheritance
-source.
+  \paragraph{Case $\mathcal{T}(V_1\; V_2) =
+    \{\mathrm{tailCall} \mapsto
+      \{\mathcal{T}(V_1),\; \mathrm{argument} \mapsto
+      \mathcal{T}(V_2)\},\;
+      \mathrm{result} \mapsto
+  \mathrm{tailCall}.\mathrm{result}\}$}
+  Identical to the $\mathbf{let}$-binding case: the outer record
+  has own properties $\{\mathrm{tailCall}, \mathrm{result}\}$
+  with no inheritance sources at the outer level, and the
+  $\mathrm{tailCall}$ subtree contains exactly one inheritance
+  source.
 
-\paragraph{Case $\mathcal{T}(x)
-= \dbi{n}.\mathrm{argument}$}
-This is a reference, not a record.
-The $\this$ function walks up $n$ steps from the enclosing scope.
-By the compositionality argument above, every scope level
-encountered during the walk, including inherited subtrees
-reached through reference resolution, is the image of some
-sub-term under~$\mathcal{T}$, so each step of $\this$
-encounters exactly one matching pair in $\supers$.
+  \paragraph{Case $\mathcal{T}(x)
+  = \dbi{n}.\mathrm{argument}$}
+  This is a reference, not a record.
+  The $\this$ function walks up $n$ steps from the enclosing scope.
+  By the compositionality argument above, every scope level
+  encountered during the walk, including inherited subtrees
+  reached through reference resolution, is the image of some
+  sub-term under~$\mathcal{T}$, so each step of $\this$
+  encounters exactly one matching pair in $\supers$.
 
-\medskip\noindent
-The key structural invariant is the following.
-For every subtree generated by~$\mathcal{T}$,
-its root has either no inheritance source or exactly one
-inheritance source.
-Moreover, the only roots with an inheritance source are the
-application wrappers introduced by the application
-$\mathbf{let}$-binding and tail-call rules, and in both cases
-that source is unique and encapsulated under a distinguished
-child ($x$ or $\mathrm{tailCall}$), never at the enclosing
-scope level.
-Therefore every scope level traversed by $\this$ contributes
-at most one matching pair in $\supers$, so the frontier set
-remains a singleton throughout evaluation.
+  \medskip\noindent
+  The key structural invariant is the following.
+  For every subtree generated by~$\mathcal{T}$,
+  its root has either no inheritance source or exactly one
+  inheritance source.
+  Moreover, the only roots with an inheritance source are the
+  application wrappers introduced by the application
+  $\mathbf{let}$-binding and tail-call rules, and in both cases
+  that source is unique and encapsulated under a distinguished
+  child ($x$ or $\mathrm{tailCall}$), never at the enclosing
+  scope level.
+  Therefore every scope level traversed by $\this$ contributes
+  at most one matching pair in $\supers$, so the frontier set
+  remains a singleton throughout evaluation.
 \end{proof}
 
 \subsection{Substitution Lemma}
@@ -2746,123 +2755,123 @@ $\mathrm{argument} \mapsto \mathcal{T}(V)$ plays the role of
 substitution.  We make this precise.
 
 \begin{lemma}[Substitution]\label{lem:substitution}
-Let $M$ be an ANF term in which $x$ may occur free,
-and let $V$ be a closed value.
-Define the \emph{inherited tree}
-$C = \{\mathcal{T}(\lambda x.\, M),\;
-\mathrm{argument} \mapsto \mathcal{T}(V)\}$.
-Then for every path $p$ under $C \snoc \mathrm{result}$ and
-every label $\ell$:
-\[
-  \ell \in \properties(p)
-  \text{ in } C \snoc \mathrm{result}
-  \quad\Longleftrightarrow\quad
-  \ell \in \properties(p)
-  \text{ in } \mathcal{T}(M[V/x])
-\]
-where $M[V/x]$ is the usual capture-avoiding substitution.
+  Let $M$ be an ANF term in which $x$ may occur free,
+  and let $V$ be a closed value.
+  Define the \emph{inherited tree}
+  $C = \{\mathcal{T}(\lambda x.\, M),\;
+  \mathrm{argument} \mapsto \mathcal{T}(V)\}$.
+  Then for every path $p$ under $C \snoc \mathrm{result}$ and
+  every label $\ell$:
+  \[
+    \ell \in \properties(p)
+    \text{ in } C \snoc \mathrm{result}
+    \quad\Longleftrightarrow\quad
+    \ell \in \properties(p)
+    \text{ in } \mathcal{T}(M[V/x])
+  \]
+  where $M[V/x]$ is the usual capture-avoiding substitution.
 \end{lemma}
 
 \begin{proof}
-By structural induction on $M$.
+  By structural induction on $M$.
 
-\paragraph{Base case: $M = x$}
-Then $\mathcal{T}(x) =
-\dbi{n}.\mathrm{argument}$ (where $n$ is the de~Bruijn index
-of $x$), and
-$C \snoc \mathrm{result}$ contains this reference.
-In the inherited tree $C$, $\resolve$ and $\this$ resolve the reference by
-navigating from the reference's enclosing scope up $n$ steps
-to the binding $\lambda$, where the inheritance
-$\{\mathcal{T}(\lambda x.\, x),\;
-\mathrm{argument} \mapsto \mathcal{T}(V)\}$ inherits into the
-$\mathrm{argument}$ slot, providing $\mathcal{T}(V)$.
-Since $C$ is the $\mathrm{tailCall}$ subtree of
-$\mathcal{T}\bigl((\lambda x.\, M)\; V\bigr)$, which is a
-closed ANF term, Lemma~\ref{lem:single-path} applies and
-$\this$ finds exactly one path,
-so $\resolve$ returns $\mathcal{T}(V)$'s subtree.
-Since $M[V/x] = V$, we have
-$\mathcal{T}(M[V/x]) = \mathcal{T}(V)$, and the properties
-coincide.
+  \paragraph{Base case: $M = x$}
+  Then $\mathcal{T}(x) =
+  \dbi{n}.\mathrm{argument}$ (where $n$ is the de~Bruijn index
+  of $x$), and
+  $C \snoc \mathrm{result}$ contains this reference.
+  In the inherited tree $C$, $\resolve$ and $\this$ resolve the reference by
+  navigating from the reference's enclosing scope up $n$ steps
+  to the binding $\lambda$, where the inheritance
+  $\{\mathcal{T}(\lambda x.\, x),\;
+  \mathrm{argument} \mapsto \mathcal{T}(V)\}$ inherits into the
+  $\mathrm{argument}$ slot, providing $\mathcal{T}(V)$.
+  Since $C$ is the $\mathrm{tailCall}$ subtree of
+  $\mathcal{T}\bigl((\lambda x.\, M)\; V\bigr)$, which is a
+  closed ANF term, Lemma~\ref{lem:single-path} applies and
+  $\this$ finds exactly one path,
+  so $\resolve$ returns $\mathcal{T}(V)$'s subtree.
+  Since $M[V/x] = V$, we have
+  $\mathcal{T}(M[V/x]) = \mathcal{T}(V)$, and the properties
+  coincide.
 
-\paragraph{Base case: $M = y$ where $y \neq x$ and $y$ is
-$\lambda$-bound}
-Then $\mathcal{T}(y) = \dbi{m}.\mathrm{argument}$ where $m$
-is the de~Bruijn index of~$y$.
-This walks up to the scope that binds~$y$, which is different
-from the scope that binds~$x$, so the inheritance with
-$\mathrm{argument} \mapsto \mathcal{T}(V)$ at $x$'s binding
-scope has no effect.
-Since $M[V/x] = y$, the properties are identical.
+  \paragraph{Base case: $M = y$ where $y \neq x$ and $y$ is
+  $\lambda$-bound}
+  Then $\mathcal{T}(y) = \dbi{m}.\mathrm{argument}$ where $m$
+  is the de~Bruijn index of~$y$.
+  This walks up to the scope that binds~$y$, which is different
+  from the scope that binds~$x$, so the inheritance with
+  $\mathrm{argument} \mapsto \mathcal{T}(V)$ at $x$'s binding
+  scope has no effect.
+  Since $M[V/x] = y$, the properties are identical.
 
-\paragraph{Base case: $M = y$ where $y \neq x$ and $y$ is
-let-bound}
-Then $\mathcal{T}(y) = y.\mathrm{result}$.
-This is a lexical reference to the sibling property~$y$ in the
-enclosing record, so the inherited tree~$C$ does not alter its
-resolution.
-Since $M[V/x] = y$, the properties are identical.
+  \paragraph{Base case: $M = y$ where $y \neq x$ and $y$ is
+  let-bound}
+  Then $\mathcal{T}(y) = y.\mathrm{result}$.
+  This is a lexical reference to the sibling property~$y$ in the
+  enclosing record, so the inherited tree~$C$ does not alter its
+  resolution.
+  Since $M[V/x] = y$, the properties are identical.
 
-\paragraph{Inductive case: $M = \lambda y.\, M'$}
-Then $\mathcal{T}(M) =
-\{\mathrm{argument} \mapsto \{\},\;
-\mathrm{result} \mapsto \mathcal{T}(M')\}$.
-The subtree at $C \snoc \mathrm{result}$ is another
-abstraction-shaped record.
-References to $x$ inside $\mathcal{T}(M')$ resolve through
-$\this$ in exactly the same way (with one additional scope
-level from the inner $\lambda$), and by induction on $M'$, the
-properties under
-$C \snoc \mathrm{result} \snoc \mathrm{result}$
-coincide with those of
-$\mathcal{T}(M'[V/x])$.
-Since
-$(\lambda y.\, M')[V/x] = \lambda y.\, (M'[V/x])$
-(assuming $y$ is fresh), the result follows.
+  \paragraph{Inductive case: $M = \lambda y.\, M'$}
+  Then $\mathcal{T}(M) =
+  \{\mathrm{argument} \mapsto \{\},\;
+  \mathrm{result} \mapsto \mathcal{T}(M')\}$.
+  The subtree at $C \snoc \mathrm{result}$ is another
+  abstraction-shaped record.
+  References to $x$ inside $\mathcal{T}(M')$ resolve through
+  $\this$ in exactly the same way (with one additional scope
+  level from the inner $\lambda$), and by induction on $M'$, the
+  properties under
+  $C \snoc \mathrm{result} \snoc \mathrm{result}$
+  coincide with those of
+  $\mathcal{T}(M'[V/x])$.
+  Since
+  $(\lambda y.\, M')[V/x] = \lambda y.\, (M'[V/x])$
+  (assuming $y$ is fresh), the result follows.
 
-\paragraph{Inductive case:
-  $M = \mathbf{let}\; z = V_1\; V_2$
-$\mathbf{in}\; M'$}
-Then
-\[
-  \mathcal{T}(M) =
-  \{z \mapsto \{\mathcal{T}(V_1),\;
-    \mathrm{argument} \mapsto \mathcal{T}(V_2)\},\;
-  \mathrm{result} \mapsto \mathcal{T}(M')\}.
-\]
-The substitution distributes:
-$M[V/x] =
-\mathbf{let}\; z = V_1[V/x]\; V_2[V/x]
-\;\mathbf{in}\; M'[V/x]$.
-By induction on $V_1$, $V_2$, and $M'$, the properties under
-each subtree ($z$ and $\mathrm{result}$) coincide,
-since references to $x$ inside each subtree resolve to
-$\mathcal{T}(V)$ via the same $\this$ mechanism.
+  \paragraph{Inductive case:
+    $M = \mathbf{let}\; z = V_1\; V_2$
+  $\mathbf{in}\; M'$}
+  Then
+  \[
+    \mathcal{T}(M) =
+    \{z \mapsto \{\mathcal{T}(V_1),\;
+      \mathrm{argument} \mapsto \mathcal{T}(V_2)\},\;
+    \mathrm{result} \mapsto \mathcal{T}(M')\}.
+  \]
+  The substitution distributes:
+  $M[V/x] =
+  \mathbf{let}\; z = V_1[V/x]\; V_2[V/x]
+  \;\mathbf{in}\; M'[V/x]$.
+  By induction on $V_1$, $V_2$, and $M'$, the properties under
+  each subtree ($z$ and $\mathrm{result}$) coincide,
+  since references to $x$ inside each subtree resolve to
+  $\mathcal{T}(V)$ via the same $\this$ mechanism.
 
-\paragraph{Inductive case:
-  $M = \mathbf{let}\; z = V'
-\;\mathbf{in}\; M'$}
-Then
-\[
-  \mathcal{T}(M) =
-  \{z \mapsto \{\mathrm{result} \mapsto \mathcal{T}(V')\},\;
-  \mathrm{result} \mapsto \mathcal{T}(M')\}.
-\]
-The substitution distributes:
-$M[V/x] =
-\mathbf{let}\; z = V'[V/x]
-\;\mathbf{in}\; M'[V/x]$.
-By induction on $V'$ and $M'$, the properties under both
-subtrees ($z$ and $\mathrm{result}$) coincide.
-In particular, occurrences of~$z$ in $M'$ are translated as the
-lexical reference $z.\mathrm{result}$ on both sides, so the
-wrapper introduced by the value $\mathbf{let}$-binding is
-preserved by the substitution.
+  \paragraph{Inductive case:
+    $M = \mathbf{let}\; z = V'
+  \;\mathbf{in}\; M'$}
+  Then
+  \[
+    \mathcal{T}(M) =
+    \{z \mapsto \{\mathrm{result} \mapsto \mathcal{T}(V')\},\;
+    \mathrm{result} \mapsto \mathcal{T}(M')\}.
+  \]
+  The substitution distributes:
+  $M[V/x] =
+  \mathbf{let}\; z = V'[V/x]
+  \;\mathbf{in}\; M'[V/x]$.
+  By induction on $V'$ and $M'$, the properties under both
+  subtrees ($z$ and $\mathrm{result}$) coincide.
+  In particular, occurrences of~$z$ in $M'$ are translated as the
+  lexical reference $z.\mathrm{result}$ on both sides, so the
+  wrapper introduced by the value $\mathbf{let}$-binding is
+  preserved by the substitution.
 
-\paragraph{Inductive case: $M = V_1\; V_2$ (tail call)}
-Analogous to the $\mathbf{let}$-binding case with
-$\mathrm{tailCall}$ in place of $z$.
+  \paragraph{Inductive case: $M = V_1\; V_2$ (tail call)}
+  Analogous to the $\mathbf{let}$-binding case with
+  $\mathrm{tailCall}$ in place of $z$.
 \end{proof}
 
 \subsection{Convergence Preservation}
@@ -2874,137 +2883,137 @@ in the $\lambda$-calculus.
 We make this precise.
 
 \begin{lemma}[Result-step]\label{lem:result-step}
-Let $(\lambda x.\, M)\; V$ be a tail call (a $\beta$-redex).
-Then for every path $p$ and label $\ell$:
-\[
-  \ell \in \properties\!\bigl(\,
-  \text{root} \snoc \mathrm{result} \snoc p\,\bigr)
-  \text{ in } \mathcal{T}\bigl((\lambda x.\, M)\; V\bigr)
-  \;\Longleftrightarrow\;
-  \ell \in \properties\!\bigl(\,
-  \text{root} \snoc p\,\bigr)
-  \text{ in } \mathcal{T}(M[V/x])
-\]
-That is, following one $\mathrm{result}$ projection in the
-tail call's mixin tree yields the same properties as the
-root of the reduct's mixin tree.
+  Let $(\lambda x.\, M)\; V$ be a tail call (a $\beta$-redex).
+  Then for every path $p$ and label $\ell$:
+  \[
+    \ell \in \properties\!\bigl(\,
+    \text{root} \snoc \mathrm{result} \snoc p\,\bigr)
+    \text{ in } \mathcal{T}\bigl((\lambda x.\, M)\; V\bigr)
+    \;\Longleftrightarrow\;
+    \ell \in \properties\!\bigl(\,
+    \text{root} \snoc p\,\bigr)
+    \text{ in } \mathcal{T}(M[V/x])
+  \]
+  That is, following one $\mathrm{result}$ projection in the
+  tail call's mixin tree yields the same properties as the
+  root of the reduct's mixin tree.
 \end{lemma}
 
 \begin{proof}
-The translation gives:
-\[
-  \mathcal{T}\bigl((\lambda x.\, M)\; V\bigr) =
-  \{\mathrm{tailCall} \mapsto
-    \{\mathcal{T}(\lambda x.\, M),\;
-    \mathrm{argument} \mapsto \mathcal{T}(V)\},\;
-    \mathrm{result} \mapsto
-  \mathrm{tailCall}.\mathrm{result}\}
-\]
-The $\mathrm{result}$ label at the root is defined as
-$\mathrm{tailCall}.\mathrm{result}$, so
-$\text{root} \snoc \mathrm{result}$ resolves to the
-$\mathrm{result}$ path inside the inheritance
-$\mathrm{tailCall} = \{\mathcal{T}(\lambda x.\, M),\;
-\mathrm{argument} \mapsto \mathcal{T}(V)\}$.
-This inheritance is exactly the inherited tree $C$ of
-Lemma~\ref{lem:substitution}, and
-$\mathrm{tailCall} \snoc \mathrm{result}$ is
-$C \snoc \mathrm{result}$.
-By Lemma~\ref{lem:substitution}, the properties under
-$C \snoc \mathrm{result}$ coincide with those of
-$\mathcal{T}(M[V/x])$.
+  The translation gives:
+  \[
+    \mathcal{T}\bigl((\lambda x.\, M)\; V\bigr) =
+    \{\mathrm{tailCall} \mapsto
+      \{\mathcal{T}(\lambda x.\, M),\;
+      \mathrm{argument} \mapsto \mathcal{T}(V)\},\;
+      \mathrm{result} \mapsto
+    \mathrm{tailCall}.\mathrm{result}\}
+  \]
+  The $\mathrm{result}$ label at the root is defined as
+  $\mathrm{tailCall}.\mathrm{result}$, so
+  $\text{root} \snoc \mathrm{result}$ resolves to the
+  $\mathrm{result}$ path inside the inheritance
+  $\mathrm{tailCall} = \{\mathcal{T}(\lambda x.\, M),\;
+  \mathrm{argument} \mapsto \mathcal{T}(V)\}$.
+  This inheritance is exactly the inherited tree $C$ of
+  Lemma~\ref{lem:substitution}, and
+  $\mathrm{tailCall} \snoc \mathrm{result}$ is
+  $C \snoc \mathrm{result}$.
+  By Lemma~\ref{lem:substitution}, the properties under
+  $C \snoc \mathrm{result}$ coincide with those of
+  $\mathcal{T}(M[V/x])$.
 
-\medskip\noindent
-\emph{Let-binding variant.}
-An analogous result holds for
-$\mathbf{let}\; x = V_1\; V_2 \;\mathbf{in}\; M'$
-where $V_1 = \lambda y.\, M''$.
-The translation gives:
-\[
-  \mathcal{T}\bigl(\mathbf{let}\; x = V_1\; V_2
-  \;\mathbf{in}\; M'\bigr) =
-  \{x \mapsto \{\mathcal{T}(V_1),\;
-    \mathrm{argument} \mapsto \mathcal{T}(V_2)\},\;
-  \mathrm{result} \mapsto \mathcal{T}(M')\}
-\]
-Since $\mathrm{result} \mapsto \mathcal{T}(M')$ is a property
-definition, the subtree at
-$\text{root} \snoc \mathrm{result}$ is $\mathcal{T}(M')$.
-Inside $\mathcal{T}(M')$, each reference to $x$ is
-$x.\mathrm{result}$, which resolves to the $\mathrm{result}$
-path inside the $x$ subtree
-$\{\mathcal{T}(\lambda y.\, M''),\;
-\mathrm{argument} \mapsto \mathcal{T}(V_2)\}$.
-This is the inherited tree $C$ of
-Lemma~\ref{lem:substitution}, so
-$x.\mathrm{result}$ has the same properties as
-$\mathcal{T}(M''[V_2/y])$.
-In the $\lambda$-calculus,
-$M = (\lambda x.\, M')(V_1\; V_2)$, and the head reduct is
-$N = M'[(V_1\; V_2)/x]$.
-In $\mathcal{T}(N)$, each occurrence of $x$ is replaced by
-$(V_1\; V_2)$, whose result, by the tail-call variant above,
-also yields $\mathcal{T}(M''[V_2/y])$.
-Therefore the properties at
-$\text{root} \snoc \mathrm{result} \snoc p$ in
-$\mathcal{T}(M)$ coincide with those at
-$\text{root} \snoc p$ in $\mathcal{T}(N)$ for all $p$.
+  \medskip\noindent
+  \emph{Let-binding variant.}
+  An analogous result holds for
+  $\mathbf{let}\; x = V_1\; V_2 \;\mathbf{in}\; M'$
+  where $V_1 = \lambda y.\, M''$.
+  The translation gives:
+  \[
+    \mathcal{T}\bigl(\mathbf{let}\; x = V_1\; V_2
+    \;\mathbf{in}\; M'\bigr) =
+    \{x \mapsto \{\mathcal{T}(V_1),\;
+      \mathrm{argument} \mapsto \mathcal{T}(V_2)\},\;
+    \mathrm{result} \mapsto \mathcal{T}(M')\}
+  \]
+  Since $\mathrm{result} \mapsto \mathcal{T}(M')$ is a property
+  definition, the subtree at
+  $\text{root} \snoc \mathrm{result}$ is $\mathcal{T}(M')$.
+  Inside $\mathcal{T}(M')$, each reference to $x$ is
+  $x.\mathrm{result}$, which resolves to the $\mathrm{result}$
+  path inside the $x$ subtree
+  $\{\mathcal{T}(\lambda y.\, M''),\;
+  \mathrm{argument} \mapsto \mathcal{T}(V_2)\}$.
+  This is the inherited tree $C$ of
+  Lemma~\ref{lem:substitution}, so
+  $x.\mathrm{result}$ has the same properties as
+  $\mathcal{T}(M''[V_2/y])$.
+  In the $\lambda$-calculus,
+  $M = (\lambda x.\, M')(V_1\; V_2)$, and the head reduct is
+  $N = M'[(V_1\; V_2)/x]$.
+  In $\mathcal{T}(N)$, each occurrence of $x$ is replaced by
+  $(V_1\; V_2)$, whose result, by the tail-call variant above,
+  also yields $\mathcal{T}(M''[V_2/y])$.
+  Therefore the properties at
+  $\text{root} \snoc \mathrm{result} \snoc p$ in
+  $\mathcal{T}(M)$ coincide with those at
+  $\text{root} \snoc p$ in $\mathcal{T}(N)$ for all $p$.
 
-\medskip\noindent
-\emph{Value let-binding variant.}
-An analogous result holds for
-$\mathbf{let}\; x = V \;\mathbf{in}\; M'$.
-The translation gives:
-\[
-  \mathcal{T}\bigl(\mathbf{let}\; x = V \;\mathbf{in}\; M'\bigr) =
-  \{x \mapsto \{\mathrm{result} \mapsto \mathcal{T}(V)\},\;
-  \mathrm{result} \mapsto \mathcal{T}(M')\}.
-\]
-Since $\mathrm{result} \mapsto \mathcal{T}(M')$ is a property
-definition, the subtree at
-$\text{root} \snoc \mathrm{result}$ is $\mathcal{T}(M')$.
-Inside $\mathcal{T}(M')$, each occurrence of $x$ is translated
-as the lexical reference $x.\mathrm{result}$, which resolves to
-the subtree $\mathcal{T}(V)$.
-This is exactly the translation of the reduct
-$M'[V/x]$.
-Therefore the properties at
-$\text{root} \snoc \mathrm{result} \snoc p$ in
-$\mathcal{T}(\mathbf{let}\; x = V \;\mathbf{in}\; M')$
-coincide with those at
-$\text{root} \snoc p$ in $\mathcal{T}(M'[V/x])$ for all $p$.
+  \medskip\noindent
+  \emph{Value let-binding variant.}
+  An analogous result holds for
+  $\mathbf{let}\; x = V \;\mathbf{in}\; M'$.
+  The translation gives:
+  \[
+    \mathcal{T}\bigl(\mathbf{let}\; x = V \;\mathbf{in}\; M'\bigr) =
+    \{x \mapsto \{\mathrm{result} \mapsto \mathcal{T}(V)\},\;
+    \mathrm{result} \mapsto \mathcal{T}(M')\}.
+  \]
+  Since $\mathrm{result} \mapsto \mathcal{T}(M')$ is a property
+  definition, the subtree at
+  $\text{root} \snoc \mathrm{result}$ is $\mathcal{T}(M')$.
+  Inside $\mathcal{T}(M')$, each occurrence of $x$ is translated
+  as the lexical reference $x.\mathrm{result}$, which resolves to
+  the subtree $\mathcal{T}(V)$.
+  This is exactly the translation of the reduct
+  $M'[V/x]$.
+  Therefore the properties at
+  $\text{root} \snoc \mathrm{result} \snoc p$ in
+  $\mathcal{T}(\mathbf{let}\; x = V \;\mathbf{in}\; M')$
+  coincide with those at
+  $\text{root} \snoc p$ in $\mathcal{T}(M'[V/x])$ for all $p$.
 \end{proof}
 
 \begin{theorem}[Convergence preservation]%
-\label{thm:convergence-preservation}
-If $M \to_h N$ (head reduction), then
-$\mathcal{T}(M){\Downarrow}$ if and only if
-$\mathcal{T}(N){\Downarrow}$.
+  \label{thm:convergence-preservation}
+  If $M \to_h N$ (head reduction), then
+  $\mathcal{T}(M){\Downarrow}$ if and only if
+  $\mathcal{T}(N){\Downarrow}$.
 \end{theorem}
 
 \begin{proof}
-A head reduction step in ANF takes one of three forms:
-a tail call $(\lambda x.\, M')\; V \to_h M'[V/x]$,
-an application $\mathbf{let}$-binding
-$\mathbf{let}\; x = V_1\; V_2 \;\mathbf{in}\; M'
-\to_h M'[(V_1\; V_2)/x]$,
-or a value $\mathbf{let}$-binding
-$\mathbf{let}\; x = V \;\mathbf{in}\; M'
-\to_h M'[V/x]$.
-The second and third forms are simply the ANF
-presentation of one $\beta$-step in the underlying
-$\lambda$-term.
-In all three cases, Lemma~\ref{lem:result-step}
-(tail-call, application let-binding, and value
-let-binding variants) shows that
-the properties at $\text{root} \snoc \mathrm{result}^n$ in
-$\mathcal{T}(M)$ coincide with the properties at
-$\text{root} \snoc \mathrm{result}^{n-1}$ in
-$\mathcal{T}(N)$ for all $n \ge 1$, where $N$ is the
-head reduct.
-Hence the abstraction shape appears at depth $n$ in the
-pre-reduct if and only if it appears at depth $n - 1$ in
-the post-reduct.
+  A head reduction step in ANF takes one of three forms:
+  a tail call $(\lambda x.\, M')\; V \to_h M'[V/x]$,
+  an application $\mathbf{let}$-binding
+  $\mathbf{let}\; x = V_1\; V_2 \;\mathbf{in}\; M'
+  \to_h M'[(V_1\; V_2)/x]$,
+  or a value $\mathbf{let}$-binding
+  $\mathbf{let}\; x = V \;\mathbf{in}\; M'
+  \to_h M'[V/x]$.
+  The second and third forms are simply the ANF
+  presentation of one $\beta$-step in the underlying
+  $\lambda$-term.
+  In all three cases, Lemma~\ref{lem:result-step}
+  (tail-call, application let-binding, and value
+  let-binding variants) shows that
+  the properties at $\text{root} \snoc \mathrm{result}^n$ in
+  $\mathcal{T}(M)$ coincide with the properties at
+  $\text{root} \snoc \mathrm{result}^{n-1}$ in
+  $\mathcal{T}(N)$ for all $n \ge 1$, where $N$ is the
+  head reduct.
+  Hence the abstraction shape appears at depth $n$ in the
+  pre-reduct if and only if it appears at depth $n - 1$ in
+  the post-reduct.
 \end{proof}
 
 \paragraph{Extension to $\mathrm{lfp}(T_P)$ semantics}
@@ -3023,72 +3032,72 @@ We now relate two points in this sequence to the
 $\lambda$-calculus.
 
 \begin{description}
-\item[$T_P\!\uparrow\!1$ corresponds to
-  $\beta$-reduction.]
-  The Result-Step Lemma
-  (Lemma~\ref{lem:result-step}) establishes a
-  structural isomorphism between the equation
-  systems of $\mathcal{T}(M)$ and
-  $\mathcal{T}(N)$, shifted by one
-  $\mathrm{result}$ step.
-  This isomorphism is purely structural and holds
-  for any number of iterations.
-  $T_P\!\uparrow\!1$ evaluates each equation once,
-  with re-entrant calls returning~$\bot$
-  (the value from $T_P\!\uparrow\!0$);
-  this matches the convergence behavior
-  of lazy $\beta$-reduction.
-  The Adequacy theorem
-  (Theorem~\ref{thm:adequacy}) and the
-  full abstraction theorem
-  (Theorem~\ref{thm:full-abstraction})
-  are proved at this level.
+  \item[$T_P\!\uparrow\!1$ corresponds to
+    $\beta$-reduction.]
+    The Result-Step Lemma
+    (Lemma~\ref{lem:result-step}) establishes a
+    structural isomorphism between the equation
+    systems of $\mathcal{T}(M)$ and
+    $\mathcal{T}(N)$, shifted by one
+    $\mathrm{result}$ step.
+    This isomorphism is purely structural and holds
+    for any number of iterations.
+    $T_P\!\uparrow\!1$ evaluates each equation once,
+    with re-entrant calls returning~$\bot$
+    (the value from $T_P\!\uparrow\!0$);
+    this matches the convergence behavior
+    of lazy $\beta$-reduction.
+    The Adequacy theorem
+    (Theorem~\ref{thm:adequacy}) and the
+    full abstraction theorem
+    (Theorem~\ref{thm:full-abstraction})
+    are proved at this level.
 
-\item[$\mathrm{lfp}(T_P)$ is strictly more
-  defined than $\beta$-reduction.]
-  $\mathrm{lfp}(T_P)$ may converge where
-  $\beta$-reduction diverges.
-  We call this sublanguage with $\mathrm{lfp}(T_P)$
-  semantics the \emph{fixpoint $\lambda$-calculus};
-  it shares the same syntax as the lazy $\lambda$-calculus
-  but has strictly greater computational power.
-  $M{\Downarrow}_\lambda$ implies
-  $\mathcal{T}(M){\Downarrow}_{\mathrm{lfp}}$,
-  but not conversely.
+  \item[$\mathrm{lfp}(T_P)$ is strictly more
+    defined than $\beta$-reduction.]
+    $\mathrm{lfp}(T_P)$ may converge where
+    $\beta$-reduction diverges.
+    We call this sublanguage with $\mathrm{lfp}(T_P)$
+    semantics the \emph{fixpoint $\lambda$-calculus};
+    it shares the same syntax as the lazy $\lambda$-calculus
+    but has strictly greater computational power.
+    $M{\Downarrow}_\lambda$ implies
+    $\mathcal{T}(M){\Downarrow}_{\mathrm{lfp}}$,
+    but not conversely.
 
-  As a minimal illustration, the $\lambda$-term
-  $\mathbf{let}\; x = x \;\mathbf{in}\; x$
-  diverges under $\beta$-reduction (unfolding
-  $x$ produces $x$ again, \emph{ad infinitum}).
-  Translation~$\mathcal{T}$ gives
-  \[
-    \{x \mapsto \{\mathrm{result} \mapsto
-      x.\mathrm{result}\},\;
-    \mathrm{result} \mapsto x.\mathrm{result}\}
-  \]
-  where $x.\mathrm{result}$ inherits from
-  itself, creating a cyclic dependency.
-  Under $T_P\!\uparrow\!1$,
-  the cycle returns~$\bot$, matching the
-  $\lambda$-calculus divergence.
-  Under $\mathrm{lfp}(T_P)$, further iteration
-  detects the cycle and converges:
-  $\mathrm{properties}(\mathrm{root}) =
-  \{x, \mathrm{result}\}$ and
-  $\mathrm{properties}(\mathrm{root} \triangleright
-  \mathrm{result}) = \varnothing$,
-  reflecting that the value is undefined
-  (no abstraction shape).
-  Appendix~\ref{app:datalog-encoding} gives a
-  more motivated example (Datalog transitive
-  closure on cyclic graphs).
+    As a minimal illustration, the $\lambda$-term
+    $\mathbf{let}\; x = x \;\mathbf{in}\; x$
+    diverges under $\beta$-reduction (unfolding
+    $x$ produces $x$ again, \emph{ad infinitum}).
+    Translation~$\mathcal{T}$ gives
+    \[
+      \{x \mapsto \{\mathrm{result} \mapsto
+        x.\mathrm{result}\},\;
+      \mathrm{result} \mapsto x.\mathrm{result}\}
+    \]
+    where $x.\mathrm{result}$ inherits from
+    itself, creating a cyclic dependency.
+    Under $T_P\!\uparrow\!1$,
+    the cycle returns~$\bot$, matching the
+    $\lambda$-calculus divergence.
+    Under $\mathrm{lfp}(T_P)$, further iteration
+    detects the cycle and converges:
+    $\mathrm{properties}(\mathrm{root}) =
+    \{x, \mathrm{result}\}$ and
+    $\mathrm{properties}(\mathrm{root} \triangleright
+    \mathrm{result}) = \varnothing$,
+    reflecting that the value is undefined
+    (no abstraction shape).
+    Appendix~\ref{app:datalog-encoding} gives a
+    more motivated example (Datalog transitive
+    closure on cyclic graphs).
 \end{description}
 
 \subsection{Adequacy}
 
 A closed ANF term at the top level is either an abstraction
 (a value) or a computation (an application
-$\mathbf{let}$-binding, a value $\mathbf{let}$-binding,
+  $\mathbf{let}$-binding, a value $\mathbf{let}$-binding,
 or a tail call).
 An abstraction translates to a record whose root immediately
 has the abstraction shape; a computation's root has the form
@@ -3097,86 +3106,86 @@ $\{\mathrm{tailCall}, \mathrm{result}\}$, and one must follow
 the $\mathrm{result}$ chain to find the eventual value.
 
 \begin{proof}[Proof of Theorem~\ref{thm:adequacy}]
-($\Rightarrow$)
-Suppose $M \to^*_h \lambda x.\, M'$ in $k$ head reduction
-steps.
-We show $\mathcal{T}(M)$ converges at depth $\le k$ by
-induction on $k$.
+  ($\Rightarrow$)
+  Suppose $M \to^*_h \lambda x.\, M'$ in $k$ head reduction
+  steps.
+  We show $\mathcal{T}(M)$ converges at depth $\le k$ by
+  induction on $k$.
 
-\emph{Base case} ($k = 0$): $M$ is already an abstraction
-$\lambda x.\, M'$.
-Then $\mathcal{T}(M) =
-\{\mathrm{argument} \mapsto \{\},\;
-\mathrm{result} \mapsto \mathcal{T}(M')\}$,
-whose root has
-$\defines = \{\mathrm{argument}, \mathrm{result}\}$.
-These labels are directly in $\defines$ of the root, so
-the recursive evaluation returns them without further
-recursion, and $\mathcal{T}(M)$ converges at depth $n = 0$.
+  \emph{Base case} ($k = 0$): $M$ is already an abstraction
+  $\lambda x.\, M'$.
+  Then $\mathcal{T}(M) =
+  \{\mathrm{argument} \mapsto \{\},\;
+  \mathrm{result} \mapsto \mathcal{T}(M')\}$,
+  whose root has
+  $\defines = \{\mathrm{argument}, \mathrm{result}\}$.
+  These labels are directly in $\defines$ of the root, so
+  the recursive evaluation returns them without further
+  recursion, and $\mathcal{T}(M)$ converges at depth $n = 0$.
 
-\emph{Inductive step} ($k \ge 1$): $M$ is not an abstraction,
-so $M$ is either a tail call, an application
-$\mathbf{let}$-binding, or a value
-$\mathbf{let}$-binding.
-Each form corresponds to one head $\beta$-step in the
-underlying $\lambda$-term.
-Let $N$ be the head reduct, so
-$M \to_h N \to^{k-1}_h \lambda x.\, M'$.
-Note that $N$ is closed: head reduction substitutes a
-closed value into a term whose only free variable is the
-substitution target, preserving closedness.
-By Lemma~\ref{lem:result-step} (tail-call,
-  application let-binding, or value let-binding
-variant), the properties at
-$\text{root} \snoc \mathrm{result} \snoc p$
-in $\mathcal{T}(M)$ coincide with those at
-$\text{root} \snoc p$ in $\mathcal{T}(N)$.
-By the induction hypothesis, $\mathcal{T}(N)$
-converges at depth $\le k - 1$, so $\mathcal{T}(M)$
-converges at depth $\le k$.
+  \emph{Inductive step} ($k \ge 1$): $M$ is not an abstraction,
+  so $M$ is either a tail call, an application
+  $\mathbf{let}$-binding, or a value
+  $\mathbf{let}$-binding.
+  Each form corresponds to one head $\beta$-step in the
+  underlying $\lambda$-term.
+  Let $N$ be the head reduct, so
+  $M \to_h N \to^{k-1}_h \lambda x.\, M'$.
+  Note that $N$ is closed: head reduction substitutes a
+  closed value into a term whose only free variable is the
+  substitution target, preserving closedness.
+  By Lemma~\ref{lem:result-step} (tail-call,
+    application let-binding, or value let-binding
+  variant), the properties at
+  $\text{root} \snoc \mathrm{result} \snoc p$
+  in $\mathcal{T}(M)$ coincide with those at
+  $\text{root} \snoc p$ in $\mathcal{T}(N)$.
+  By the induction hypothesis, $\mathcal{T}(N)$
+  converges at depth $\le k - 1$, so $\mathcal{T}(M)$
+  converges at depth $\le k$.
 
-\medskip\noindent
-($\Leftarrow$)
-Suppose $\mathcal{T}(M){\Downarrow}$ at depth $n$.
-We show $M$ has a head normal form by induction on $n$.
+  \medskip\noindent
+  ($\Leftarrow$)
+  Suppose $\mathcal{T}(M){\Downarrow}$ at depth $n$.
+  We show $M$ has a head normal form by induction on $n$.
 
-\emph{Base case} ($n = 0$): the root of $\mathcal{T}(M)$ has
-abstraction shape
-$\{\mathrm{argument}, \mathrm{result}\}$.
-Only the abstraction rule $\mathcal{T}(\lambda x.\, M')$
-produces a root with own property $\mathrm{argument}$.
-(For tail calls and $\mathbf{let}$-bindings, the root has
-  $\defines = \{\mathrm{tailCall}, \mathrm{result}\}$
-  or $\{x, \mathrm{result}\}$, and $\mathrm{argument}$ cannot
-  appear via $\supers$ because
-  $\inherits = \varnothing$ at the root, giving
-$\bases(\text{root}) = \varnothing$.)
-Therefore $M$ is an abstraction, hence already in head normal
-form.
+  \emph{Base case} ($n = 0$): the root of $\mathcal{T}(M)$ has
+  abstraction shape
+  $\{\mathrm{argument}, \mathrm{result}\}$.
+  Only the abstraction rule $\mathcal{T}(\lambda x.\, M')$
+  produces a root with own property $\mathrm{argument}$.
+  (For tail calls and $\mathbf{let}$-bindings, the root has
+    $\defines = \{\mathrm{tailCall}, \mathrm{result}\}$
+    or $\{x, \mathrm{result}\}$, and $\mathrm{argument}$ cannot
+    appear via $\supers$ because
+    $\inherits = \varnothing$ at the root, giving
+  $\bases(\text{root}) = \varnothing$.)
+  Therefore $M$ is an abstraction, hence already in head normal
+  form.
 
-\emph{Inductive step} ($n \ge 1$): the abstraction shape
-appears at depth $n$ but not at depth $0$.
-By the base case argument, $M$ is not an abstraction, so at the
-head position of this closed top-level ANF term, $M$ is either
-a tail call, an application $\mathbf{let}$-binding, or a value
-$\mathbf{let}$-binding.
-In each case, the ANF grammar requires the function
-position to be a value~$V_1$
-($V ::= x \mid \lambda x.\, M$).
-Since $M$ is closed, $V_1$ cannot be a free variable,
-so $V_1$ must be a $\lambda$-abstraction;
-the head form is therefore a $\beta$-redex.
-By Lemma~\ref{lem:result-step} (tail-call,
-  application let-binding, or value let-binding
-variant), the properties at depth
-$n - 1$ in $\mathcal{T}(N)$ match those at depth $n$
-in $\mathcal{T}(M)$, where $N$ is the head reduct.
-So $\mathcal{T}(N)$ converges at depth $n - 1$.
-Since $M$ is closed and head reduction preserves closedness
-(substituting a closed value for the only free variable),
-$N$ is a closed ANF term.
-By the induction hypothesis, $N$ has a head normal
-form, and since $M \to_h N$, so does $M$.
+  \emph{Inductive step} ($n \ge 1$): the abstraction shape
+  appears at depth $n$ but not at depth $0$.
+  By the base case argument, $M$ is not an abstraction, so at the
+  head position of this closed top-level ANF term, $M$ is either
+  a tail call, an application $\mathbf{let}$-binding, or a value
+  $\mathbf{let}$-binding.
+  In each case, the ANF grammar requires the function
+  position to be a value~$V_1$
+  ($V ::= x \mid \lambda x.\, M$).
+  Since $M$ is closed, $V_1$ cannot be a free variable,
+  so $V_1$ must be a $\lambda$-abstraction;
+  the head form is therefore a $\beta$-redex.
+  By Lemma~\ref{lem:result-step} (tail-call,
+    application let-binding, or value let-binding
+  variant), the properties at depth
+  $n - 1$ in $\mathcal{T}(N)$ match those at depth $n$
+  in $\mathcal{T}(M)$, where $N$ is the head reduct.
+  So $\mathcal{T}(N)$ converges at depth $n - 1$.
+  Since $M$ is closed and head reduction preserves closedness
+  (substituting a closed value for the only free variable),
+  $N$ is a closed ANF term.
+  By the induction hypothesis, $N$ has a head normal
+  form, and since $M \to_h N$, so does $M$.
 \end{proof}
 
 \subsection{First-Order Semantics of the Lazy \texorpdfstring{$\lambda$}{λ}-Calculus}
@@ -3189,15 +3198,15 @@ gives the lazy $\lambda$-calculus a first-order semantics
 that preserves and reflects B\"ohm tree equivalence.
 
 \begin{definition}[$\lambda$-contextual equivalence under $\mathcal{T}$]%
-\label{def:ctx-equiv}
-For closed $\lambda$-terms $M$ and $N$, write
-$\mathcal{T}(M) \approx_\lambda \mathcal{T}(N)$ if for every
-closing $\lambda$-calculus context $C[\cdot]$:
-\[
-  \mathcal{T}(C[M]){\Downarrow}
-  \;\Longleftrightarrow\;
-  \mathcal{T}(C[N]){\Downarrow}
-\]
+  \label{def:ctx-equiv}
+  For closed $\lambda$-terms $M$ and $N$, write
+  $\mathcal{T}(M) \approx_\lambda \mathcal{T}(N)$ if for every
+  closing $\lambda$-calculus context $C[\cdot]$:
+  \[
+    \mathcal{T}(C[M]){\Downarrow}
+    \;\Longleftrightarrow\;
+    \mathcal{T}(C[N]){\Downarrow}
+  \]
 \end{definition}
 
 \noindent
@@ -3210,37 +3219,37 @@ and project different results, probing every aspect of the
 term's behavior within the $\lambda$-definable fragment.
 
 \begin{proof}[Proof of Theorem~\ref{thm:full-abstraction}]
-The translation $\mathcal{T}$ is compositional: for every
-$\lambda$-calculus context $C[\cdot]$, the mixin tree
-$\mathcal{T}(C[M])$ is determined by the mixin tree
-$\mathcal{T}(M)$ and the translation of the context.
-This means $\mathcal{T}$ preserves the context structure
-needed for the argument.
+  The translation $\mathcal{T}$ is compositional: for every
+  $\lambda$-calculus context $C[\cdot]$, the mixin tree
+  $\mathcal{T}(C[M])$ is determined by the mixin tree
+  $\mathcal{T}(M)$ and the translation of the context.
+  This means $\mathcal{T}$ preserves the context structure
+  needed for the argument.
 
-\medskip\noindent
-($\Leftarrow$)
-Suppose $\mathrm{BT}(M) = \mathrm{BT}(N)$.
-B\"ohm tree equivalence is a congruence~\cite{barendregt1984lambda},
-so for every context $C[\cdot]$,
-$\mathrm{BT}(C[M]) = \mathrm{BT}(C[N])$.
-In particular, $C[M]$ has a head normal form iff $C[N]$ does.
-By Theorem~\ref{thm:adequacy},
-$\mathcal{T}(C[M]){\Downarrow}$ iff
-$\mathcal{T}(C[N]){\Downarrow}$.
-Hence $\mathcal{T}(M) \approx_\lambda \mathcal{T}(N)$.
+  \medskip\noindent
+  ($\Leftarrow$)
+  Suppose $\mathrm{BT}(M) = \mathrm{BT}(N)$.
+  B\"ohm tree equivalence is a congruence~\cite{barendregt1984lambda},
+  so for every context $C[\cdot]$,
+  $\mathrm{BT}(C[M]) = \mathrm{BT}(C[N])$.
+  In particular, $C[M]$ has a head normal form iff $C[N]$ does.
+  By Theorem~\ref{thm:adequacy},
+  $\mathcal{T}(C[M]){\Downarrow}$ iff
+  $\mathcal{T}(C[N]){\Downarrow}$.
+  Hence $\mathcal{T}(M) \approx_\lambda \mathcal{T}(N)$.
 
-\medskip\noindent
-($\Rightarrow$)
-Suppose $\mathrm{BT}(M) \neq \mathrm{BT}(N)$.
-B\"ohm tree equivalence coincides with observational
-equivalence for the lazy
-$\lambda$-calculus~\cite{abramsky1993lazy}:
-there exists a context $C[\cdot]$ such that $C[M]$ converges
-and $C[N]$ diverges (or vice versa).
-By Theorem~\ref{thm:adequacy},
-$\mathcal{T}(C[M]){\Downarrow}$ and
-$\mathcal{T}(C[N]){\Uparrow}$.
-Hence $\mathcal{T}(M) \not\approx_\lambda \mathcal{T}(N)$.
+  \medskip\noindent
+  ($\Rightarrow$)
+  Suppose $\mathrm{BT}(M) \neq \mathrm{BT}(N)$.
+  B\"ohm tree equivalence coincides with observational
+  equivalence for the lazy
+  $\lambda$-calculus~\cite{abramsky1993lazy}:
+  there exists a context $C[\cdot]$ such that $C[M]$ converges
+  and $C[N]$ diverges (or vice versa).
+  By Theorem~\ref{thm:adequacy},
+  $\mathcal{T}(C[M]){\Downarrow}$ and
+  $\mathcal{T}(C[N]){\Uparrow}$.
+  Hence $\mathcal{T}(M) \not\approx_\lambda \mathcal{T}(N)$.
 \end{proof}
 
 \noindent
@@ -3257,92 +3266,92 @@ define or compare absolute paths inside mixin trees.
 \label{app:expressiveness}
 
 \begin{definition}[Macro-expressibility, after Felleisen~\cite{felleisen1991expressive}]
-\label{def:macro-expressibility}
-A construct $C$ of language $\mathscr{L}_1$ is \emph{macro-expressible}
-in language $\mathscr{L}_0$ if there exists a translation $\mathcal{E}$
-such that for every program $P$ containing occurrences of $C$,
-the translation $\mathcal{E}(P)$ is obtained by replacing each
-occurrence of $C$ with an $\mathscr{L}_0$ expression that depends only
-on $C$'s subexpressions, leaving all other constructs of $P$
-unchanged.
+  \label{def:macro-expressibility}
+  A construct $C$ of language $\mathscr{L}_1$ is \emph{macro-expressible}
+  in language $\mathscr{L}_0$ if there exists a translation $\mathcal{E}$
+  such that for every program $P$ containing occurrences of $C$,
+  the translation $\mathcal{E}(P)$ is obtained by replacing each
+  occurrence of $C$ with an $\mathscr{L}_0$ expression that depends only
+  on $C$'s subexpressions, leaving all other constructs of $P$
+  unchanged.
 \end{definition}
 
 \begin{lemma}[Composition of macro-expressible translations]
-\label{lem:macro-composition}
-If $\mathcal{E}_1$ macro-expresses the constructs of
-$\mathscr{L}_1$ in $\mathscr{L}_0$ and
-$\mathcal{E}_2$ macro-expresses the constructs of
-$\mathscr{L}_2$ in $\mathscr{L}_1$, then the composition
-$\mathcal{E}_1 \circ \mathcal{E}_2$ macro-expresses the
-constructs of $\mathscr{L}_2$ in $\mathscr{L}_0$.
+  \label{lem:macro-composition}
+  If $\mathcal{E}_1$ macro-expresses the constructs of
+  $\mathscr{L}_1$ in $\mathscr{L}_0$ and
+  $\mathcal{E}_2$ macro-expresses the constructs of
+  $\mathscr{L}_2$ in $\mathscr{L}_1$, then the composition
+  $\mathcal{E}_1 \circ \mathcal{E}_2$ macro-expresses the
+  constructs of $\mathscr{L}_2$ in $\mathscr{L}_0$.
 \end{lemma}
 
 \begin{proof}
-Each construct~$F$ of~$\mathscr{L}_2$ has a fixed
-syntactic abstraction~$A_F^{(2)}$
-over~$\mathscr{L}_1$.
-Each $\mathscr{L}_1$-construct~$G$ appearing
-in~$A_F^{(2)}$ has a fixed
-syntactic abstraction~$A_G^{(1)}$
-over~$\mathscr{L}_0$.
-Substituting~$A_G^{(1)}$ for every~$G$
-in~$A_F^{(2)}$ yields a fixed syntactic
-abstraction over~$\mathscr{L}_0$ for~$F$,
-satisfying~E4.
+  Each construct~$F$ of~$\mathscr{L}_2$ has a fixed
+  syntactic abstraction~$A_F^{(2)}$
+  over~$\mathscr{L}_1$.
+  Each $\mathscr{L}_1$-construct~$G$ appearing
+  in~$A_F^{(2)}$ has a fixed
+  syntactic abstraction~$A_G^{(1)}$
+  over~$\mathscr{L}_0$.
+  Substituting~$A_G^{(1)}$ for every~$G$
+  in~$A_F^{(2)}$ yields a fixed syntactic
+  abstraction over~$\mathscr{L}_0$ for~$F$,
+  satisfying~E4.
 \end{proof}
 
 \begin{definition}[Language universe]
-\label{def:language-universe}
-Let $\mathscr{U}$ be the language whose constructors are
-the union of the constructors of inheritance-calculus,
-the constructors of the lazy $\lambda$-calculus
-($\lambda$-abstraction, application, variable), and
-$\mathbf{let}$-binding.
-The semantics of $\mathscr{U}$ is given by translating
-every $\mathscr{U}$-program to inheritance-calculus in
-three steps:
-\begin{enumerate}
-  \item Convert every maximal $\lambda$-calculus
-    subexpression (i.e.\ every subtree whose root
-      and all internal nodes use only $\lambda$-calculus
-    constructors) to A-normal
-    form~\cite{flanagan1993essence}.
-  \item Apply the translation $\mathcal{T}$
-    (Section~\ref{sec:forward-translation}) to every ANF
-    $\lambda$-calculus subexpression.
-  \item Evaluate the resulting inheritance-calculus
-    program by the rules of
-    Section~\ref{sec:mixin-trees}.
-\end{enumerate}
-When a $\mathscr{U}$-expression interleaves
-$\lambda$-calculus and inheritance-calculus constructors
-(e.g.\ a $\mathbf{let}$-binding whose bound value is an
-inheritance-calculus expression), the translation is
-applied compositionally from leaves to root: each
-$\lambda$-calculus construct is replaced by its
-inheritance-calculus equivalent via~$\mathcal{T}$,
-treating inheritance-calculus subexpressions as opaque
-values.
-Since each rule of~$\mathcal{T}$
-(Section~\ref{sec:forward-translation}) is a fixed
-syntactic abstraction depending only on the translated
-subexpressions, this bottom-up application is
-well-defined and yields a pure inheritance-calculus
-program for step~(3).
+  \label{def:language-universe}
+  Let $\mathscr{U}$ be the language whose constructors are
+  the union of the constructors of inheritance-calculus,
+  the constructors of the lazy $\lambda$-calculus
+  ($\lambda$-abstraction, application, variable), and
+  $\mathbf{let}$-binding.
+  The semantics of $\mathscr{U}$ is given by translating
+  every $\mathscr{U}$-program to inheritance-calculus in
+  three steps:
+  \begin{enumerate}
+    \item Convert every maximal $\lambda$-calculus
+      subexpression (i.e.\ every subtree whose root
+        and all internal nodes use only $\lambda$-calculus
+      constructors) to A-normal
+      form~\cite{flanagan1993essence}.
+    \item Apply the translation $\mathcal{T}$
+      (Section~\ref{sec:forward-translation}) to every ANF
+      $\lambda$-calculus subexpression.
+    \item Evaluate the resulting inheritance-calculus
+      program by the rules of
+      Section~\ref{sec:mixin-trees}.
+  \end{enumerate}
+  When a $\mathscr{U}$-expression interleaves
+  $\lambda$-calculus and inheritance-calculus constructors
+  (e.g.\ a $\mathbf{let}$-binding whose bound value is an
+  inheritance-calculus expression), the translation is
+  applied compositionally from leaves to root: each
+  $\lambda$-calculus construct is replaced by its
+  inheritance-calculus equivalent via~$\mathcal{T}$,
+  treating inheritance-calculus subexpressions as opaque
+  values.
+  Since each rule of~$\mathcal{T}$
+  (Section~\ref{sec:forward-translation}) is a fixed
+  syntactic abstraction depending only on the translated
+  subexpressions, this bottom-up application is
+  well-defined and yields a pure inheritance-calculus
+  program for step~(3).
 
-A $\mathscr{U}$-program $P$ converges,
-$\mathrm{eval}_{\mathscr{U}}(P)$, iff its translation
-converges.
-The lazy $\lambda$-calculus and inheritance-calculus are
-conservative restrictions of $\mathscr{U}$: each is
-obtained by removing the other's constructors.
-For a pure inheritance-calculus program, steps~(1)
-and~(2) are vacuous, so
-$\mathrm{eval}_{\mathscr{U}}$ agrees with the
-inheritance-calculus semantics.
-For a pure $\lambda$-calculus program, the composition
-of steps~(1)--(3) agrees with lazy evaluation by
-Adequacy (Theorem~\ref{thm:adequacy}).
+  A $\mathscr{U}$-program $P$ converges,
+  $\mathrm{eval}_{\mathscr{U}}(P)$, iff its translation
+  converges.
+  The lazy $\lambda$-calculus and inheritance-calculus are
+  conservative restrictions of $\mathscr{U}$: each is
+  obtained by removing the other's constructors.
+  For a pure inheritance-calculus program, steps~(1)
+  and~(2) are vacuous, so
+  $\mathrm{eval}_{\mathscr{U}}$ agrees with the
+  inheritance-calculus semantics.
+  For a pure $\lambda$-calculus program, the composition
+  of steps~(1)--(3) agrees with lazy evaluation by
+  Adequacy (Theorem~\ref{thm:adequacy}).
 \end{definition}
 
 The three-step translation is effective (ANF conversion
@@ -3354,428 +3363,428 @@ recursively enumerable, as required by
 Felleisen's framework~\cite{felleisen1991expressive}.
 
 \begin{lemma}[$\mathbf{let}$-binding is macro-expressible
-in the lazy $\lambda$-calculus]
-\label{lem:let-macro}
-The translation
-$\mathbf{let}\; x = e_1 \;\mathbf{in}\; e_2
-\;\mapsto\; (\lambda x.\, e_2)\; e_1$
-is a macro-expressible elimination of $\mathbf{let}$
-in the lazy $\lambda$-calculus.
+  in the lazy $\lambda$-calculus]
+  \label{lem:let-macro}
+  The translation
+  $\mathbf{let}\; x = e_1 \;\mathbf{in}\; e_2
+  \;\mapsto\; (\lambda x.\, e_2)\; e_1$
+  is a macro-expressible elimination of $\mathbf{let}$
+  in the lazy $\lambda$-calculus.
 \end{lemma}
 
 \begin{proof}
-The translation replaces each $\mathbf{let}$-binding
-with a $\lambda$-expression that depends only on the
-two subexpressions $e_1$ and~$e_2$.
-This is Proposition~3.7 of
-Felleisen~\cite{felleisen1991expressive}.
+  The translation replaces each $\mathbf{let}$-binding
+  with a $\lambda$-expression that depends only on the
+  two subexpressions $e_1$ and~$e_2$.
+  This is Proposition~3.7 of
+  Felleisen~\cite{felleisen1991expressive}.
 \end{proof}
 
 \begin{lemma}[Equal expressiveness of the lazy
-$\lambda$-calculus and its ANF fragment]
-\label{lem:anf-equiv}
-In $\mathscr{U}$, the lazy $\lambda$-calculus and the
-ANF lazy $\lambda$-calculus
-(Section~\ref{sec:forward-translation}) are equally
-macro-expressive.
+  $\lambda$-calculus and its ANF fragment]
+  \label{lem:anf-equiv}
+  In $\mathscr{U}$, the lazy $\lambda$-calculus and the
+  ANF lazy $\lambda$-calculus
+  (Section~\ref{sec:forward-translation}) are equally
+  macro-expressive.
 \end{lemma}
 
 \begin{proof}
-Every ANF term is a $\lambda$-term, so the embedding
-of the ANF fragment into the full $\lambda$-calculus is
-the identity, which is trivially macro-expressible.
-For the reverse direction, the ANF
-transformation~\cite{flanagan1993essence} consists of
-two steps, each macro-expressible:
-\begin{enumerate}
-  \item \emph{Application flattening.}
-    Replace each nested application
-    $(e_1\; e_2)\; e_3$ with
-    $\mathbf{let}\; x = e_1\; e_2 \;\mathbf{in}\;
-    x\; e_3$.
-    The syntactic abstraction is
-    $A(\cdot_1, \cdot_2, \cdot_3)
-    = \mathbf{let}\; x = \cdot_1\; \cdot_2
-    \;\mathbf{in}\; x\; \cdot_3$,
-    depending only on the three subexpressions.
-  \item \emph{Value lifting.}
-    Replace each free value~$V$ used in an application
-    position with
-    $\mathbf{let}\; x = V \;\mathbf{in}\; x$.
-    The syntactic abstraction is
-    $A(\cdot_1) = \mathbf{let}\; x = \cdot_1
-    \;\mathbf{in}\; x$.
-\end{enumerate}
-By Lemma~\ref{lem:let-macro}, each resulting
-$\mathbf{let}$-binding is itself
-macro-expressible in the $\lambda$-calculus.
-By Lemma~\ref{lem:macro-composition}, composing
-these macro-expressible translations
-yields a macro-expressible translation from the full
-$\lambda$-calculus to its ANF fragment.
+  Every ANF term is a $\lambda$-term, so the embedding
+  of the ANF fragment into the full $\lambda$-calculus is
+  the identity, which is trivially macro-expressible.
+  For the reverse direction, the ANF
+  transformation~\cite{flanagan1993essence} consists of
+  two steps, each macro-expressible:
+  \begin{enumerate}
+    \item \emph{Application flattening.}
+      Replace each nested application
+      $(e_1\; e_2)\; e_3$ with
+      $\mathbf{let}\; x = e_1\; e_2 \;\mathbf{in}\;
+      x\; e_3$.
+      The syntactic abstraction is
+      $A(\cdot_1, \cdot_2, \cdot_3)
+      = \mathbf{let}\; x = \cdot_1\; \cdot_2
+      \;\mathbf{in}\; x\; \cdot_3$,
+      depending only on the three subexpressions.
+    \item \emph{Value lifting.}
+      Replace each free value~$V$ used in an application
+      position with
+      $\mathbf{let}\; x = V \;\mathbf{in}\; x$.
+      The syntactic abstraction is
+      $A(\cdot_1) = \mathbf{let}\; x = \cdot_1
+      \;\mathbf{in}\; x$.
+  \end{enumerate}
+  By Lemma~\ref{lem:let-macro}, each resulting
+  $\mathbf{let}$-binding is itself
+  macro-expressible in the $\lambda$-calculus.
+  By Lemma~\ref{lem:macro-composition}, composing
+  these macro-expressible translations
+  yields a macro-expressible translation from the full
+  $\lambda$-calculus to its ANF fragment.
 \end{proof}
 
 \begin{theorem}[Forward macro-expressibility]
-\label{thm:forward-macro}
-The translation $\mathcal{T}$
-(Section~\ref{sec:forward-translation}) is a macro-expressible
-embedding of the $\lambda$-calculus into inheritance-calculus.
+  \label{thm:forward-macro}
+  The translation $\mathcal{T}$
+  (Section~\ref{sec:forward-translation}) is a macro-expressible
+  embedding of the $\lambda$-calculus into inheritance-calculus.
 \end{theorem}
 
 \begin{proof}
-We verify condition~E4 of
-Felleisen~\cite[Definition~3.11]{felleisen1991expressive}:
-for each $\lambda$-calculus construct~$F$ of arity~$a$,
-there must exist a fixed $a$-ary syntactic abstraction
-$A_F(\cdot_1,\ldots,\cdot_a)$ over
-inheritance-calculus such that
-$\mathcal{T}(F(e_1,\ldots,e_a)) =
-A_F(\mathcal{T}(e_1),\ldots,\mathcal{T}(e_a))$.
-We check each rule of $\mathcal{T}$
-(Section~\ref{sec:forward-translation}):
-\begin{enumerate}
-  \item \emph{$\lambda$-bound variable}
-    ($x$ with de~Bruijn index $n'$).
-    This is a nullary construct (no subexpressions).
-    The syntactic abstraction is the constant
-    $A = \dbi{n'}.\mathrm{argument}$.
-  \item \emph{Let-bound variable} ($x$).
-    Nullary.
-    $A = x.\mathrm{result}$.
-  \item \emph{$\lambda$-abstraction} ($\lambda x.\, M$).
-    Unary in the body~$M$.
-    $A(\cdot_1) = \{\mathrm{argument} \mapsto \{\},\;
-    \mathrm{result} \mapsto \cdot_1\}$.
-  \item \emph{Application let-binding}
-    ($\mathbf{let}\; x = V_1\; V_2
-    \;\mathbf{in}\; M$).
-    Ternary in~$V_1$, $V_2$, and~$M$.
-    $A(\cdot_1, \cdot_2, \cdot_3) =
-    \{x \mapsto \{\cdot_1,\;
-      \mathrm{argument} \mapsto \cdot_2\},\;
-    \mathrm{result} \mapsto \cdot_3\}$.
-  \item \emph{Value let-binding}
-    ($\mathbf{let}\; x = V \;\mathbf{in}\; M$).
-    Binary in~$V$ and~$M$.
-    $A(\cdot_1, \cdot_2) =
-    \{x \mapsto \{\mathrm{result} \mapsto \cdot_1\},\;
-    \mathrm{result} \mapsto \cdot_2\}$.
-  \item \emph{Tail call} ($V_1\; V_2$).
-    Binary.\newline
-    $A(\cdot_1, \cdot_2) =
-    \{\mathrm{tailCall} \mapsto
-      \{\cdot_1,\;
-      \mathrm{argument} \mapsto \cdot_2\},\;
-      \mathrm{result} \mapsto
-    \mathrm{tailCall}.\mathrm{result}\}$.
-\end{enumerate}
-In each case the syntactic abstraction~$A_F$ is a fixed
-inheritance-calculus context whose holes are filled
-by the recursive translations of the subexpressions,
-satisfying~E4.
+  We verify condition~E4 of
+  Felleisen~\cite[Definition~3.11]{felleisen1991expressive}:
+  for each $\lambda$-calculus construct~$F$ of arity~$a$,
+  there must exist a fixed $a$-ary syntactic abstraction
+  $A_F(\cdot_1,\ldots,\cdot_a)$ over
+  inheritance-calculus such that
+  $\mathcal{T}(F(e_1,\ldots,e_a)) =
+  A_F(\mathcal{T}(e_1),\ldots,\mathcal{T}(e_a))$.
+  We check each rule of $\mathcal{T}$
+  (Section~\ref{sec:forward-translation}):
+  \begin{enumerate}
+    \item \emph{$\lambda$-bound variable}
+      ($x$ with de~Bruijn index $n'$).
+      This is a nullary construct (no subexpressions).
+      The syntactic abstraction is the constant
+      $A = \dbi{n'}.\mathrm{argument}$.
+    \item \emph{Let-bound variable} ($x$).
+      Nullary.
+      $A = x.\mathrm{result}$.
+    \item \emph{$\lambda$-abstraction} ($\lambda x.\, M$).
+      Unary in the body~$M$.
+      $A(\cdot_1) = \{\mathrm{argument} \mapsto \{\},\;
+      \mathrm{result} \mapsto \cdot_1\}$.
+    \item \emph{Application let-binding}
+      ($\mathbf{let}\; x = V_1\; V_2
+      \;\mathbf{in}\; M$).
+      Ternary in~$V_1$, $V_2$, and~$M$.
+      $A(\cdot_1, \cdot_2, \cdot_3) =
+      \{x \mapsto \{\cdot_1,\;
+        \mathrm{argument} \mapsto \cdot_2\},\;
+      \mathrm{result} \mapsto \cdot_3\}$.
+    \item \emph{Value let-binding}
+      ($\mathbf{let}\; x = V \;\mathbf{in}\; M$).
+      Binary in~$V$ and~$M$.
+      $A(\cdot_1, \cdot_2) =
+      \{x \mapsto \{\mathrm{result} \mapsto \cdot_1\},\;
+      \mathrm{result} \mapsto \cdot_2\}$.
+    \item \emph{Tail call} ($V_1\; V_2$).
+      Binary.\newline
+      $A(\cdot_1, \cdot_2) =
+      \{\mathrm{tailCall} \mapsto
+        \{\cdot_1,\;
+        \mathrm{argument} \mapsto \cdot_2\},\;
+        \mathrm{result} \mapsto
+      \mathrm{tailCall}.\mathrm{result}\}$.
+  \end{enumerate}
+  In each case the syntactic abstraction~$A_F$ is a fixed
+  inheritance-calculus context whose holes are filled
+  by the recursive translations of the subexpressions,
+  satisfying~E4.
 \end{proof}
 
 \begin{theorem}[Nonexpressibility of inheritance]
-\label{thm:cartesian-nonexpressibility}
-The lazy $\lambda$-calculus cannot macro-express the
-inheritance constructors of $\mathscr{U}$
-(Definition~\ref{def:language-universe}).
+  \label{thm:cartesian-nonexpressibility}
+  The lazy $\lambda$-calculus cannot macro-express the
+  inheritance constructors of $\mathscr{U}$
+  (Definition~\ref{def:language-universe}).
 \end{theorem}
 
 \begin{proof}
-We apply Theorem~3.14(i) of
-Felleisen~\cite{felleisen1991expressive} to the pair
-$L_0 = \text{lazy $\lambda$-calculus}$,
-$L_1 = \mathscr{U}$.
-By Definition~\ref{def:language-universe},
-$\mathscr{U} = L_0 + \{$mixin-tree constructors$\}$
-is a conservative extension of~$L_0$
-(Definition~3.2 of
-Felleisen~\cite{felleisen1991expressive}).
-We verify the four conditions:
-\begin{enumerate}
-  \item[(i)] \emph{$L_0 \subseteq L_1$:}
-    The syntax of~$\mathscr{U}$ includes all
-    $L_0$-phrases.
-  \item[(ii)] \emph{No new $L_0$-phrases:}
-    The mixin-tree constructors do not introduce new
-    phrases in~$L_0$.
-  \item[(iii)] \emph{Disjoint constructors:}
-    The mixin-tree constructors are disjoint from the
-    $L_0$-constructors.
-  \item[(iv)] \emph{Semantics preserved:}
-    For pure $\lambda$-terms, steps~(1) and~(2) of
-    Definition~\ref{def:language-universe} are vacuous
-    and step~(3) yields lazy evaluation by Adequacy
-    (Theorem~\ref{thm:adequacy}), so
-    $\mathrm{eval}_{\mathscr{U}}$ agrees with
-    $\mathrm{eval}_{L_0}$ on $L_0$-phrases.
-\end{enumerate}
-The theorem requires us to exhibit two $L_0$-terms
-$M$ and $N$ with $M \cong_0 N$ but
-$M \not\cong_1 N$, where $\cong_0$ is operational
-equivalence in $L_0$ and $\cong_1$ is operational
-equivalence in $\mathscr{U}$.
+  We apply Theorem~3.14(i) of
+  Felleisen~\cite{felleisen1991expressive} to the pair
+  $L_0 = \text{lazy $\lambda$-calculus}$,
+  $L_1 = \mathscr{U}$.
+  By Definition~\ref{def:language-universe},
+  $\mathscr{U} = L_0 + \{$mixin-tree constructors$\}$
+  is a conservative extension of~$L_0$
+  (Definition~3.2 of
+  Felleisen~\cite{felleisen1991expressive}).
+  We verify the four conditions:
+  \begin{enumerate}
+    \item[(i)] \emph{$L_0 \subseteq L_1$:}
+      The syntax of~$\mathscr{U}$ includes all
+      $L_0$-phrases.
+    \item[(ii)] \emph{No new $L_0$-phrases:}
+      The mixin-tree constructors do not introduce new
+      phrases in~$L_0$.
+    \item[(iii)] \emph{Disjoint constructors:}
+      The mixin-tree constructors are disjoint from the
+      $L_0$-constructors.
+    \item[(iv)] \emph{Semantics preserved:}
+      For pure $\lambda$-terms, steps~(1) and~(2) of
+      Definition~\ref{def:language-universe} are vacuous
+      and step~(3) yields lazy evaluation by Adequacy
+      (Theorem~\ref{thm:adequacy}), so
+      $\mathrm{eval}_{\mathscr{U}}$ agrees with
+      $\mathrm{eval}_{L_0}$ on $L_0$-phrases.
+  \end{enumerate}
+  The theorem requires us to exhibit two $L_0$-terms
+  $M$ and $N$ with $M \cong_0 N$ but
+  $M \not\cong_1 N$, where $\cong_0$ is operational
+  equivalence in $L_0$ and $\cong_1$ is operational
+  equivalence in $\mathscr{U}$.
 
-\paragraph{Operational equivalence in $L_0$}
-By B\"ohm tree
-equivalence~\cite{abramsky1990lazy}
-(Theorem~\ref{thm:full-abstraction}), for closed
-$\lambda$-terms $M$ and $N$:
-$M \cong_0 N$ iff $\mathrm{BT}(M) = \mathrm{BT}(N)$.
+  \paragraph{Operational equivalence in $L_0$}
+  By B\"ohm tree
+  equivalence~\cite{abramsky1990lazy}
+  (Theorem~\ref{thm:full-abstraction}), for closed
+  $\lambda$-terms $M$ and $N$:
+  $M \cong_0 N$ iff $\mathrm{BT}(M) = \mathrm{BT}(N)$.
 
-\paragraph{Separating pair}
-Define Church booleans and Church boolean equality:
-$\mathrm{true} = \lambda t.\,\lambda f.\, t$,
-$\mathrm{false} = \lambda t.\,\lambda f.\, f$, and
-$\mathrm{eq} = \lambda a.\,\lambda b.\,
-(a\;b)\;(b\;\mathrm{false}\;\mathrm{true})$.
-Let
-\[
-  M = \mathrm{eq}\;\mathrm{false}\;\mathrm{false}
-  \qquad
-  N = \mathrm{eq}\;\mathrm{true}\;\mathrm{true}.
-\]
-Both reduce to Church~$\mathrm{true}$ in the
-lazy $\lambda$-calculus, so
-$\mathrm{BT}(M) = \mathrm{BT}(N)$ and hence
-$M \cong_0 N$.
+  \paragraph{Separating pair}
+  Define Church booleans and Church boolean equality:
+  $\mathrm{true} = \lambda t.\,\lambda f.\, t$,
+  $\mathrm{false} = \lambda t.\,\lambda f.\, f$, and
+  $\mathrm{eq} = \lambda a.\,\lambda b.\,
+  (a\;b)\;(b\;\mathrm{false}\;\mathrm{true})$.
+  Let
+  \[
+    M = \mathrm{eq}\;\mathrm{false}\;\mathrm{false}
+    \qquad
+    N = \mathrm{eq}\;\mathrm{true}\;\mathrm{true}.
+  \]
+  Both reduce to Church~$\mathrm{true}$ in the
+  lazy $\lambda$-calculus, so
+  $\mathrm{BT}(M) = \mathrm{BT}(N)$ and hence
+  $M \cong_0 N$.
 
-\paragraph{Distinguishing $\mathscr{U}$-context}
-We now construct a $\mathscr{U}$-context that
-separates $M$ and $N$.
-$M$ and $N$ are syntactically closed $\lambda$-terms;
-by Definition~\ref{def:language-universe}, their
-semantics in $\mathscr{U}$ is given by translating
-them to inheritance-calculus via ANF conversion followed
-by~$\mathcal{T}$.
-Under the extended ANF convention
-(Section~\ref{sec:forward-translation}), every free
-value used in an application is first bound to a name:
-\begin{align*}
-  \mathrm{ANF}(M) ={} &
-  \mathbf{let}\;\mathrm{eq} =
-  \lambda a.\,\lambda b.\,
-  \mathbf{let}\; x_1 = a\;b \;\mathbf{in}\; \\
-  &\qquad
-  \mathbf{let}\; f_1 = \mathrm{false}
-  \;\mathbf{in}\;
-  \mathbf{let}\; x_2 = b\;f_1 \;\mathbf{in}\; \\
-  &\qquad
-  \mathbf{let}\; t_1 = \mathrm{true}
-  \;\mathbf{in}\;
-  \mathbf{let}\; x_3 = x_2\;t_1
-  \;\mathbf{in}\;
-  x_1\;x_3 \\
-  & \mathbf{in}\;\;
-  \mathbf{let}\; f_1 = \mathrm{false}
-  \;\mathbf{in}\;
-  \mathbf{let}\;\mathrm{eqFalse} = \mathrm{eq}\;f_1 \\
-  &\quad
-  \;\mathbf{in}\;
-  \mathbf{let}\; f_2 = \mathrm{false}
-  \;\mathbf{in}\;
-  \mathrm{eqFalse}\;f_2
-\end{align*}
-Applying~$\mathcal{T}$:
-\begin{align*}
-  \mathcal{T}(\mathrm{ANF}(M)) \;=\; \{&
-    \mathrm{eq} \mapsto \{\mathrm{result} \mapsto
-    \mathcal{T}(\lambda a.\,\lambda b.\,\cdots)\}, \\
-    & f_1 \mapsto \{\mathrm{result} \mapsto
-    \mathcal{T}(\mathrm{false})\}, \\
-    & \mathrm{eqFalse} \mapsto
-    \{\mathrm{eq}.\mathrm{result},\;
-      \mathrm{argument} \mapsto
-    f_1.\mathrm{result}\}, \\
-    & f_2 \mapsto \{\mathrm{result} \mapsto
-    \mathcal{T}(\mathrm{false})\}, \\
-    & \mathrm{tailCall} \mapsto
-    \{\mathrm{eqFalse}.\mathrm{result},\;
-      \mathrm{argument} \mapsto
-    f_2.\mathrm{result}\}, \\
-    & \mathrm{result} \mapsto
-    \mathrm{tailCall}.\mathrm{result}
-  \;\}
-\end{align*}
-and symmetrically for $N$ with $\mathrm{true}$ in place
-of $\mathrm{false}$.
-Note that $\mathrm{eq}$ is a \emph{named child}
-of $\mathcal{T}(\mathrm{ANF}(M))$, bound via a value
-let-binding.
-Inside the translation of $\mathrm{eq}$, the inner
-$\lambda b$ scope contains the let-bindings
-for $x_1$, $f_1$, $x_2$, $t_1$, $x_3$, and a tail call.
-In particular, $\dbi{1}.\mathrm{argument}$ reaches
-the outer $\lambda a$ scope and
-$\dbi{0}.\mathrm{argument}$ reaches $\lambda b$
-itself.\footnote{These indices use the condensed
-  convention, counting only $\lambda$-scopes.
-  As noted in the translation footnote
-  (Section~\ref{sec:forward-translation}),
-  each let-binding and tail call introduces an
-  additional scope level in inheritance-calculus;
-  the formal index is correspondingly larger,
-but the target scope is the same.}
+  \paragraph{Distinguishing $\mathscr{U}$-context}
+  We now construct a $\mathscr{U}$-context that
+  separates $M$ and $N$.
+  $M$ and $N$ are syntactically closed $\lambda$-terms;
+  by Definition~\ref{def:language-universe}, their
+  semantics in $\mathscr{U}$ is given by translating
+  them to inheritance-calculus via ANF conversion followed
+  by~$\mathcal{T}$.
+  Under the extended ANF convention
+  (Section~\ref{sec:forward-translation}), every free
+  value used in an application is first bound to a name:
+  \begin{align*}
+    \mathrm{ANF}(M) ={} &
+    \mathbf{let}\;\mathrm{eq} =
+    \lambda a.\,\lambda b.\,
+    \mathbf{let}\; x_1 = a\;b \;\mathbf{in}\; \\
+    &\qquad
+    \mathbf{let}\; f_1 = \mathrm{false}
+    \;\mathbf{in}\;
+    \mathbf{let}\; x_2 = b\;f_1 \;\mathbf{in}\; \\
+    &\qquad
+    \mathbf{let}\; t_1 = \mathrm{true}
+    \;\mathbf{in}\;
+    \mathbf{let}\; x_3 = x_2\;t_1
+    \;\mathbf{in}\;
+    x_1\;x_3 \\
+    & \mathbf{in}\;\;
+    \mathbf{let}\; f_1 = \mathrm{false}
+    \;\mathbf{in}\;
+    \mathbf{let}\;\mathrm{eqFalse} = \mathrm{eq}\;f_1 \\
+    &\quad
+    \;\mathbf{in}\;
+    \mathbf{let}\; f_2 = \mathrm{false}
+    \;\mathbf{in}\;
+    \mathrm{eqFalse}\;f_2
+  \end{align*}
+  Applying~$\mathcal{T}$:
+  \begin{align*}
+    \mathcal{T}(\mathrm{ANF}(M)) \;=\; \{&
+      \mathrm{eq} \mapsto \{\mathrm{result} \mapsto
+      \mathcal{T}(\lambda a.\,\lambda b.\,\cdots)\}, \\
+      & f_1 \mapsto \{\mathrm{result} \mapsto
+      \mathcal{T}(\mathrm{false})\}, \\
+      & \mathrm{eqFalse} \mapsto
+      \{\mathrm{eq}.\mathrm{result},\;
+        \mathrm{argument} \mapsto
+      f_1.\mathrm{result}\}, \\
+      & f_2 \mapsto \{\mathrm{result} \mapsto
+      \mathcal{T}(\mathrm{false})\}, \\
+      & \mathrm{tailCall} \mapsto
+      \{\mathrm{eqFalse}.\mathrm{result},\;
+        \mathrm{argument} \mapsto
+      f_2.\mathrm{result}\}, \\
+      & \mathrm{result} \mapsto
+      \mathrm{tailCall}.\mathrm{result}
+    \;\}
+  \end{align*}
+  and symmetrically for $N$ with $\mathrm{true}$ in place
+  of $\mathrm{false}$.
+  Note that $\mathrm{eq}$ is a \emph{named child}
+  of $\mathcal{T}(\mathrm{ANF}(M))$, bound via a value
+  let-binding.
+  Inside the translation of $\mathrm{eq}$, the inner
+  $\lambda b$ scope contains the let-bindings
+  for $x_1$, $f_1$, $x_2$, $t_1$, $x_3$, and a tail call.
+  In particular, $\dbi{1}.\mathrm{argument}$ reaches
+  the outer $\lambda a$ scope and
+  $\dbi{0}.\mathrm{argument}$ reaches $\lambda b$
+  itself.\footnote{These indices use the condensed
+    convention, counting only $\lambda$-scopes.
+    As noted in the translation footnote
+    (Section~\ref{sec:forward-translation}),
+    each let-binding and tail call introduces an
+    additional scope level in inheritance-calculus;
+    the formal index is correspondingly larger,
+  but the target scope is the same.}
 
-The $\mathscr{U}$-context uses inheritance to add
-a $\mathrm{repr}$ record inside the $\lambda b$ scope
-of $\mathrm{eq}$ that projects the first operand.
-Define the context $C[\cdot]$ as:
-\begin{align*}
-  C[\cdot] ={} & \mathbf{let}\;
-  \mathrm{extended} = \{[\cdot],\;
-    \mathrm{eq} \mapsto \{
-      \mathrm{result} \mapsto \{ \\
-        &\quad
-        \mathrm{result} \mapsto \{
-          \mathrm{repr} \mapsto \{
-            \mathrm{firstOperand}
-            \mapsto \dbi{2}.\mathrm{argument}
-  \}\}\}\}\} \\
-  & \mathbf{in}\;
-  \mathrm{extended}.\mathrm{tailCall}.\mathrm{repr}.\mathrm{firstOperand}
-\end{align*}
-Here $[\cdot]$ is the hole.
-Note the two levels of $\mathrm{result}$ nesting in the
-mixin: the outer $\mathrm{result}$ enters the value
-let-binding wrapper for $\mathrm{eq}$, and the inner
-$\mathrm{result}$ enters the $\lambda a$ scope.
-The second $\mathrm{result}$ then contains the
-$\lambda b$ scope, so $\mathrm{repr}$ is placed at
-the $\lambda b$ scope level.
-The mixin $\{\mathrm{eq} \mapsto \{\mathrm{result}
-    \mapsto \{\mathrm{result} \mapsto
-\{\mathrm{repr} \mapsto \cdots\}\}\}\}$ is an
-inheritance-calculus expression: it uses only the
-mixin-tree constructors of $\mathscr{U}$.
-The outer $\mathbf{let}$-binding and projection are
-$\lambda$-calculus constructs (Lemma~\ref{lem:let-macro}).
-Thus $C[\cdot]$ is a valid $\mathscr{U}$-context.
+  The $\mathscr{U}$-context uses inheritance to add
+  a $\mathrm{repr}$ record inside the $\lambda b$ scope
+  of $\mathrm{eq}$ that projects the first operand.
+  Define the context $C[\cdot]$ as:
+  \begin{align*}
+    C[\cdot] ={} & \mathbf{let}\;
+    \mathrm{extended} = \{[\cdot],\;
+      \mathrm{eq} \mapsto \{
+        \mathrm{result} \mapsto \{ \\
+          &\quad
+          \mathrm{result} \mapsto \{
+            \mathrm{repr} \mapsto \{
+              \mathrm{firstOperand}
+              \mapsto \dbi{2}.\mathrm{argument}
+    \}\}\}\}\} \\
+    & \mathbf{in}\;
+    \mathrm{extended}.\mathrm{tailCall}.\mathrm{repr}.\mathrm{firstOperand}
+  \end{align*}
+  Here $[\cdot]$ is the hole.
+  Note the two levels of $\mathrm{result}$ nesting in the
+  mixin: the outer $\mathrm{result}$ enters the value
+  let-binding wrapper for $\mathrm{eq}$, and the inner
+  $\mathrm{result}$ enters the $\lambda a$ scope.
+  The second $\mathrm{result}$ then contains the
+  $\lambda b$ scope, so $\mathrm{repr}$ is placed at
+  the $\lambda b$ scope level.
+  The mixin $\{\mathrm{eq} \mapsto \{\mathrm{result}
+      \mapsto \{\mathrm{result} \mapsto
+  \{\mathrm{repr} \mapsto \cdots\}\}\}\}$ is an
+  inheritance-calculus expression: it uses only the
+  mixin-tree constructors of $\mathscr{U}$.
+  The outer $\mathbf{let}$-binding and projection are
+  $\lambda$-calculus constructs (Lemma~\ref{lem:let-macro}).
+  Thus $C[\cdot]$ is a valid $\mathscr{U}$-context.
 
-The de~Bruijn index $\dbi{2}$ in
-$\mathrm{repr}$ counts scope levels
-(in the condensed convention):
-$\dbi{0}$ is $\mathrm{repr}$ itself,
-$\dbi{1}$ is the $\lambda b$ scope, and
-$\dbi{2}$ is the $\lambda a$ scope.
-So $\mathrm{firstOperand}$ projects
-$\lambda a$'s argument.
+  The de~Bruijn index $\dbi{2}$ in
+  $\mathrm{repr}$ counts scope levels
+  (in the condensed convention):
+  $\dbi{0}$ is $\mathrm{repr}$ itself,
+  $\dbi{1}$ is the $\lambda b$ scope, and
+  $\dbi{2}$ is the $\lambda a$ scope.
+  So $\mathrm{firstOperand}$ projects
+  $\lambda a$'s argument.
 
-Since $\mathrm{eqFalse}$ (respectively $\mathrm{eqTrue}$)
-inherits $\mathrm{eq}.\mathrm{result}$,
-and $\mathrm{tailCall}$ inherits
-$\mathrm{eqFalse}.\mathrm{result}$ (the $\lambda b$
-scope), the $\mathrm{repr}$ record placed by the mixin
-at the $\lambda b$ scope level propagates through
-the inheritance chain to $\mathrm{tailCall}$.
-In $C[M]$: the $\mathrm{eqFalse}$ binding supplies
-$\mathrm{argument} \mapsto f_1.\mathrm{result}$
-(i.e.\ $\mathrm{false}$) to the $\lambda a$ scope, so
-$\mathrm{firstOperand}$ evaluates to
-$\mathrm{false} = \lambda t.\,\lambda f.\, f$.
-In $C[N]$: the $\mathrm{eqTrue}$ binding supplies
-$\mathrm{argument} \mapsto \mathrm{true}$, so
-$\mathrm{firstOperand}$ evaluates to
-$\mathrm{true} = \lambda t.\,\lambda f.\, t$.
+  Since $\mathrm{eqFalse}$ (respectively $\mathrm{eqTrue}$)
+  inherits $\mathrm{eq}.\mathrm{result}$,
+  and $\mathrm{tailCall}$ inherits
+  $\mathrm{eqFalse}.\mathrm{result}$ (the $\lambda b$
+  scope), the $\mathrm{repr}$ record placed by the mixin
+  at the $\lambda b$ scope level propagates through
+  the inheritance chain to $\mathrm{tailCall}$.
+  In $C[M]$: the $\mathrm{eqFalse}$ binding supplies
+  $\mathrm{argument} \mapsto f_1.\mathrm{result}$
+  (i.e.\ $\mathrm{false}$) to the $\lambda a$ scope, so
+  $\mathrm{firstOperand}$ evaluates to
+  $\mathrm{false} = \lambda t.\,\lambda f.\, f$.
+  In $C[N]$: the $\mathrm{eqTrue}$ binding supplies
+  $\mathrm{argument} \mapsto \mathrm{true}$, so
+  $\mathrm{firstOperand}$ evaluates to
+  $\mathrm{true} = \lambda t.\,\lambda f.\, t$.
 
-Define $D[\cdot] = (\lambda x.\, x\;\Omega\;I)\;
-C[\cdot]$.
-Then $\mathrm{eval}_{\mathscr{U}}$ holds for $D[M]$
-(since $\mathrm{false}\;\Omega\;I \to I$, which
-converges)
-but not for $D[N]$
-(since $\mathrm{true}\;\Omega\;I \to \Omega$, which
-diverges).
-Therefore $M \not\cong_1 N$.
+  Define $D[\cdot] = (\lambda x.\, x\;\Omega\;I)\;
+  C[\cdot]$.
+  Then $\mathrm{eval}_{\mathscr{U}}$ holds for $D[M]$
+  (since $\mathrm{false}\;\Omega\;I \to I$, which
+  converges)
+  but not for $D[N]$
+  (since $\mathrm{true}\;\Omega\;I \to \Omega$, which
+  diverges).
+  Therefore $M \not\cong_1 N$.
 
-\paragraph{Conclusion}
-We have $M \cong_0 N$ but $M \not\cong_1 N$, so
-${\cong_0} \neq {(\cong_1|_{L_0})}$.
-By Theorem~3.14(i) of
-Felleisen~\cite{felleisen1991expressive},
-the lazy $\lambda$-calculus cannot macro-express the
-inheritance constructors of~$\mathscr{U}$.
+  \paragraph{Conclusion}
+  We have $M \cong_0 N$ but $M \not\cong_1 N$, so
+  ${\cong_0} \neq {(\cong_1|_{L_0})}$.
+  By Theorem~3.14(i) of
+  Felleisen~\cite{felleisen1991expressive},
+  the lazy $\lambda$-calculus cannot macro-express the
+  inheritance constructors of~$\mathscr{U}$.
 \end{proof}
 
 \begin{theorem}[Expressive asymmetry]
-\label{thm:expressive-asymmetry}
-In the language universe $\mathscr{U}$
-(Definition~\ref{def:language-universe}),
-inheritance-calculus is strictly more expressive than
-the lazy $\lambda$-calculus: it can macro-express every
-$\mathscr{U}$-construct that the $\lambda$-calculus
-can, but not conversely
-(Definition~3.17 of
-Felleisen~\cite{felleisen1991expressive}).
+  \label{thm:expressive-asymmetry}
+  In the language universe $\mathscr{U}$
+  (Definition~\ref{def:language-universe}),
+  inheritance-calculus is strictly more expressive than
+  the lazy $\lambda$-calculus: it can macro-express every
+  $\mathscr{U}$-construct that the $\lambda$-calculus
+  can, but not conversely
+  (Definition~3.17 of
+  Felleisen~\cite{felleisen1991expressive}).
 \end{theorem}
 
 \begin{proof}
-We must show:
-(a)~inheritance-calculus can macro-express every
-$\mathscr{U}$-construct that the lazy $\lambda$-calculus
-can macro-express, and
-(b)~the converse fails.
+  We must show:
+  (a)~inheritance-calculus can macro-express every
+  $\mathscr{U}$-construct that the lazy $\lambda$-calculus
+  can macro-express, and
+  (b)~the converse fails.
 
-\paragraph{Part (b): the lazy $\lambda$-calculus $\not\geq$
-inheritance-calculus}
-The $\lambda$-calculus contains its own constructors
-($\lambda$, application, variable) and can macro-express
-$\mathbf{let}$-binding (Lemma~\ref{lem:let-macro}), but
-cannot macro-express the inheritance constructors of
-$\mathscr{U}$
-(Theorem~\ref{thm:cartesian-nonexpressibility}).
-Inheritance-calculus contains those constructors.
-Therefore the lazy $\lambda$-calculus is not at least
-as expressive as inheritance-calculus with respect
-to~$\mathscr{U}$.
+  \paragraph{Part (b): the lazy $\lambda$-calculus $\not\geq$
+  inheritance-calculus}
+  The $\lambda$-calculus contains its own constructors
+  ($\lambda$, application, variable) and can macro-express
+  $\mathbf{let}$-binding (Lemma~\ref{lem:let-macro}), but
+  cannot macro-express the inheritance constructors of
+  $\mathscr{U}$
+  (Theorem~\ref{thm:cartesian-nonexpressibility}).
+  Inheritance-calculus contains those constructors.
+  Therefore the lazy $\lambda$-calculus is not at least
+  as expressive as inheritance-calculus with respect
+  to~$\mathscr{U}$.
 
-\paragraph{Part (a): inheritance-calculus $\geq$ the lazy
-$\lambda$-calculus}
-We show that inheritance-calculus can macro-express
-every $\mathscr{U}$-construct that the
-$\lambda$-calculus contains or can macro-express.
-The $\lambda$-calculus contains $\lambda$-abstraction,
-application, and variable; it can macro-express
-$\mathbf{let}$-binding
-(Lemma~\ref{lem:let-macro}).
-We must show that inheritance-calculus can
-macro-express all four of these constructs.
-The translation proceeds in two stages:
-\begin{enumerate}
-  \item \emph{ANF conversion.}
-    The A-normal form
-    transformation~\cite{flanagan1993essence}
-    replaces nested applications with
-    $\mathbf{let}$-bindings; it is macro-expressible
-    in the $\lambda$-calculus by
-    Lemma~\ref{lem:anf-equiv}.
-    In the reverse direction,
-    $\mathbf{let}$-bindings are macro-expressible in
-    the $\lambda$-calculus by
-    Proposition~3.7 of
-    Felleisen~\cite{felleisen1991expressive}
-    (restated as Lemma~\ref{lem:let-macro}).
-    Thus ANF conversion is a macro-expressible
-    equivalence between the $\lambda$-calculus and its
-    ANF fragment.
-  \item \emph{The translation $\mathcal{T}$.}
-    Each ANF $\lambda$-calculus construct maps to a
-    fixed syntactic abstraction over
-    inheritance-calculus
-    (Theorem~\ref{thm:forward-macro}), satisfying
-    condition~E4 of
-    Felleisen~\cite[Definition~3.11]{felleisen1991expressive}.
-\end{enumerate}
-By Lemma~\ref{lem:macro-composition}, composing the
-two macro-expressible translations gives a
-macro-expressible translation from
-the $\lambda$-calculus (with $\mathbf{let}$) into
-inheritance-calculus.
-Since inheritance-calculus trivially contains its own
-constructors, it can macro-express every
-$\mathscr{U}$-construct that the $\lambda$-calculus
-contains or can macro-express.
+  \paragraph{Part (a): inheritance-calculus $\geq$ the lazy
+  $\lambda$-calculus}
+  We show that inheritance-calculus can macro-express
+  every $\mathscr{U}$-construct that the
+  $\lambda$-calculus contains or can macro-express.
+  The $\lambda$-calculus contains $\lambda$-abstraction,
+  application, and variable; it can macro-express
+  $\mathbf{let}$-binding
+  (Lemma~\ref{lem:let-macro}).
+  We must show that inheritance-calculus can
+  macro-express all four of these constructs.
+  The translation proceeds in two stages:
+  \begin{enumerate}
+    \item \emph{ANF conversion.}
+      The A-normal form
+      transformation~\cite{flanagan1993essence}
+      replaces nested applications with
+      $\mathbf{let}$-bindings; it is macro-expressible
+      in the $\lambda$-calculus by
+      Lemma~\ref{lem:anf-equiv}.
+      In the reverse direction,
+      $\mathbf{let}$-bindings are macro-expressible in
+      the $\lambda$-calculus by
+      Proposition~3.7 of
+      Felleisen~\cite{felleisen1991expressive}
+      (restated as Lemma~\ref{lem:let-macro}).
+      Thus ANF conversion is a macro-expressible
+      equivalence between the $\lambda$-calculus and its
+      ANF fragment.
+    \item \emph{The translation $\mathcal{T}$.}
+      Each ANF $\lambda$-calculus construct maps to a
+      fixed syntactic abstraction over
+      inheritance-calculus
+      (Theorem~\ref{thm:forward-macro}), satisfying
+      condition~E4 of
+      Felleisen~\cite[Definition~3.11]{felleisen1991expressive}.
+  \end{enumerate}
+  By Lemma~\ref{lem:macro-composition}, composing the
+  two macro-expressible translations gives a
+  macro-expressible translation from
+  the $\lambda$-calculus (with $\mathbf{let}$) into
+  inheritance-calculus.
+  Since inheritance-calculus trivially contains its own
+  constructors, it can macro-express every
+  $\mathscr{U}$-construct that the $\lambda$-calculus
+  contains or can macro-express.
 \end{proof}
 
 \section{Multi-Path Self-Reference in Other Systems}
@@ -3825,15 +3834,15 @@ variable is single-valued, making this intersection unrealizable.
 
 The equivalent inheritance-calculus definition is:
 \begin{align*}
-\{ \quad \mathrm{MyOuter} &\mapsto \{
-    \mathrm{MyInner} \mapsto \{
-  \mathrm{outer} \mapsto \qualifiedthis{\mathrm{MyOuter}}\}\}, \\
-  \mathrm{Object1} &\mapsto \{\mathrm{MyOuter}\}, \\
-  \mathrm{Object2} &\mapsto \{\mathrm{MyOuter}\}, \\
-  \mathrm{HasMultipleOuters} &\mapsto \{
-    \mathrm{Object1}.\mathrm{MyInner},\;
-  \mathrm{Object2}.\mathrm{MyInner}\}
-\quad \}
+  \{ \quad \mathrm{MyOuter} &\mapsto \{
+      \mathrm{MyInner} \mapsto \{
+    \mathrm{outer} \mapsto \qualifiedthis{\mathrm{MyOuter}}\}\}, \\
+    \mathrm{Object1} &\mapsto \{\mathrm{MyOuter}\}, \\
+    \mathrm{Object2} &\mapsto \{\mathrm{MyOuter}\}, \\
+    \mathrm{HasMultipleOuters} &\mapsto \{
+      \mathrm{Object1}.\mathrm{MyInner},\;
+    \mathrm{Object2}.\mathrm{MyInner}\}
+  \quad \}
 \end{align*}
 This is well-defined in inheritance-calculus.
 The reference
@@ -3997,13 +4006,13 @@ evaluation tree has a unique path address.
 \paragraph{Syntax}
 Let $M$ denote a computation and $V$ a value.
 \[
-\begin{array}{r@{\;::=\;}l}
-  M & \mathbf{let}\; x = V_1\; V_2 \;\mathbf{in}\; M
-  \mid \mathbf{let}\; x = V \;\mathbf{in}\; M
-  \mid V_1\; V_2
-  \mid V \\
-  V & x \mid \lambda x.\, M
-\end{array}
+  \begin{array}{r@{\;::=\;}l}
+    M & \mathbf{let}\; x = V_1\; V_2 \;\mathbf{in}\; M
+    \mid \mathbf{let}\; x = V \;\mathbf{in}\; M
+    \mid V_1\; V_2
+    \mid V \\
+    V & x \mid \lambda x.\, M
+  \end{array}
 \]
 The grammar includes both application let-bindings and
 value let-bindings (the latter bind a name to a value
@@ -4034,10 +4043,10 @@ $\init(p)$ for the parent path, and $\last(p)$ for the final label.
 An ANF term is parsed into an AST that provides two
 functions at each path~$p$:
 \begin{itemize}
-\item $\children(p)$: the set of labels locally defined at~$p$.
-\item $\refs(p)$: the set of reference pairs
-  $(n,\; \ell_*)$, where $n$ is a de~Bruijn index
-  and $\ell_*$ is a list of downward projections.
+  \item $\children(p)$: the set of labels locally defined at~$p$.
+  \item $\refs(p)$: the set of reference pairs
+    $(n,\; \ell_*)$, where $n$ is a de~Bruijn index
+    and $\ell_*$ is a list of downward projections.
 \end{itemize}
 
 \noindent
@@ -4046,8 +4055,8 @@ Each ANF construct populates these as follows.
 \smallskip\noindent
 An abstraction $\lambda x.\, M$ at path $p$:
 \begin{align*}
-\children(p) &= \{\mathrm{argument},\; \mathrm{result}\},
-&\refs(p) &= \varnothing.
+  \children(p) &= \{\mathrm{argument},\; \mathrm{result}\},
+  &\refs(p) &= \varnothing.
 \end{align*}
 The subtree at $p \snoc \mathrm{result}$ is determined by $M$;
 the subtree at $p \snoc \mathrm{argument}$ is empty
@@ -4057,30 +4066,30 @@ the subtree at $p \snoc \mathrm{argument}$ is empty
 A let-binding $\mathbf{let}\; x = V_1\; V_2 \;\mathbf{in}\; M$
 at path $p$:
 \begin{align*}
-\children(p) &= \{x,\; \mathrm{result}\},
-&\refs(p) &= \varnothing.
+  \children(p) &= \{x,\; \mathrm{result}\},
+  &\refs(p) &= \varnothing.
 \end{align*}
 The subtree at $p \snoc \mathrm{result}$ is determined by $M$.
 The subtree at $p \snoc x$ represents the application
 $V_1\; V_2$ and is determined by the form of $V_1$:
 \begin{itemize}
-\item If $V_1$ is a variable (either $\dbi{m}$ or a
-  let-bound name), then
-  \begin{align*}
-    \children(p \snoc x) &= \{\mathrm{argument}\},
-    &\refs(p \snoc x) &= \{(n_1,\; \ell_*)\},
-  \end{align*}
-  where the reference $(n_1,\; \ell_*)$ encodes
-  the translation of $V_1$ (see below).
-\item If $V_1 = \lambda y.\, M'$, the $\lambda$-literal is
-  inlined:
-  \begin{align*}
-    \children(p \snoc x)
-    &= \{\mathrm{argument},\; \mathrm{result}\},
-    &\refs(p \snoc x) &= \varnothing,
-  \end{align*}
-  and the subtree at $p \snoc x \snoc \mathrm{result}$ is
-  determined by $M'$.
+  \item If $V_1$ is a variable (either $\dbi{m}$ or a
+    let-bound name), then
+    \begin{align*}
+      \children(p \snoc x) &= \{\mathrm{argument}\},
+      &\refs(p \snoc x) &= \{(n_1,\; \ell_*)\},
+    \end{align*}
+    where the reference $(n_1,\; \ell_*)$ encodes
+    the translation of $V_1$ (see below).
+  \item If $V_1 = \lambda y.\, M'$, the $\lambda$-literal is
+    inlined:
+    \begin{align*}
+      \children(p \snoc x)
+      &= \{\mathrm{argument},\; \mathrm{result}\},
+      &\refs(p \snoc x) &= \varnothing,
+    \end{align*}
+    and the subtree at $p \snoc x \snoc \mathrm{result}$ is
+    determined by $M'$.
 \end{itemize}
 In both cases the subtree at $p \snoc x \snoc \mathrm{argument}$
 is determined by $V_2$.
@@ -4089,15 +4098,15 @@ is determined by $V_2$.
 A value let-binding $\mathbf{let}\; x = V \;\mathbf{in}\; M$
 at path $p$:
 \begin{align*}
-\children(p) &= \{x,\; \mathrm{result}\},
-&\refs(p) &= \varnothing.
+  \children(p) &= \{x,\; \mathrm{result}\},
+  &\refs(p) &= \varnothing.
 \end{align*}
 The subtree at $p \snoc \mathrm{result}$ is determined by $M$.
 The subtree at $p \snoc x$ wraps the value in a
 $\mathrm{result}$ scope:
 \begin{align*}
-\children(p \snoc x) &= \{\mathrm{result}\},
-&\refs(p \snoc x) &= \varnothing.
+  \children(p \snoc x) &= \{\mathrm{result}\},
+  &\refs(p \snoc x) &= \varnothing.
 \end{align*}
 The subtree at $p \snoc x \snoc \mathrm{result}$ is
 determined by $V$.
@@ -4108,8 +4117,8 @@ application let-bindings.
 \smallskip\noindent
 A tail call $V_1\; V_2$ at path $p$:
 \begin{align*}
-\children(p) &= \{\mathrm{tailCall},\; \mathrm{result}\},
-&\refs(p) &= \varnothing.
+  \children(p) &= \{\mathrm{tailCall},\; \mathrm{result}\},
+  &\refs(p) &= \varnothing.
 \end{align*}
 The subtree at $p \snoc \mathrm{tailCall}$ is analogous to
 the application node $p \snoc x$ above: if $V_1$ is a variable,
@@ -4120,10 +4129,10 @@ $\refs = \varnothing$ and the $\lambda$-body inlined.
 The subtree at $p \snoc \mathrm{result}$ is a forwarding
 reference:
 \begin{align*}
-\children(p \snoc \mathrm{result})
-&= \varnothing,
-&\refs(p \snoc \mathrm{result})
-&= \{(0,\; (\mathrm{tailCall},\; \mathrm{result}))\}.
+  \children(p \snoc \mathrm{result})
+  &= \varnothing,
+  &\refs(p \snoc \mathrm{result})
+  &= \{(0,\; (\mathrm{tailCall},\; \mathrm{result}))\}.
 \end{align*}
 Here $(0,\; (\mathrm{tailCall},\; \mathrm{result}))$ navigates to
 the enclosing scope ($p$ itself, since $n = 0$ from
@@ -4164,12 +4173,12 @@ they are not functions of runtime state.
 The labels observable at a path are those locally
 defined at any graft of any transitive callee:
 \begin{equation}\label{eq:lambda-labels}
-\labels(p) =
-\bigl\{\; \ell \;\big|\;
-  p_{\mathrm{step}} \in \callee^*(p),\;
-  p_{\mathrm{graft}} \in \mathtt{grafts}(p_{\mathrm{step}}),\;
-  \ell \in \children(p_{\mathrm{graft}})
-\;\bigr\}
+  \labels(p) =
+  \bigl\{\; \ell \;\big|\;
+    p_{\mathrm{step}} \in \callee^*(p),\;
+    p_{\mathrm{graft}} \in \mathtt{grafts}(p_{\mathrm{step}}),\;
+    \ell \in \children(p_{\mathrm{graft}})
+  \;\bigr\}
 \end{equation}
 
 \paragraph{Grafts}
@@ -4182,19 +4191,19 @@ position (if any) share the same identity.
 The grafts of $p$ collect all such identity-sharing
 positions:
 \begin{equation}\label{eq:lambda-grafts}
-\mathtt{grafts}(p) =
-\begin{cases}
-  \{p\} & \text{if } p = ()  \\[6pt]
-  \{p\}
-  \;\cup\;
-  \left\{\; p_{\mathrm{callee}} \snoc \last(p) \;\left|\;
-    \begin{aligned}
-      &p_{\mathrm{callee}} \in \callee^*(\init(p)), \\
-      &\text{s.t.}\; \last(p) \in \children(p_{\mathrm{callee}})
-    \end{aligned}
-  \right.\right\}
-  & \text{if } p \neq ()
-\end{cases}
+  \mathtt{grafts}(p) =
+  \begin{cases}
+    \{p\} & \text{if } p = ()  \\[6pt]
+    \{p\}
+    \;\cup\;
+    \left\{\; p_{\mathrm{callee}} \snoc \last(p) \;\left|\;
+      \begin{aligned}
+        &p_{\mathrm{callee}} \in \callee^*(\init(p)), \\
+        &\text{s.t.}\; \last(p) \in \children(p_{\mathrm{callee}})
+      \end{aligned}
+    \right.\right\}
+    & \text{if } p \neq ()
+  \end{cases}
 \end{equation}
 Here $\callee^*$ denotes the reflexive-transitive closure of
 $\callee$, defined next.
@@ -4205,16 +4214,16 @@ grafted from.
 Concretely, $\callee$ resolves every reference in
 $p$'s grafts one step:
 \begin{equation}\label{eq:lambda-callee}
-\callee(p) =
-\left\{\; p_{\mathrm{target}} \;\left|\;
-  \begin{aligned}
-    &p_{\mathrm{graft}} \in \mathtt{grafts}(p), \\
-    &(n,\; \ell_*) \in \refs(p_{\mathrm{graft}}), \\
-    &p_{\mathrm{target}} = \scope(\init(p),\;
-    \init(p_{\mathrm{graft}}),\; n) \snoc
-    \ell_1 \snoc \cdots \snoc \ell_k
-  \end{aligned}
-\right.\right\}
+  \callee(p) =
+  \left\{\; p_{\mathrm{target}} \;\left|\;
+    \begin{aligned}
+      &p_{\mathrm{graft}} \in \mathtt{grafts}(p), \\
+      &(n,\; \ell_*) \in \refs(p_{\mathrm{graft}}), \\
+      &p_{\mathrm{target}} = \scope(\init(p),\;
+      \init(p_{\mathrm{graft}}),\; n) \snoc
+      \ell_1 \snoc \cdots \snoc \ell_k
+    \end{aligned}
+  \right.\right\}
 \end{equation}
 where $\ell_* = (\ell_1, \ldots, \ell_k)$.
 The $\init(p_{\mathrm{graft}})$ passes the reference's
@@ -4236,16 +4245,16 @@ a definition-site path $p_{\mathrm{def}}$
 (the position in the original AST),
 and a de~Bruijn index $n$.
 \begin{equation}\label{eq:lambda-scope}
-\scope(p_{\mathrm{site}},\; p_{\mathrm{def}},\; n) =
-\begin{cases}
-  p_{\mathrm{site}} & \text{if } n = 0 \\[6pt]
-  \scope\!\left(
-    p_{\mathrm{caller}},\;
-    \init(p_{\mathrm{def}}),\;
-    n - 1
-  \right)
-  & \text{if } n > 0
-\end{cases}
+  \scope(p_{\mathrm{site}},\; p_{\mathrm{def}},\; n) =
+  \begin{cases}
+    p_{\mathrm{site}} & \text{if } n = 0 \\[6pt]
+    \scope\!\left(
+      p_{\mathrm{caller}},\;
+      \init(p_{\mathrm{def}}),\;
+      n - 1
+    \right)
+    & \text{if } n > 0
+  \end{cases}
 \end{equation}
 where $p_{\mathrm{caller}}$ is the unique path satisfying
 $(p_{\mathrm{caller}},\; p_{\mathrm{def}})
@@ -4253,12 +4262,12 @@ $(p_{\mathrm{caller}},\; p_{\mathrm{def}})
 and $\callee^{\mathrm{ctx}}$ pairs each element of
 $\callee^*(p_{\mathrm{site}})$ with its provenance:
 \begin{equation}\label{eq:lambda-callee-ctx}
-\callee^{\mathrm{ctx}}(p) =
-\bigl\{\; (\init(p_{\mathrm{step}}),\;
-  p_{\mathrm{graft}}) \;\big|\;
-  p_{\mathrm{step}} \in \callee^*(p),\;
-  p_{\mathrm{graft}} \in \mathtt{grafts}(p_{\mathrm{step}})
-\;\bigr\}
+  \callee^{\mathrm{ctx}}(p) =
+  \bigl\{\; (\init(p_{\mathrm{step}}),\;
+    p_{\mathrm{graft}}) \;\big|\;
+    p_{\mathrm{step}} \in \callee^*(p),\;
+    p_{\mathrm{graft}} \in \mathtt{grafts}(p_{\mathrm{step}})
+  \;\bigr\}
 \end{equation}
 At each step, $\init$ shortens $p_{\mathrm{def}}$ by one label
 and $n$ decreases by one.
@@ -4293,11 +4302,11 @@ divergence.
 An ANF term $M$ \emph{converges}, written $M{\Downarrow}$,
 if there exists $n \ge 0$ such that
 \[
-\{\mathrm{argument},\, \mathrm{result}\}
-\;\subseteq\;
-\labels\!\bigl(\,\underbrace{
-    \mathrm{result} \snoc \cdots \snoc \mathrm{result}
-}_{n}\,\bigr)
+  \{\mathrm{argument},\, \mathrm{result}\}
+  \;\subseteq\;
+  \labels\!\bigl(\,\underbrace{
+      \mathrm{result} \snoc \cdots \snoc \mathrm{result}
+  }_{n}\,\bigr)
 \]
 in the semantics defined by the equations above.
 This corresponds exactly to the B\"ohm
@@ -4355,31 +4364,31 @@ $\mathrm{Cons}$ (non-empty node), and $\mathrm{Nil}$ (terminator).
 Each constant $d \in D$ inherits from $\mathrm{Cons}$ and carries
 a $\mathrm{TailMap}$ that provides per-constant sub-tries:
 \begin{align*}
-&\mathrm{Relation} \mapsto \{\},\quad
-\mathrm{Cons} \mapsto \{\mathrm{Relation},\;
-\mathrm{Tail} \mapsto \{\mathrm{Relation}\}\},\quad
-\mathrm{Nil} \mapsto \{\mathrm{Relation}\}\\[2pt]
-&d \mapsto \{\mathrm{Cons},\;
-  \mathrm{Tail} \mapsto \{\},\;
-\mathrm{TailMap} \mapsto \{d \mapsto \{\mathrm{Tail}\}\}\}
+  &\mathrm{Relation} \mapsto \{\},\quad
+  \mathrm{Cons} \mapsto \{\mathrm{Relation},\;
+  \mathrm{Tail} \mapsto \{\mathrm{Relation}\}\},\quad
+  \mathrm{Nil} \mapsto \{\mathrm{Relation}\}\\[2pt]
+  &d \mapsto \{\mathrm{Cons},\;
+    \mathrm{Tail} \mapsto \{\},\;
+  \mathrm{TailMap} \mapsto \{d \mapsto \{\mathrm{Tail}\}\}\}
 \end{align*}
 A fact $R(d_1, d_2)$ is encoded as a trie path of depth~2,
 with a $\mathrm{Nil}$ terminator.
 The per-constant sub-tries are accessed via
 $\mathrm{TailMap}.d$:
 \begin{align*}
-R(a, b) \;\leadsto\quad
-R \mapsto \{a,\; \mathrm{TailMap} \mapsto \{a \mapsto
-\{b,\; \mathrm{TailMap} \mapsto \{b \mapsto \{\mathrm{Nil}\}\}\}\}\}
+  R(a, b) \;\leadsto\quad
+  R \mapsto \{a,\; \mathrm{TailMap} \mapsto \{a \mapsto
+  \{b,\; \mathrm{TailMap} \mapsto \{b \mapsto \{\mathrm{Nil}\}\}\}\}\}
 \end{align*}
 Multiple facts for the same relation are accumulated by
 inheritance (trie union).
 Adding $R(b, c)$:
 \begin{align*}
-R \mapsto \{a,\; b,\;
-  \mathrm{TailMap} \mapsto \{&
-    a \mapsto \{b,\; \mathrm{TailMap} \mapsto \{b \mapsto \{\mathrm{Nil}\}\}\},\\
-&b \mapsto \{c,\; \mathrm{TailMap} \mapsto \{c \mapsto \{\mathrm{Nil}\}\}\}\}\}
+  R \mapsto \{a,\; b,\;
+    \mathrm{TailMap} \mapsto \{&
+      a \mapsto \{b,\; \mathrm{TailMap} \mapsto \{b \mapsto \{\mathrm{Nil}\}\}\},\\
+  &b \mapsto \{c,\; \mathrm{TailMap} \mapsto \{c \mapsto \{\mathrm{Nil}\}\}\}\}\}
 \end{align*}
 The point of the trie representation is not merely that it is a
 tree-shaped encoding.
@@ -4406,50 +4415,50 @@ does not require modifying any existing scope, preserving
 the expression-problem property.
 
 \begin{description}
-\item[Acceptance]
-  The visitor-pattern infrastructure from
-  Section~\ref{sec:case-study}.
-  Operationally, this is the object-oriented spelling of a
-  case split on the current constant.
-  Each constant $d$ defines a $\mathrm{VisitorMap}$
-  containing a branch keyed by $d$, a $\mathrm{Visitor}$
-  with a $\mathrm{Visited}$ slot for per-constant results,
-  and an $\mathrm{Accepted}$ property that delegates to the
-  matching branch's $\mathrm{Visited}$ value.
-  This is the dispatch mechanism: given a scope that may
-  contain multiple constants, $\mathrm{Acceptance}$ selects the
-  branch corresponding to each constant present and
-  collects the per-constant $\mathrm{Visited}$ results.
+  \item[Acceptance]
+    The visitor-pattern infrastructure from
+    Section~\ref{sec:case-study}.
+    Operationally, this is the object-oriented spelling of a
+    case split on the current constant.
+    Each constant $d$ defines a $\mathrm{VisitorMap}$
+    containing a branch keyed by $d$, a $\mathrm{Visitor}$
+    with a $\mathrm{Visited}$ slot for per-constant results,
+    and an $\mathrm{Accepted}$ property that delegates to the
+    matching branch's $\mathrm{Visited}$ value.
+    This is the dispatch mechanism: given a scope that may
+    contain multiple constants, $\mathrm{Acceptance}$ selects the
+    branch corresponding to each constant present and
+    collects the per-constant $\mathrm{Visited}$ results.
 
-\item[WithVisitorTail]
-  Maps each constant $d$ to its sub-trie entry
-  $\mathrm{TailMap}.d$, labeled as $\mathrm{VisitorTail}$.
-  This provides the \emph{right-hand} (visitor) side of a
-  join: when two relations' $\mathrm{VisitorMap}$ entries are
-  composed, $\mathrm{VisitorTail}$ carries the joined
-  relation's row data for the matched constant.
+  \item[WithVisitorTail]
+    Maps each constant $d$ to its sub-trie entry
+    $\mathrm{TailMap}.d$, labeled as $\mathrm{VisitorTail}$.
+    This provides the \emph{right-hand} (visitor) side of a
+    join: when two relations' $\mathrm{VisitorMap}$ entries are
+    composed, $\mathrm{VisitorTail}$ carries the joined
+    relation's row data for the matched constant.
 
-\item[WithVisiteeTail]
-  Maps each constant $d$ to its sub-trie entry
-  $\mathrm{TailMap}.d$, labeled as $\mathrm{VisiteeTail}$.
-  This provides the \emph{left-hand} (visitee) side: the
-  relation being iterated. Together,
-  $\mathrm{WithVisitorTail}$ and $\mathrm{WithVisiteeTail}$
-  enable value-level joins where only constants present
-  in \emph{both} relations produce output.
+  \item[WithVisiteeTail]
+    Maps each constant $d$ to its sub-trie entry
+    $\mathrm{TailMap}.d$, labeled as $\mathrm{VisiteeTail}$.
+    This provides the \emph{left-hand} (visitee) side: the
+    relation being iterated. Together,
+    $\mathrm{WithVisitorTail}$ and $\mathrm{WithVisiteeTail}$
+    enable value-level joins where only constants present
+    in \emph{both} relations produce output.
 
-\item[Replacement]
-  Given a $\mathrm{NewTail}$ value, produces a
-  $\mathrm{Replaced}$ scope that inherits the label $d$
-  but substitutes $\mathrm{TailMap}.d$ with
-  $\mathrm{NewTail}$.
-  This is the \emph{output construction} mechanism: it
-  builds output tuples by substituting new sub-tries into
-  constant wrappers.
-  Crucially, $\mathrm{Replacement}$ is defined on the
-  per-constant $\mathrm{TailMap}$ entry (not on the merged
-  scope), ensuring that output construction operates on
-  individual constants rather than their union.
+  \item[Replacement]
+    Given a $\mathrm{NewTail}$ value, produces a
+    $\mathrm{Replaced}$ scope that inherits the label $d$
+    but substitutes $\mathrm{TailMap}.d$ with
+    $\mathrm{NewTail}$.
+    This is the \emph{output construction} mechanism: it
+    builds output tuples by substituting new sub-tries into
+    constant wrappers.
+    Crucially, $\mathrm{Replacement}$ is defined on the
+    per-constant $\mathrm{TailMap}$ entry (not on the merged
+    scope), ensuring that output construction operates on
+    individual constants rather than their union.
 \end{description}
 
 As a running example, we use the executable two-hop encoding
@@ -4483,42 +4492,42 @@ is encoded by nesting three mechanisms inside that control
 skeleton:
 
 \begin{enumerate}
-\item \textbf{Column iteration.}
-  For each column position, an $\mathrm{Acceptance}$ dispatch
-  iterates over the constants present.
-  The $\mathrm{VisitorMap}$ is populated from
-  $\mathrm{WithVisiteeTail}$, so each matched constant's
-  $\mathrm{Visitor}$ receives $\mathrm{VisiteeTail}$: the
-  per-constant sub-trie at that position.
-  The result of processing each constant is placed in
-  $\mathrm{Visited}$, and $\mathrm{Accepted}$ collects all
-  per-constant results.
-  (Details in Sections~\ref{sec:encoding-variables},
-  \ref{sec:encoding-constants}, and~\ref{sec:encoding-multi}.)
+  \item \textbf{Column iteration.}
+    For each column position, an $\mathrm{Acceptance}$ dispatch
+    iterates over the constants present.
+    The $\mathrm{VisitorMap}$ is populated from
+    $\mathrm{WithVisiteeTail}$, so each matched constant's
+    $\mathrm{Visitor}$ receives $\mathrm{VisiteeTail}$: the
+    per-constant sub-trie at that position.
+    The result of processing each constant is placed in
+    $\mathrm{Visited}$, and $\mathrm{Accepted}$ collects all
+    per-constant results.
+    (Details in Sections~\ref{sec:encoding-variables},
+    \ref{sec:encoding-constants}, and~\ref{sec:encoding-multi}.)
 
-\item \textbf{Join.}
-  For each shared variable between body atoms, the inner
-  $\mathrm{Acceptance}$'s $\mathrm{VisitorMap}$ inherits from
-  \emph{both} $\mathrm{WithVisitorTail}$ (from the joined
-  relation) and $\mathrm{WithVisiteeTail}$ (from the iterated
-  relation).
-  A constant $d$ produces a $\mathrm{Visitor}$ entry only if
-  $d$ appears in both relations, achieving a value-level
-  join.
-  The $\mathrm{Visitor}$ then receives both
-  $\mathrm{VisiteeTail}$ and $\mathrm{VisitorTail}$,
-  providing access to both relations' data for the
-  matched constant.
+  \item \textbf{Join.}
+    For each shared variable between body atoms, the inner
+    $\mathrm{Acceptance}$'s $\mathrm{VisitorMap}$ inherits from
+    \emph{both} $\mathrm{WithVisitorTail}$ (from the joined
+    relation) and $\mathrm{WithVisiteeTail}$ (from the iterated
+    relation).
+    A constant $d$ produces a $\mathrm{Visitor}$ entry only if
+    $d$ appears in both relations, achieving a value-level
+    join.
+    The $\mathrm{Visitor}$ then receives both
+    $\mathrm{VisiteeTail}$ and $\mathrm{VisitorTail}$,
+    providing access to both relations' data for the
+    matched constant.
 
-\item \textbf{Output construction.}
-  Inside the innermost $\mathrm{Nil}$ confirmation (verifying
-  that each body atom's tuple is complete), chain
-  $\mathrm{Replacement}$ operations from the innermost
-  output column outward, each setting $\mathrm{NewTail}$ to
-  the previous $\mathrm{Replaced}$ value, terminated by
-  $\mathrm{Nil}$.
-  The final $\mathrm{Replaced}$ value is assigned to
-  $\mathrm{Visited}$.
+  \item \textbf{Output construction.}
+    Inside the innermost $\mathrm{Nil}$ confirmation (verifying
+    that each body atom's tuple is complete), chain
+    $\mathrm{Replacement}$ operations from the innermost
+    output column outward, each setting $\mathrm{NewTail}$ to
+    the previous $\mathrm{Replaced}$ value, terminated by
+    $\mathrm{Nil}$.
+    The final $\mathrm{Replaced}$ value is assigned to
+    $\mathrm{Visited}$.
 \end{enumerate}
 
 \subsection{Variable Join}
@@ -4547,14 +4556,14 @@ We present each level as a named sub-scope.
 \paragraph{Level~1: iterate $X$ from $\alpha$}
 (Executable scope: \texttt{\_XAcceptance}.)
 {\small
-\begin{align*}
-  &\mathrm{xAcc} \mapsto \{
-    \alpha.\mathrm{Acceptance},\;
-    \mathrm{VisitorMap} \mapsto \{\alpha.\mathrm{WithVisiteeTail}\},\\
-    &\quad \mathrm{Visitor} \mapsto \{
-      \_X \mapsto \{\mathrm{VisiteeTail}\},\;
-      \ldots,\;
-  \mathrm{Visited} \mapsto \{\mathrm{yAcc}.\mathrm{Accepted}\}\}\}
+  \begin{align*}
+    &\mathrm{xAcc} \mapsto \{
+      \alpha.\mathrm{Acceptance},\;
+      \mathrm{VisitorMap} \mapsto \{\alpha.\mathrm{WithVisiteeTail}\},\\
+      &\quad \mathrm{Visitor} \mapsto \{
+        \_X \mapsto \{\mathrm{VisiteeTail}\},\;
+        \ldots,\;
+    \mathrm{Visited} \mapsto \{\mathrm{yAcc}.\mathrm{Accepted}\}\}\}
 \end{align*}}
 
 \paragraph{Level~2: join $\alpha$'s $Y$-column with $\beta$'s first column}
@@ -4567,18 +4576,18 @@ $\_X.\mathrm{WithVisiteeTail}$, producing an entry for
 constant $d$ only if $d$ appears in both $\alpha$'s
 second column (via $\_X$) and $\beta$'s first column.
 {\small
-\begin{align*}
-  &\mathrm{yAcc} \mapsto \{
-    \_X.\mathrm{Acceptance},\\
-    &\quad \mathrm{VisitorMap} \mapsto \{
-      \beta.\mathrm{WithVisitorTail},\;
-    \_X.\mathrm{WithVisiteeTail}\},\\
-    &\quad \mathrm{Visitor} \mapsto \{
-      \_Y_0 \mapsto \{\mathrm{VisiteeTail}\},\;
-      \mathrm{VisitorTail} \mapsto \{\beta.\mathrm{Tail}\},\\
-      &\qquad
-      \ldots,\;
-  \mathrm{Visited} \mapsto \{\mathrm{nilAcc}_0.\mathrm{Accepted}\}\}\}
+  \begin{align*}
+    &\mathrm{yAcc} \mapsto \{
+      \_X.\mathrm{Acceptance},\\
+      &\quad \mathrm{VisitorMap} \mapsto \{
+        \beta.\mathrm{WithVisitorTail},\;
+      \_X.\mathrm{WithVisiteeTail}\},\\
+      &\quad \mathrm{Visitor} \mapsto \{
+        \_Y_0 \mapsto \{\mathrm{VisiteeTail}\},\;
+        \mathrm{VisitorTail} \mapsto \{\beta.\mathrm{Tail}\},\\
+        &\qquad
+        \ldots,\;
+    \mathrm{Visited} \mapsto \{\mathrm{nilAcc}_0.\mathrm{Accepted}\}\}\}
 \end{align*}}
 
 \paragraph{Level~3: confirm $\mathrm{Nil}$ after $Y$ in $\alpha$}
@@ -4590,50 +4599,50 @@ fact (its trie path terminates at $\mathrm{Nil}$ after $Y$).
 Inside the $\mathrm{Nil}$ branch, the encoding proceeds to
 iterate $\beta$'s second column via $\mathrm{VisitorTail}$:
 {\small
-\begin{align*}
-  &\mathrm{nilAcc}_0 \mapsto \{
-    \_Y_0.\mathrm{Acceptance},\;
-    \mathrm{VisitorMap} \mapsto \{
-      \mathrm{Nil} \mapsto \{\ldots,\;
-  \mathrm{Visited} \mapsto \{\mathrm{zAcc}.\mathrm{Accepted}\}\}\}\}
+  \begin{align*}
+    &\mathrm{nilAcc}_0 \mapsto \{
+      \_Y_0.\mathrm{Acceptance},\;
+      \mathrm{VisitorMap} \mapsto \{
+        \mathrm{Nil} \mapsto \{\ldots,\;
+    \mathrm{Visited} \mapsto \{\mathrm{zAcc}.\mathrm{Accepted}\}\}\}\}
 \end{align*}}
 
 \paragraph{Level~4: iterate $Z$ from $\beta$'s matched row}
 (Executable scope: \texttt{\_ZAcceptance}.)
 {\small
-\begin{align*}
-  &\mathrm{zAcc} \mapsto \{
-    \mathrm{VisitorTail}.\mathrm{Acceptance},\;
-    \mathrm{VisitorMap} \mapsto \{
-    \mathrm{VisitorTail}.\mathrm{WithVisiteeTail}\},\\
-    &\quad \mathrm{Visitor} \mapsto \{
-      \_Z \mapsto \{\mathrm{VisiteeTail}\},\;
-      \ldots,\;
-  \mathrm{Visited} \mapsto \{\mathrm{nilAcc}_1.\mathrm{Accepted}\}\}\}
+  \begin{align*}
+    &\mathrm{zAcc} \mapsto \{
+      \mathrm{VisitorTail}.\mathrm{Acceptance},\;
+      \mathrm{VisitorMap} \mapsto \{
+      \mathrm{VisitorTail}.\mathrm{WithVisiteeTail}\},\\
+      &\quad \mathrm{Visitor} \mapsto \{
+        \_Z \mapsto \{\mathrm{VisiteeTail}\},\;
+        \ldots,\;
+    \mathrm{Visited} \mapsto \{\mathrm{nilAcc}_1.\mathrm{Accepted}\}\}\}
 \end{align*}}
 
 \paragraph{Level~5: confirm $\mathrm{Nil}$ after $Z$ and construct output}
 (Executable scope: \texttt{\_NilAcceptance1}, with
 \texttt{\_ZReplacement} and \texttt{\_XReplacement}.)
 {\small
-\begin{align*}
-  &\mathrm{nilAcc}_1 \mapsto \{
-    \mathrm{VisiteeTail}.\mathrm{Acceptance},\;
-    \mathrm{VisitorMap} \mapsto \{
-      \mathrm{Nil} \mapsto \{\\
-        &\quad
-        \mathrm{zR} \mapsto \{\_Z.\mathrm{Replacement},\;
-        \mathrm{NewTail} \mapsto \{\mathrm{Nil}\}\},\\
-        &\quad
-        \mathrm{xR} \mapsto \{\_X.\mathrm{Replacement},\;
-        \mathrm{NewTail} \mapsto \{\mathrm{zR}.\mathrm{Replaced}\}\},\\
-        &\quad
-  \mathrm{Visited} \mapsto \{\mathrm{xR}.\mathrm{Replaced}\}\}\}\}
+  \begin{align*}
+    &\mathrm{nilAcc}_1 \mapsto \{
+      \mathrm{VisiteeTail}.\mathrm{Acceptance},\;
+      \mathrm{VisitorMap} \mapsto \{
+        \mathrm{Nil} \mapsto \{\\
+          &\quad
+          \mathrm{zR} \mapsto \{\_Z.\mathrm{Replacement},\;
+          \mathrm{NewTail} \mapsto \{\mathrm{Nil}\}\},\\
+          &\quad
+          \mathrm{xR} \mapsto \{\_X.\mathrm{Replacement},\;
+          \mathrm{NewTail} \mapsto \{\mathrm{zR}.\mathrm{Replaced}\}\},\\
+          &\quad
+    \mathrm{Visited} \mapsto \{\mathrm{xR}.\mathrm{Replaced}\}\}\}\}
 \end{align*}}
 
 \paragraph{Final result}
 \[
-\mathrm{composed} \mapsto \{\mathrm{xAcc}.\mathrm{Accepted}\}
+  \mathrm{composed} \mapsto \{\mathrm{xAcc}.\mathrm{Accepted}\}
 \]
 
 \paragraph{Semantics}
@@ -4680,11 +4689,11 @@ second column at the matched row.
 This is encoded as an $\mathrm{Acceptance}$ with a
 hand-crafted $\mathrm{VisitorMap}$ containing \emph{only}
 the $b$ branch (instead of composing from
-$\mathrm{WithVisitorTail}$, which would create branches for
+  $\mathrm{WithVisitorTail}$, which would create branches for
 all constants):
 {\small
-\begin{align*}
-  \mathrm{VisitorMap} \mapsto \{b \mapsto \{\ldots\}\}
+  \begin{align*}
+    \mathrm{VisitorMap} \mapsto \{b \mapsto \{\ldots\}\}
 \end{align*}}
 If $b$ exists in the dispatching scope, the
 $b$ branch fires; otherwise, $\mathrm{Accepted}$
@@ -4694,7 +4703,7 @@ receives no matching branch.
 An atom $R(b, Z)$ with a constant in the first position
 navigates directly to $b$'s sub-trie:
 \[
-\mathrm{edgeB}_Z \mapsto \{R.\mathrm{TailMap}.b\}
+  \mathrm{edgeB}_Z \mapsto \{R.\mathrm{TailMap}.b\}
 \]
 This bypasses the visitor mechanism entirely, accessing
 the per-constant $\mathrm{TailMap}$ entry to restrict the
@@ -4812,7 +4821,7 @@ optimisation left for future work.
 \paragraph{The recursive rule as monadic pseudocode}
 The recursive rule above roughly corresponds to the
 following pseudocode (Haskell-like syntax with
-\texttt{RebindableSyntax} semantics, where do-notation
+  \texttt{RebindableSyntax} semantics, where do-notation
 desugars to a \texttt{Set}-based bind):
 \begin{lstlisting}[style=haskell]
 {-# LANGUAGE RebindableSyntax, OverloadedLists #-}
@@ -4830,9 +4839,9 @@ path = edge <> do
 However, this monadic program does not converge because
 \texttt{path} is defined recursively.%
 \footnote{Enabling the \texttt{RecursiveDo} extension does not help:
-\texttt{mfix} ties a knot at the \emph{element} level via laziness,
-whereas the transitive closure equation requires a
-fixed point at the \emph{container} level---finding a
+  \texttt{mfix} ties a knot at the \emph{element} level via laziness,
+  whereas the transitive closure equation requires a
+  fixed point at the \emph{container} level---finding a
 set~$S$ such that $S = F(S)$.}
 Inheritance-calculus solves this through tabled evaluation
 (Section~\ref{sec:mixin-trees}), which computes the
@@ -4864,7 +4873,7 @@ $\{(a,c),\; (b,a),\; (c,b)\}$, matching standard Datalog.
 This is the behavior exhibited by
 \selfcite{\nolinkurl{RelationalTwoHopRepeatedVisitor.mixin.yaml}~\cite{mixin2025}}{\nolinkurl{RelationalTwoHopRepeatedVisitor.mixin.yaml}~(supplementary material)}.
 When the $Y$-join matches constant $b$ (present in both
-$\mathrm{edge}$'s second column from $(a,b)$ and
+  $\mathrm{edge}$'s second column from $(a,b)$ and
 $\mathrm{edge}$'s first column), the $\mathrm{Visitor}$ for
 $b$ receives $\mathrm{VisitorTail} = \mathrm{edge}.\mathrm{TailMap}.b$
 (containing only~$c$), and $\mathrm{Replacement}$ constructs
@@ -4885,8 +4894,8 @@ before any merging occurs, achieving the same effect as
 standard Datalog's tuple-level evaluation.
 
 \begin{acks}
-Claude Code, GitHub Copilot, Gemini Code Assist, and Codex were utilized to generate sections of this Work,
-including text, tables, graphs, code, formulas, citations, etc.
+  Claude Code, GitHub Copilot, Gemini Code Assist, and Codex were utilized to generate sections of this Work,
+  including text, tables, graphs, code, formulas, citations, etc.
 \end{acks}
 
 \end{document}
