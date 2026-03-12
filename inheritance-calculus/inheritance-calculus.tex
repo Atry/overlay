@@ -1008,7 +1008,7 @@ stabilizes under $\mathrm{lfp}(T_P)$:%
   (Appendix~\ref{app:datalog-encoding},
   Section~\ref{sec:recursive-rules}) requires exactly this,
   and neither $Y$ nor Haskell's \texttt{mfix}
-  (\texttt{RecursiveDo}) can express it.}
+(\texttt{RecursiveDo}) can express it.}
 tabled evaluation detects the cycle and returns
 $\properties(\mathrm{root}) = \{x, \mathrm{result}\}$
 with no abstraction shape, reflecting an undefined value
@@ -4409,6 +4409,8 @@ and does not grow with the domain size $|D|$,
 so adding a new constant
 does not require modifying any existing scope, preserving
 the expression-problem property.
+
+% 我们可以通过引入类似ECMAScript的Symbol机制来消除这些重复定义，但这让语言更复杂了
 
 \begin{description}
   \item[Acceptance]
