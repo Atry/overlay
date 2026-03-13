@@ -4866,8 +4866,9 @@ optimisation left for future work.
 \paragraph{The recursive rule as monadic pseudocode}
 The recursive rule above roughly corresponds to the
 following pseudocode (Haskell-like syntax with
-  \texttt{RebindableSyntax} semantics, where do-notation
-desugars to a \texttt{Set}-based bind):
+  \texttt{RebindableSyntax} and \texttt{OverloadedLists}
+  semantics, where do-notation desugars to a
+\texttt{Set}-based bind and list literals denote sets):
 \begin{lstlisting}[style=haskell]
 {-# LANGUAGE RebindableSyntax, OverloadedLists #-}
 s >>= f = unions [f x | x <- s]
