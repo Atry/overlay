@@ -4882,6 +4882,37 @@ path = edge <> do
   guard (y0 == y1)
   return (x, z)
 \end{lstlisting}
+\noindent
+Each line of the pseudocode has a direct counterpart in
+the inheritance-calculus encoding
+(Section~\ref{sec:encoding-variables}):
+\begin{description}
+  \item[\texttt{edge}] corresponds to the base-fact trie;
+  \item[\texttt{path = edge <> do \ldots}]
+    corresponds to $\mathrm{path}$ inheriting $\mathrm{edge}$
+    (base facts) and the recursive body (derived facts via
+    $\supers$);
+  \item[\texttt{(x, y0) <- edge}]
+    corresponds to Level~1 ($\mathrm{xAcc}$), iterating $X$
+    from $\mathrm{edge}$;
+  \item[\texttt{(y1, z) <- path}]
+    corresponds to Level~2 ($\mathrm{yAcc}$), joining on $Y$
+    with $\mathrm{path}$, and Level~4 ($\mathrm{zAcc}$),
+    iterating $Z$;
+  \item[\texttt{guard (y0 == y1)}]
+    corresponds to the $\mathrm{WithVisitorTail} \cap
+    \mathrm{WithVisiteeTail}$ intersection in Level~2: a
+    constant produces a $\mathrm{Visitor}$ entry only if it
+    appears in both relations;
+  \item[\texttt{return (x, z)}]
+    corresponds to the $\mathrm{Replacement}$ chain in
+    Level~5, constructing the output tuple $(X, Z)$.
+\end{description}
+The only difference is the evaluation strategy:
+Haskell evaluates \texttt{path} lazily (diverges),
+whereas inheritance-calculus evaluates it via tabled
+$T_P$ iteration (converges to $\mathrm{lfp}$).
+
 However, this monadic program does not converge because
 \texttt{path} is defined recursively.%
 \footnote{Enabling the \texttt{RecursiveDo} extension does not help:
