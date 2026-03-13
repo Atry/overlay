@@ -82,11 +82,6 @@
 %% -- Shared resolution --
 \newcommand{\scoperesolution}{\mathtt{scope\_resolve}}
 \newcommand{\resolveref}{\mathtt{resolve\_ref}}
-%% Legacy aliases (used in proofs appendix, to be updated)
-\newcommand{\labels}{\mathtt{labels}}
-\newcommand{\children}{\mathtt{children}}
-\newcommand{\refs}{\mathtt{refs}}
-\newcommand{\scope}{\mathtt{scope}}
 
 \begin{document}
 
@@ -229,7 +224,7 @@ The reduction produced MIXIN, an early implementation in Nix,
 and subsequently
 MIXINv2\selfcite{~\cite{mixin2025}}{~(included as supplementary
 material)}, now implemented in Python: a declarative programming
-language with only three constructs (record literals, properties,
+language with only three constructs (record literals, definitions,
 and inheritance) and no functions or let-bindings.
 
 In developing real programs in MIXINv2, including boolean logic,
@@ -268,7 +263,7 @@ application corresponds to inheriting from the function record and a record
 that supplies the argument. Since the $\lambda$-calculus embeds into
 inheritance-calculus, inheritance-calculus is Turing complete.
 The translation reveals an asymmetry: embedding the
-$\lambda$-calculus into inheritance-calculus requires five local,
+$\lambda$-calculus into inheritance-calculus requires six local,
 syntax-directed rules
 (Section~\ref{sec:forward-translation}), but the lazy
 $\lambda$-calculus cannot macro-express the inheritance
@@ -306,8 +301,8 @@ for the algorithms presented here and may aid readability.}
   \item We present inheritance-calculus, a minimal computational model for
     declarative programming that contains three constructs (record,
     definition, inheritance).
-  \item The mixin is a single abstraction that unifies class,
-    method, object, and property.
+  \item The mixin is a single abstraction that unifies module,
+    class, object, method, field, and local binding.
     Method-level overriding is subsumed by deep merge of mixin
     trees; inheritance is commutative, idempotent,
     and associative, and the linearization problem in OOP does not arise.
@@ -329,7 +324,7 @@ for the algorithms presented here and may aid readability.}
   \item The mixin tree \emph{is} the call stack.
     Self-reference resolves to \emph{multiple targets}.
   \item The $\lambda$-calculus macro-expresses into
-    inheritance-calculus in five local rules
+    inheritance-calculus in six local rules
     (Section~\ref{sec:translation}).
   \item The translation gives the lazy $\lambda$-calculus a
     first-order semantics
@@ -388,7 +383,7 @@ Because expressions are sets, element order is irrelevant and
 duplicates have no effect; inheritance is inherently commutative,
 idempotent, and associative.
 
-The $\mapsto$ in $\ell \mapsto e$ defines a property.
+The $\mapsto$ in $\ell \mapsto e$ defines a property named $\ell$ with value $e$.
 MIXINv2 also provides scalar types through a
 foreign-function interface (FFI); inheritance-calculus is what remains
 after removing the FFI.
@@ -498,8 +493,8 @@ at each path.
 An expression $e$ (Section~\ref{sec:syntax}) is parsed into an AST.
 The AST provides two primitive functions at each path $p$:
 \begin{itemize}
-  \item $\defines(p)$: the set of labels
-    that have subtrees at $p$.
+  \item $\defines(p)$: the set of labels $\ell$ for which $p$
+    contains a definition $\ell \mapsto e$.
   \item $\inherits(p)$: the set of reference pairs
     $(n,\; \ell_{\mathrm{down},*})$,
     where $n$ is the de~Bruijn index
@@ -728,6 +723,9 @@ By the Knaster--Tarski
 theorem~\cite{tarski1955-lattice-fixpoint-theorem}, $T_P$ has a unique
 least fixed point $\mathrm{lfp}(T_P)$, which serves as
 the denotational semantics.
+This denotational characterization formalizes the observational
+semantics introduced above: the observer-driven queries are
+computed by the same fixed-point equations.
 Appendix~\ref{app:well-definedness} proves that tabled
 evaluation never returns a wrong answer and analyses
 termination.
@@ -1071,7 +1069,7 @@ the Expression Problem, adding a new observable projection to
 an existing definition without modifying it.
 
 The underlying mechanism is open extension: mixin
-definitions compose via open recursion, so existing
+definitions compose via open extension, so existing
 definitions gain new observable properties without
 modification.  In the $\lambda$-calculus, a function's result
 is closed: there is no way to add new observable projections
@@ -1444,7 +1442,6 @@ every operation distributes over them.
 \section{Discussion}
 
 \subsection{Emergent Phenomena}
-\label{sec:reverse-translation}
 \label{sec:emergent-phenomena}
 
 In developing real programs in MIXINv2, we encountered three
@@ -1725,10 +1722,22 @@ associativity~(A), and by their extensibility model.
     are the machinery needed to work around this limitation.
 
   \item[Conditional incorporation]
-    Removing or conditionally including definitions can
-    introduce cycles in the dependency graph, causing the
-    recursive evaluation
-    (Appendix~\ref{app:well-definedness}) to diverge.
+    Removing or conditionally including definitions
+    based on the presence of other definitions
+    creates a dependency cycle:
+    whether a definition exists depends on
+    whether another definition exists, which in turn
+    depends on the first.
+    The recursive evaluation
+    (Appendix~\ref{app:well-definedness}) cannot
+    reach a fixed point when addition and removal
+    alternate, causing divergence.
+    This differs from the divergence inherent to
+    Turing completeness: Turing-complete programs
+    diverge because computation is unbounded, whereas
+    conditional incorporation diverges because the
+    immediate consequence operator $T_P$ oscillates
+    rather than ascending monotonically.
 \end{description}
 
 \noindent
@@ -3055,49 +3064,50 @@ We make this precise.
   the post-reduct.
 \end{proof}
 
-\paragraph{Extension to $\mathrm{lfp}(T_P)$ semantics}
-\label{rem:convergence-lfp}
-Section~\ref{sec:bohm-tree} showed that the B\"ohm tree
-correspondence holds at the first iteration
-$T_P\!\uparrow\!1$ and that $\mathrm{lfp}(T_P)$ is
-strictly more defined.
-Here we make the connection precise.
-Tabled evaluation~\cite{tamaki1986-tabled-resolution}
-computes $\mathrm{lfp}(T_P)$ by iterating:
-$T_P\!\uparrow\!0 = \bot$,
-$T_P\!\uparrow\!1 = T_P(\bot)$,
-$T_P\!\uparrow\!2 = T_P(T_P(\bot))$,
-\ldots\ until stabilisation
-(Theorem~\ref{thm:tabling-soundness}).
+\begin{remark}[Convergence hierarchy]
+  \label{rem:convergence-lfp}
+  Section~\ref{sec:bohm-tree} showed that the B\"ohm tree
+  correspondence holds at the first iteration
+  $T_P\!\uparrow\!1$ and that $\mathrm{lfp}(T_P)$ is
+  strictly more defined.
+  Here we make the connection precise.
+  Tabled evaluation~\cite{tamaki1986-tabled-resolution}
+  computes $\mathrm{lfp}(T_P)$ by iterating:
+  $T_P\!\uparrow\!0 = \bot$,
+  $T_P\!\uparrow\!1 = T_P(\bot)$,
+  $T_P\!\uparrow\!2 = T_P(T_P(\bot))$,
+  \ldots\ until stabilisation
+  (Theorem~\ref{thm:tabling-soundness}).
 
-\begin{description}
-  \item[$T_P\!\uparrow\!1$ corresponds to
-    $\beta$-reduction.]
-    $T_P\!\uparrow\!1$ evaluates each equation once,
-    with re-entrant calls returning~$\bot$
-    (the value from $T_P\!\uparrow\!0$).
-    The Result-Step Lemma
-    (Lemma~\ref{lem:result-step}) establishes a
-    structural isomorphism between the equation
-    systems of $\mathcal{T}(M)$ and
-    $\mathcal{T}(N)$, shifted by one
-    $\mathrm{result}$ step.
-    This isomorphism is purely structural and holds
-    for any number of iterations.
-    Theorems~\ref{thm:adequacy}
-    and~\ref{thm:first-order-semantics}
-    are proved at this level.
+  \begin{description}
+    \item[$T_P\!\uparrow\!1$ corresponds to
+      $\beta$-reduction.]
+      $T_P\!\uparrow\!1$ evaluates each equation once,
+      with re-entrant calls returning~$\bot$
+      (the value from $T_P\!\uparrow\!0$).
+      The Result-Step Lemma
+      (Lemma~\ref{lem:result-step}) establishes a
+      structural isomorphism between the equation
+      systems of $\mathcal{T}(M)$ and
+      $\mathcal{T}(N)$, shifted by one
+      $\mathrm{result}$ step.
+      This isomorphism is purely structural and holds
+      for any number of iterations.
+      Theorems~\ref{thm:adequacy}
+      and~\ref{thm:first-order-semantics}
+      are proved at this level.
 
-  \item[$\mathrm{lfp}(T_P)$ defines the fixpoint
-    $\lambda$-calculus.]
-    We call the sublanguage with $\mathrm{lfp}(T_P)$
-    semantics the \emph{fixpoint $\lambda$-calculus};
-    it shares the same syntax as the lazy $\lambda$-calculus
-    but has strictly greater computational power:
-    $M{\Downarrow}_\lambda$ implies
-    $\mathcal{T}(M){\Downarrow}_{\mathrm{lfp}}$,
-    but not conversely.
-\end{description}
+    \item[$\mathrm{lfp}(T_P)$ defines the fixpoint
+      $\lambda$-calculus.]
+      We call the sublanguage with $\mathrm{lfp}(T_P)$
+      semantics the \emph{fixpoint $\lambda$-calculus};
+      it shares the same syntax as the lazy $\lambda$-calculus
+      but has strictly greater computational power:
+      $M{\Downarrow}_\lambda$ implies
+      $\mathcal{T}(M){\Downarrow}_{\mathrm{lfp}}$,
+      but not conversely.
+  \end{description}
+\end{remark}
 
 \subsection{Adequacy}
 
@@ -4351,7 +4361,11 @@ For the proofs (Appendix~\ref{app:bohm-tree-proofs}),
 we observe that each equation is the specialization of
 the corresponding mixin tree equation
 (Section~\ref{sec:mixin-trees}) to terms in the image
-of the translation~$\mathcal{T}$
+of the translation~$\mathcal{T}$%
+\footnote{Concretely,
+  $\result$ specializes $\properties$/$\bases$,
+  $\head$/$\argument$ specialize $\resolve$,
+and $\scoperesolution$ specializes $\this$.}
 (Section~\ref{sec:forward-translation}), where the
 Single-Path Lemma (Lemma~\ref{lem:single-path})
 ensures that the set-valued $\this$ function
