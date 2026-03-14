@@ -1684,13 +1684,11 @@ associativity~(A), and by their extensibility model.
     points; the function body is closed.
     To make a new aspect extensible, the original function must
     be rewritten to accept an additional parameter.
-    This applies to every language whose composition mechanism
-    is function application, whether functional, object-oriented, or
-    multi-paradigm, because method calls, virtual
-    dispatch, and type-class resolution all reduce to
-    $\beta$-reduction.
+    Any composition mechanism based on function application
+    inherits this limitation, because $\beta$-reduction
+    closes the function body.
     The Expression Problem~\cite{wadler1998-expression-problem} is hard
-    in all of them for the same reason:
+    in such languages for the same reason:
     extensibility is opt-in.
     The frameworks that simulate immunity to nonextensibility
     (visitor pattern,
@@ -1889,8 +1887,7 @@ alternatives at both levels.
 No alternative we examined at either level is immune to
 nonextensibility.
 
-The semantics of inheritance-calculus was not chosen from a menu.
-We arrived at it by trying each alternative in this section
+We arrived at this semantics by trying each alternative in this section
 and finding that it failed:
 shallow merge could not compose nested extensions;
 priority merge introduced ordering dependencies;
@@ -1935,11 +1932,10 @@ abstraction mechanisms beyond those of the RAM Machine.
 The Turing Machine itself, while universal, lacks random
 access: reading a cell at distance~$d$ requires $d$
 sequential tape movements.
-Each of these models achieves Turing completeness by
-removing structure from an existing model:
-fewer abstractions, worse ergonomics, no new expressiveness.
-None of these reductions exhibits emergent phenomena
-absent from the model it reduces.
+Each of these models achieves Turing completeness
+within the semantic framework of an existing model,
+and no independent semantic domain has been exhibited
+for any of them.
 
 %% === 审稿人备忘：SF-calculus 与 inheritance-calculus 的关系 ===
 %%
