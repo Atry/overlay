@@ -170,7 +170,10 @@ structured data through inheritance or merging. Among these, the NixOS
 module system stands out: its recursive attribute set merging with
 fixpoint semantics and deferred modules~\cite{nixosmodules} allows
 independently authored modules to extend the system configuration
-without modifying existing modules.%
+without modifying existing modules;
+in practice, the ecosystem has not been troubled by the
+multi-dimensional extension difficulty analogous to the
+Expression Problem~\cite{wadler1998-expression-problem}.%
 \footnote{As a rough proxy for ecosystem scale:
   according to Repology~\cite{repology2025},
   \texttt{nixpkgs} contains over 113{,}000 packages,
