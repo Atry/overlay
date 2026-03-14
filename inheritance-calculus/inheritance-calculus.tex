@@ -225,79 +225,56 @@ and subsequently
 MIXINv2\selfcite{~\cite{mixin2025}}{~(included as supplementary
 material)}, now implemented in Python: a declarative programming
 language with only three constructs (record literals, definitions,
-and inheritance) and no functions or let-bindings.
+and inheritance) and no functions or let-bindings.%
+\footnote{The executable MIXINv2
+  implementation\selfcite{~\cite{mixin2025}}{~(supplementary
+  material)} contains every example in this paper.}
 
 In developing real programs in MIXINv2, including boolean logic,
-natural number arithmetic, and a web application, the
-linearization problem of mixin-based
-systems~\cite{bracha1990-mixin-inheritance,barrett1996-c3-linearization} did not arise.
-Inheritance is inherently commutative,
-idempotent, and associative (Section~\ref{sec:mixin-trees}).
-Self-reference naturally resolves to \emph{multiple targets} rather than
-one. Prior systems such as Scala and the NixOS module system assume
-single-object resolution and reject the multi-path situation.
-Self-referential records require no fixed-point combinator
-in the object language.
-The mixin tree \emph{is} the call stack, and qualified this resolution
-is a first-order set-theoretic query over paths.
-We also found that boolean logic and arithmetic, implemented as separate
-MIXINv2 files, extend in both dimensions of the Expression
-Problem~\cite{wadler1998-expression-problem} without any dedicated mechanism.
-Church-encoded values automatically form trie structures, and
-operations on tries automatically become Cartesian products, so that
-adding $\{1,2\}$ to $\{3,4\}$ yields $\{4,5,6\}$---the
-relational semantics of logic programming~\cite{vanemden1976-predicate-logic-semantics}
-(Section~\ref{sec:case-study}).
-Furthermore, the same web
-application MIXINv2 file runs under both Python asyncio and synchronous
-execution without modification, an instance of function color
-blindness~\cite{nystrom2015-function-color}
-(Section~\ref{sec:practical-function-color}).
+natural number arithmetic, and a web application, we encountered
+several phenomena we did not design for.
+Section~\ref{sec:mixin-trees} shows how the three constructs
+give rise to a single abstraction that simultaneously serves as
+module, class, object, method, field, and local binding.
+The linearization problem of mixin-based
+systems~\cite{bracha1990-mixin-inheritance,barrett1996-c3-linearization}
+did not arise: inheritance is inherently commutative, idempotent,
+and associative, and self-reference naturally resolves to
+\emph{multiple targets} rather than one, where prior systems
+such as Scala and the NixOS module system reject the multi-path
+situation.
+Section~\ref{sec:case-study} traces how boolean logic and
+arithmetic, implemented as separate files, extend in both
+dimensions of the Expression
+Problem~\cite{wadler1998-expression-problem} without any dedicated
+mechanism, and how ordinary arithmetic yields the relational
+semantics of logic
+programming~\cite{vanemden1976-predicate-logic-semantics}.
+Section~\ref{sec:emergent-phenomena} discusses these and further
+emergent phenomena, including function color
+blindness~\cite{nystrom2015-function-color}.
 
 This paper distills these observations into \textbf{inheritance-calculus},
 a minimal computational model for declarative programming.
-\emph{Function application translates directly into inheritance}:
-a $\lambda$-abstraction corresponds to a record with an
-$\mathrm{argument}$ slot and a $\mathrm{result}$ slot, and function
-application corresponds to inheriting from the function record and a record
-that supplies the argument. Since the $\lambda$-calculus embeds into
-inheritance-calculus, inheritance-calculus is Turing complete.
-The translation reveals an asymmetry: embedding the
-$\lambda$-calculus into inheritance-calculus requires six local,
-syntax-directed rules
-(Section~\ref{sec:forward-translation}), but the lazy
-$\lambda$-calculus cannot macro-express the inheritance
-constructors.
-Inheritance-calculus enables open extension that changes
-operational equivalence on $\lambda$-terms, establishing that
-inheritance-calculus is strictly more expressive than
-the lazy $\lambda$-calculus in
-Felleisen's sense~\cite{felleisen1991-expressive-power}
-(Section~\ref{sec:asymmetry}).
-
-Just as the $\lambda$-calculus uses three primitives (abstraction,
-application, variable) to serve as the foundation of functional
-programming, inheritance-calculus uses three primitives (record, definition,
-inheritance) to serve as the foundation of declarative programming.
-
-All constructions in this paper have been implemented and tested in
-MIXINv2,
-\selfcite{available as open source~\cite{mixin2025}}{included as supplementary material},
-with a test suite covering every example.%
-\footnote{MIXINv2 separates symbol resolution (which resolves
-  lexical references and qualified-this references) from runtime
-  mixin evaluation, but symbol resolution is performed
-  just-in-time per symbol rather than ahead of time, so it does
-  not provide static type checking in the traditional sense.
-  Nevertheless, MIXINv2's resolution phase is stricter than the
-  untyped inheritance-calculus.
-  All examples in this paper are ported from MIXINv2
-  and conform to both semantics.
-  Elements added to satisfy the resolver are harmless
-for the algorithms presented here and may aid readability.}
-
-Section~\ref{sec:case-study} demonstrates these properties
-through a case study of Nat arithmetic.
+Section~\ref{sec:mixin-trees} defines the semantics via six
+mutually recursive first-order functions on paths and sets of paths,
+with no function spaces, closures, or higher-order constructs;
+the functions are computable by
+tabling~\cite{tamaki1986-tabled-resolution}.
+Section~\ref{sec:forward-translation} translates function
+application directly into inheritance, embedding the
+$\lambda$-calculus and thereby establishing Turing completeness.
+Section~\ref{sec:bohm-tree} shows that the translation preserves
+observational equivalence: the induced semantics corresponds to
+B\"ohm tree equivalence~\cite{barendregt1984-lambda-calculus},
+giving the lazy $\lambda$-calculus a first-order denotational
+semantics; a convergence hierarchy among eager, lazy, and fixpoint
+$\lambda$-calculi sharing the same syntax follows as a corollary
+(Remark~\ref{rem:convergence-lfp}).
+Section~\ref{sec:asymmetry} establishes that the lazy
+$\lambda$-calculus cannot macro-express the inheritance constructors,
+so inheritance-calculus is strictly more expressive in
+Felleisen's sense~\cite{felleisen1991-expressive-power}.
 
 \section{Syntax}
 \label{sec:syntax}
@@ -888,7 +865,18 @@ The six rules above are a complete translation from the
 $\lambda$-calculus (via ANF) to inheritance-calculus: every ANF
 term has an image, and the construction is compositional.
 Since the $\lambda$-calculus is Turing complete, so is
-inheritance-calculus.
+inheritance-calculus.%
+\footnote{MIXINv2 separates symbol resolution (which resolves
+  lexical references and qualified-this references) from runtime
+  mixin evaluation, but symbol resolution is performed
+  just-in-time per symbol rather than ahead of time, so it does
+  not provide static type checking in the traditional sense.
+  Nevertheless, MIXINv2's resolution phase is stricter than the
+  untyped inheritance-calculus.
+  All examples in this paper are ported from MIXINv2
+  and conform to both semantics.
+  Elements added to satisfy the resolver are harmless
+  for the algorithms presented here and may aid readability.}
 
 \subsection{B\"ohm Tree Correspondence}
 \label{sec:bohm-tree}
