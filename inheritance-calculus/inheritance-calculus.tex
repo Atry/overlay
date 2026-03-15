@@ -1314,8 +1314,8 @@ The arithmetic test inherits $\mathrm{NatConstants}$ together with the operation
       \qualifiedthis{\mathrm{Test}}.\mathrm{Five}.\mathrm{Equal},\;
   \mathrm{other} \mapsto \{\mathrm{Addition}.\mathrm{sum}\}\}\}
 \end{align*}
-Querying $\mathrm{Test}.\mathrm{Test2plus3}.\mathrm{equal}$ via the host-language API
-returns $\mathrm{True}$.
+The path $\mathrm{Test}.\mathrm{Test2plus3}.\mathrm{equal}$
+inherits $\mathrm{True}$.
 No existing mixin was modified.
 $\mathrm{NatEquality}$, a new operation, and $\mathrm{Boolean}$,
 a new data type, each required only a new mixin: extensibility in both
@@ -1401,8 +1401,8 @@ with $\mathrm{Equal}$:
 \end{align*}
 $\mathrm{Result}.\mathrm{sum}$ evaluates to the trie $\{4,5,6\}$, the set of all pairwise sums.
 $\mathrm{Equal}$ then applies to every pair drawn from $\{4,5,6\} \times \{4,5,6\}$;
-querying $\mathrm{CartesianTest}.\mathrm{Check}.\mathrm{equal}$ via the host-language API
-returns $\{\mathrm{True}, \mathrm{False}\}$.
+the path $\mathrm{CartesianTest}.\mathrm{Check}.\mathrm{equal}$
+inherits both $\mathrm{True}$ and $\mathrm{False}$.
 The Cartesian product arises directly from the semantic equations.
 $\mathrm{OneOrTwo}$ inherits both $\mathrm{One}$ and $\mathrm{Two}$,
 so $\bases(\mathrm{OneOrTwo})$ contains two paths.
