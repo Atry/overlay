@@ -2,6 +2,7 @@
 name = "mixinv2-examples"
 version = "0.0.0.dev0"
 description = "Example case studies for MIXINv2"
+readme = "README.md"
 license = "MIT"
 requires-python = ">=3.13"
 dependencies = [
@@ -16,9 +17,7 @@ dependencies = [
 mixinv2-example = "mixinv2_examples._cli:main"
 
 [dependency-groups]
-dev = [
-  "pytest-asyncio>=1.3.0",
-]
+dev = ["pytest-asyncio>=1.3.0"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
