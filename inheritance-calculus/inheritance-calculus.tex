@@ -100,7 +100,7 @@
 \begin{abstract}
   Just as the $\lambda$-calculus uses three primitives (abstraction, application, variable) as the foundation of functional programming, inheritance-calculus uses three primitives (record, definition, inheritance) as the foundation of declarative programming. By unifying modules, classes, objects, methods, fields, and locals under a single record abstraction, the calculus models inheritance simply as set union. Consequently, composition is inherently commutative, idempotent, and associative, structurally eliminating the multiple-inheritance linearization problem. Its semantics is first-order~\cite{vanemden1976-predicate-logic-semantics, reynolds1972-definitional-interpreters, aczel1977-inductive-definitions}, denotational, and computable by tabling~\cite{tamaki1986-tabled-resolution}. These three properties extend to the $\lambda$-calculus, since B\"ohm tree equivalence~\cite{barendregt1984-lambda-calculus} is fully abstract for the first-iteration approximation of a sublanguage of inheritance-calculus. As a corollary, this establishes a convergence hierarchy among eager, lazy, and fixpoint $\lambda$-calculi sharing the same $\lambda$-syntax.
 
-  Inheritance-calculus is distilled from MIXINv2, a practical implementation in which the same code acts as different function colors~\cite{nystrom2015-function-color}; ordinary arithmetic yields the relational semantics of logic programming~\cite{vanemden1976-predicate-logic-semantics}; self-reference resolves to multiple objects; and programs are immune to nonextensibility in the sense of the Expression Problem~\cite{wadler1998-expression-problem}. This makes inheritance-calculus strictly more expressive than the $\lambda$-calculus in both common sense and Felleisen's sense~\cite{felleisen1991-expressive-power}.
+  Inheritance-calculus is distilled from MIXINv2, a practical implementation in which the same code acts as different function colors~\cite{nystrom2015-function-color}; ordinary arithmetic yields the relational semantics of logic programming~\cite{vanemden1976-predicate-logic-semantics}; $\mathtt{this}$ resolves to multiple targets; and programs are immune to nonextensibility in the sense of the Expression Problem~\cite{wadler1998-expression-problem}. This makes inheritance-calculus strictly more expressive than the $\lambda$-calculus in both common sense and Felleisen's sense~\cite{felleisen1991-expressive-power}.
 \end{abstract}
 
 \begin{CCSXML}
@@ -253,9 +253,9 @@ module, class, object, method, field, and local binding.
 The linearization problem of mixin-based
 systems~\cite{bracha1990-mixin-inheritance,barrett1996-c3-linearization}
 did not arise: inheritance is inherently commutative, idempotent,
-and associative, and self-reference naturally resolves to
+and associative, and $\this$ naturally resolves to
 \emph{multiple targets} rather than one, where prior systems
-such as Scala and the NixOS module system reject the multi-path
+such as Scala and the NixOS module system reject the multi-target
 situation.
 Section~\ref{sec:case-study} traces how boolean logic and
 arithmetic, implemented as separate files, extend in both
@@ -418,7 +418,7 @@ set-theoretic operations: $\properties$ and $\supers$
 generalize member lookup and inheritance chains,
 $\overrides$ and $\bases$ capture method override and
 base classes, and $\resolve$ and $\this$ handle name
-resolution and self-reference.
+resolution and qualified $\this$ resolution.
 
 \subsection{Definitions}
 
@@ -504,7 +504,7 @@ plus the $\overrides$ of each
 direct base $\bases$ of $p$, and so on transitively.
 Each result is paired with the inheritance-site context
 $\init(p_{\mathrm{base}})$ through which it is reached.
-This provenance is needed by qualified this resolution, that is, the $\this$ function defined below,
+This provenance is needed by qualified $\this$ resolution, that is, the $\this$ function defined below,
 to map a definition-site mixin back to
 the inheritance-site paths that incorporate it:
 \begin{equation}\label{eq:supers}
@@ -589,11 +589,11 @@ then the downward projections $\ell_{\mathrm{down},*}$ are appended:
     \this(\{p_{\mathrm{site}}\},\; \init(p_{\mathrm{def}}),\; n)
   \;\bigr\}
 \end{multline}
-When multiple routes exist due to multi-path inheritance,
+When multiple routes exist due to multi-target $\this$ resolution,
 they may yield different target paths; all are collected.
 We now define $\this$.
 
-\paragraph{Qualified this resolution}
+\paragraph{Qualified $\this$ resolution}
 $\this$ answers the question:
 ``in the fully inherited tree, where does
 the definition-site scope $p_{\mathrm{def}}$ actually live?''
@@ -709,7 +709,7 @@ termination.
 %% 发生。Object algebra 的继承是把多个 operation merge 到同一个
 %% factory 上，不是把多个 factory merge 成一个值。方向不同。
 %%
-%% 这也解释了与 Scala 的关系：Scala 拒绝 multi-path inheritance
+%% 这也解释了与 Scala 的关系：Scala 拒绝 multi-target self-reference resolution
 %%（Appendix B 的 "conflicting base types"），但在 object algebra
 %% 场景下 this 本来就是 single-target 的，所以 Scala 的拒绝是
 %% 过度保守——它拒绝了一类去重后（实际上根本不需要去重，因为
@@ -881,7 +881,7 @@ term has an image, and the construction is compositional.
 Since the $\lambda$-calculus is Turing complete, so is
 inheritance-calculus.%
 \footnote{MIXINv2 separates symbol resolution (which resolves
-  lexical references and qualified-this references) from runtime
+  lexical references and qualified $\this$ references) from runtime
   mixin evaluation, but symbol resolution is performed
   just-in-time per symbol rather than ahead of time, so it does
   not provide static type checking in the traditional sense.
@@ -1327,7 +1327,7 @@ tagless interpreters~\cite{carette2009-finally-tagless}, independently defined
 operations do not automatically enrich each other's return types;
 additional boilerplate or type-class machinery is required.
 
-Multi-target qualified this (equation~\ref{eq:this}) is essential.
+Multi-target qualified $\this$ (equation~\ref{eq:this}) is essential.
 In the test mixin above, $\mathrm{NatPlus}.\mathrm{Successor}$ and
 $\mathrm{NatEquality}.\mathrm{Successor}$ both inherit
 $\mathrm{NatData}.\mathrm{Successor}$.
@@ -1342,12 +1342,12 @@ properties.
 In Scala, the same pattern, where two independently defined inner
 classes extend the same outer class's trait, triggers a
 ``conflicting base types'' rejection
-(Appendix~\ref{app:scala-multi-path}), because DOT's self variable
+(Appendix~\ref{app:scala-multi-target}), because DOT's self variable
 is single-valued and cannot resolve through multiple inheritance
 routes simultaneously.
 The Expression Problem can still be solved in Scala using
 object algebras or similar patterns, but composing independently
-defined operations inherently produces multi-path inheritance to
+defined operations inherently produces multi-target $\this$ resolution to
 shared schemas, which DOT's single-valued self variable cannot
 accommodate.
 
@@ -1826,7 +1826,7 @@ We examine the three known candidates.
     one route.
     The NixOS module system~\cite{nixosmodules} raises a
     duplicate-declaration error
-    (Appendix~\ref{app:scala-multi-path}).
+    (Appendix~\ref{app:scala-multi-target}).
     This rejects nested extensions where two independently authored
     modules define the same option, a composition that arises
     when solving the Expression
@@ -1834,7 +1834,7 @@ We examine the three known candidates.
     (Section~\ref{sec:expression-problem}).
 
     Our first three implementations of MIXINv2 used
-    standard techniques for self-reference resolution: closure-based
+    standard techniques for $\this$ resolution: closure-based
     fixed points following Cook~\cite{cook1989-denotational-inheritance}, and
     stack-based environment lookup using de~Bruijn
     indices~\cite{debruijn1972-nameless-dummies}.
@@ -1842,13 +1842,13 @@ We examine the three known candidates.
     multiple routes to the same enclosing scope.
     The difficulty was structural.
     A closure captures a single environment, so a fixed-point
-    combinator solves for a single self-reference.
+    combinator solves for a single $\this$ target.
     A stack-based environment is a linear chain where each scope
     level has one parent.
     Both data structures embed a single-valued assumption
-    incompatible with the multi-path situation that multiple
+    incompatible with the multi-target situation that multiple
     inheritance naturally produces
-    (Appendix~\ref{app:scala-multi-path}).
+    (Appendix~\ref{app:scala-multi-target}).
     Equation~(\ref{eq:this}) emerged from abandoning this
     assumption: it tracks a \emph{frontier set}~$S$ rather than a
     single current scope.
@@ -1906,7 +1906,7 @@ early binding froze references before composition could
 supply them;
 dynamic scope broke the substitution that the
 $\lambda$-calculus embedding relies on;
-single-target $\this$ rejected the multi-path compositions
+single-target $\this$ rejected the multi-target compositions
 that the Expression Problem demands.%
 \footnote{Three successive implementations confirmed this; see the discussion above.}
 Deep merge with multi-target late-binding $\this$ is what
@@ -2171,7 +2171,7 @@ R\'emy~\cite{remy1989-row-polymorphism} introduced row polymorphism for
 records and variants in ML.
 All of these calculi operate on \emph{flat} records: there is
 no recursive merging of nested structure, no lazy observation,
-and self-reference requires an explicit fixed-point combinator.
+and $\this$ requires an explicit fixed-point combinator.
 
 \paragraph{Family polymorphism and DOT}
 Ernst~\cite{ernst2001-family-polymorphism} introduced family polymorphism;
@@ -2187,7 +2187,7 @@ single-valued resolution must choose one route and discard the
 others; DOT's self variable $\nu(x : T)\, d$ binds $x$ to a
 single object, and Scala rejects the resulting intersection
 type at compile time
-(Appendix~\ref{app:scala-multi-path}).
+(Appendix~\ref{app:scala-multi-target}).
 Neither framework provides a mechanism for set-valued
 resolution.
 
@@ -2222,7 +2222,7 @@ composition in prior mixin and trait calculi.
 When two modules define the same nested path, their subtrees are
 merged rather than overridden.
 The NixOS module system incorporates deep merge,
-recursive self-reference, deferred evaluation of modules, and a
+recursive $\this$, deferred evaluation of modules, and a
 rich type-checking layer on top.
 The same mechanism powers
 NixOS system configuration, Home
@@ -2230,14 +2230,14 @@ Manager~\cite{homemanager}, nix-darwin~\cite{nixdarwin},
 flake-parts~\cite{flakeparts}, and dozens of other ecosystems,
 collectively managing configurations of arbitrary complexity.
 The one aspect that appears not to have been fully addressed is the
-semantics of self-reference under multiple inheritance.
+semantics of $\this$ under multiple inheritance.
 When two independent modules that inherit from the same
 deferred module are composed, each import introduces its own
 declaration of the shared options; the module system's
 \texttt{merge\-Option\-Decls} rejects duplicate declarations
-with a static error (Appendix~\ref{app:scala-multi-path}).
+with a static error (Appendix~\ref{app:scala-multi-target}).
 The module system cannot express that both routes contribute
-equally to the same option, that is, the multi-path situation that
+equally to the same option, that is, the multi-target situation that
 recursive merging naturally gives rise to, which motivated the
 observational semantics of Section~\ref{sec:mixin-trees}.
 
@@ -2367,7 +2367,7 @@ inheritance-calculus.
 Section~\ref{sec:semantic-variants} eliminated every
 alternative composition mechanism and reference resolution,
 leaving deep merge with multi-target late-binding qualified
-this as the unique survivor.
+$\this$ as the unique survivor.
 The resulting calculus is a minimal computational
 model for declarative programming built from three constructs:
 record, definition, and inheritance.
@@ -2385,7 +2385,7 @@ denotational, and computable by
 tabling~\cite{tamaki1986-tabled-resolution}, sufficed to
 define the semantics.
 The mixin tree was the call stack;
-self-reference resolved to multiple targets.
+$\this$ resolved to multiple targets.
 
 The $\lambda$-calculus macro-expressed into
 inheritance-calculus in six local rules in
@@ -2724,9 +2724,9 @@ normal form has been reached.
 \subsection{Single-Path Lemma}
 
 The $\this$ function (equation~\ref{eq:this}) is designed for the
-general case of multi-path mixin inheritance.
+general case of multi-target $\this$ resolution.
 For translated $\lambda$-terms, we show it degenerates to
-single-path resolution.
+single-target resolution.
 
 \begin{lemma}[Single-Path]\label{lem:single-path}
   For any closed ANF $\lambda$-term $M$, at every invocation of
@@ -3851,11 +3851,11 @@ Felleisen's framework~\cite{felleisen1991-expressive-power}.
   contains or can macro-express.
 \end{proof}
 
-\section{Multi-Path Self-Reference in Other Systems}
-\label{app:scala-multi-path}
+\section{Multi-Target \texorpdfstring{$\this$}{this} Resolution in Other Systems}
+\label{app:scala-multi-target}
 
 This appendix demonstrates that two representative systems, Scala~3
-and the NixOS module system, reject the multi-path self-reference
+and the NixOS module system, reject the multi-target $\this$ resolution
 pattern that inheritance-calculus handles naturally.
 
 \subsection*{Scala~3}
@@ -3890,7 +3890,7 @@ of DOT's type-theoretic foundations~\cite{amin2016-dependent-object-types}.
 In DOT, an object is constructed as $\nu(x : T)\, d$, where the
 self variable~$x$ binds to a \emph{single} object.
 \texttt{Object1.MyInner} and \texttt{Object2.MyInner} are distinct
-path-dependent types, each constraining the outer self-reference
+path-dependent types, each constraining the outer $\this$
 to a different object.
 Their intersection requires \texttt{outer} to simultaneously
 return \texttt{Object1} and \texttt{Object2}, but DOT's self
@@ -4031,7 +4031,7 @@ unified.
 
 The rejection is analogous to Scala's ``conflicting base types''
 error above: both systems assume that each option or type member
-has a single declaration site, and reject the multi-path situation
+has a single declaration site, and reject the multi-target situation
 where two inheritance routes introduce the same declaration
 independently.
 In inheritance-calculus, the same pattern is well-defined because
@@ -4882,7 +4882,7 @@ are encoded identically to non-recursive rules: the
 head relation $\mathrm{path}$ appears both as a defined scope
 and as a reference in the body (providing
 $\mathrm{WithVisitorTail}$ for the $Z$-join).
-This should not be read as ordinary self-reference of a
+This should not be read as ordinary $\this$ of a
 single-valued lazy program.
 Operationally, tabled evaluation
 (Section~\ref{sec:mixin-trees},

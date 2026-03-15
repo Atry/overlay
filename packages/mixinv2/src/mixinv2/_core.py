@@ -2958,7 +2958,7 @@ class ResolvedReference:
         strict supers whose ``.outer`` is or inherits ``definition_site``.
         Then advances ``definition_site`` one level up.
 
-        This naturally handles multi-path inheritance: when composition flattens
+        This naturally handles multi-target self-reference: when composition flattens
         multiple nesting levels, different strict supers may resolve the same
         de Bruijn reference to different targets.
 
