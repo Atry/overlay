@@ -1,5 +1,6 @@
 \AtBeginDocument{%
-\providecommand\BibTeX{{Bib\TeX}}}
+  \providecommand\BibTeX{{Bib\TeX}}
+}
 
 \usepackage{mathtools}
 \usepackage{mathrsfs}
@@ -889,7 +890,8 @@ itself.
 This extra wrapper is semantically inert but proof-relevant:
 it lets the same $\mathrm{result}$-following argument used for
 applications extend uniformly to value
-$\mathbf{let}$-bindings in the adequacy proof below.
+$\mathbf{let}$-bindings in the adequacy proof
+(Appendix~\ref{app:bohm-tree-proofs}).
 In the tail-call rule, the fresh label $\mathrm{tailCall}$ serves
 the same purpose, and $\mathrm{result}$ projects the answer.
 In the application and tail-call cases, the inheritance that
@@ -922,81 +924,36 @@ inheritance-calculus.%
 
 The translation $\mathcal{T}$ embeds the $\lambda$-calculus
 into a sublanguage of inheritance-calculus.
-This subsection establishes the correspondence between the
-resulting mixin trees and
-B\"ohm trees. Intuitively, a mixin tree augments the AST with
+Intuitively, a mixin tree augments the AST with
 additional semantic structure; for translated
 $\lambda$-terms, the projection of this additional
 structure is isomorphic to the B\"ohm tree.
-
 A mixin tree $T$ \emph{converges}, written $T{\Downarrow}$,
 if following finitely many $\mathrm{result}$ projections from
 the root reaches a node with both $\mathrm{argument}$ and
 $\mathrm{result}$ among its properties, that is, the \emph{abstraction shape}
 produced by $\mathcal{T}(\lambda x.\, M)$.
-We write $T{\Uparrow}$ if no such depth exists.
-
-\begin{definition}[Inheritance-convergence]\label{def:convergence}
-  A mixin tree $T$ \emph{converges}, written $T{\Downarrow}$,
-  if there exists $n \ge 0$ such that:
-  \[
-    \{\mathrm{argument},\, \mathrm{result}\}
-    \;\subseteq\;
-    \properties\!\bigl(\,
-      \underbrace{\text{root} \snoc \mathrm{result}
-      \snoc \cdots \snoc \mathrm{result}}_{n}
-    \,\bigr)
-  \]
-  in the semantics of
-  Section~\ref{sec:mixin-trees}.
-\end{definition}
-
-\begin{theorem}[Adequacy]\label{thm:adequacy}
-  A closed ANF $\lambda$-term $M$ has a head normal form if and
-  only if $\mathcal{T}(M){\Downarrow}$.
-\end{theorem}
-
-\begin{theorem}[First-order semantics of the lazy $\lambda$-calculus]%
-  \label{thm:first-order-semantics}
-  For closed $\lambda$-terms $M$ and $N$, define
-  $\mathcal{T}(M) \approx_\lambda \mathcal{T}(N)$ iff for every
-  closing $\lambda$-calculus context $C[\cdot]$,
-  $\mathcal{T}(C[M]){\Downarrow} \Leftrightarrow
-  \mathcal{T}(C[N]){\Downarrow}$.
-  Then:
-  \[
-    \mathcal{T}(M) \approx_\lambda \mathcal{T}(N)
-    \quad\Longleftrightarrow\quad
-    \mathrm{BT}(M) = \mathrm{BT}(N)
-  \]
-\end{theorem}
-
-\noindent
-Here $\approx_\lambda$ quantifies over $\lambda$-calculus
-contexts only; inheritance-calculus contexts are strictly more
-discriminating (Section~\ref{sec:asymmetry}).
-The theorem establishes
-that the lazy $\lambda$-calculus has a
-first-order semantics: the translation $\mathcal{T}$
-embeds the $\lambda$-calculus into a sublanguage of
-inheritance-calculus,
-using only recursive evaluation of set-comprehension
-equations over paths and sets of paths.
-B\"ohm tree
-equivalence~\cite{barendregt1984-lambda-calculus}
-is fully abstract for the first-iteration approximation
-$T_P\!\uparrow\!1$ of the equations.%
+The translation preserves and reflects convergence
+(adequacy).
+Write $\mathcal{T}(M) \approx_\lambda \mathcal{T}(N)$
+when $\mathcal{T}(C[M]){\Downarrow} \Leftrightarrow
+\mathcal{T}(C[N]){\Downarrow}$ for every closing
+$\lambda$-calculus context $C[\cdot]$;
+then $\approx_\lambda$ coincides with B\"ohm tree
+equivalence~\cite{barendregt1984-lambda-calculus}.
+Formal statements and proofs are in
+Appendix~\ref{app:bohm-tree-proofs}.%
 \footnote{
-  More concretely, the translation $\mathcal{T}$ turns
-  each $\lambda$-term into a mixin whose semantics is given by
-  the equations of Section~\ref{sec:mixin-trees}: function
-  application becomes record inheritance, and convergence
-  reduces to path queries.
   Appendix~\ref{app:lambda-fixpoint} reformulates this
   semantics directly on ANF, without passing through
   inheritance-calculus.
 }
-The full proof is given in Appendix~\ref{app:bohm-tree-proofs}.
+Note that $\approx_\lambda$ quantifies over $\lambda$-calculus
+contexts only; inheritance-calculus contexts are strictly more
+discriminating (Section~\ref{sec:asymmetry}).
+B\"ohm tree equivalence is fully abstract for the
+first-iteration approximation $T_P\!\uparrow\!1$ of the
+equations.
 The full $\mathrm{lfp}(T_P)$ is strictly more defined.
 For example,
 $\mathbf{let}\; x = x \;\mathbf{in}\; x$
@@ -3226,6 +3183,26 @@ We make this precise.
 
 \subsection{Adequacy}
 
+\begin{definition}[Inheritance-convergence]\label{def:convergence}
+  A mixin tree $T$ \emph{converges}, written $T{\Downarrow}$,
+  if there exists $n \ge 0$ such that:
+  \[
+    \{\mathrm{argument},\, \mathrm{result}\}
+    \;\subseteq\;
+    \properties\!\bigl(\,
+      \underbrace{\text{root} \snoc \mathrm{result}
+      \snoc \cdots \snoc \mathrm{result}}_{n}
+    \,\bigr)
+  \]
+  in the semantics of
+  Section~\ref{sec:mixin-trees}.
+\end{definition}
+
+\begin{theorem}[Adequacy]\label{thm:adequacy}
+  A closed ANF $\lambda$-term $M$ has a head normal form if and
+  only if $\mathcal{T}(M){\Downarrow}$.
+\end{theorem}
+
 A closed ANF term at the top level is either an abstraction
 (a value) or a computation (an application
   $\mathbf{let}$-binding, a value $\mathbf{let}$-binding,
@@ -3354,6 +3331,16 @@ quantifying over all $\lambda$-contexts makes it a fine-grained
 equivalence: different contexts can supply different arguments
 and project different results, probing every aspect of the
 term's behavior within the $\lambda$-definable fragment.
+
+\begin{theorem}[First-order semantics of the lazy $\lambda$-calculus]%
+  \label{thm:first-order-semantics}
+  For closed $\lambda$-terms $M$ and $N$:
+  \[
+    \mathcal{T}(M) \approx_\lambda \mathcal{T}(N)
+    \quad\Longleftrightarrow\quad
+    \mathrm{BT}(M) = \mathrm{BT}(N)
+  \]
+\end{theorem}
 
 \begin{proof}[Proof of Theorem~\ref{thm:first-order-semantics}]
   The translation $\mathcal{T}$ is compositional: for every
