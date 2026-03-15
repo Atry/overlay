@@ -297,13 +297,9 @@ Felleisen's sense~\cite{felleisen1991-expressive-power}.
 \section{Syntax}
 \label{sec:syntax}
 
-Let $e$ denote an expression.
-Let $\ell$ denote a label\footnote{
-  A label serves as a property name.
-}.
-Let $k$ denote a nonnegative integer\footnote{
-  The integer $k$ typically denotes a path length.
-}.
+Let $e$ denote an expression,
+$\ell$ a label serving as a property name,
+and $k$ a nonnegative integer serving as the length of a downward projection.
 
 \begin{align*}
   e \quad ::= \quad & \{c_1,\; \ldots,\; c_m\}
@@ -800,11 +796,11 @@ value that is not an application result:%
   \end{array}
 \]
 Every $\lambda$-term can be mechanically converted to ANF by
-naming intermediate results\footnote{
-  This can optionally include naming values as well
-},
-and every ANF term is a $\lambda$-term, so ANF is neither a
-restriction nor an extension of the $\lambda$-calculus.
+naming intermediate results.\footnote{%
+  This can optionally include naming values as well;
+  since every ANF term is also a $\lambda$-term,
+  ANF is neither a restriction nor an extension of the $\lambda$-calculus.
+}
 The ANF structure matches inheritance-calculus naturally: each
 $\mathbf{let}$-binding becomes a named record property, and
 each application is wrapped and projected via
@@ -1098,18 +1094,14 @@ is a structure, not an action.
 Operations expose their result through a projection field (e.g., $\mathrm{sum}$).
 
 \paragraph{NatData}
-Following the Church-encoding
-convention\selfcite{~\cite{mixin2025}}{~(supplementary material)},%
-\footnote{
-  The data representation (Zero/Successor) is a Peano
-  encoding, an initial algebra of the functor $F(X) = 1 + X$.
-  The visitor pattern (NatVisitor, below) adds the
-  Church-encoding behavior: a fold (catamorphism) over this
-  algebra.  These two concerns are defined in separate files
-  and composed via inheritance, which is itself an instance of
-  the Expression Problem.
-}
-we define a factory containing the abstract product type and two
+The data representation (Zero/Successor) is a Peano
+encoding, an initial algebra of the functor $F(X) = 1 + X$.
+The visitor pattern (NatVisitor, below) adds Church-encoding behavior:
+a fold (catamorphism) over this algebra.
+These two concerns are defined in separate files and composed via
+inheritance\selfcite{~\cite{mixin2025}}{~(supplementary material)},
+which is itself an instance of the Expression Problem.
+Following this convention, we define a factory containing the abstract product type and two
 labels that serve as data constructors.
 A $\mathrm{Zero}$ value inherits $\mathrm{Product}$;
 a $\mathrm{Successor}$ value inherits $\mathrm{Product}$ and
@@ -1493,15 +1485,7 @@ Below we explain why they arise from the three primitives.
     all combinations of set-valued inputs
     (Section~\ref{sec:case-study}).
     When a mixin tree is viewed as a trie, the correspondence
-    with relational algebra becomes precise.%
-    \footnote{
-      Inheritance-calculus to relational algebra:
-      path from root to leaf $=$ tuple;
-      trie union $=$ relation (set of tuples);
-      $\bases$ (equation~\ref{eq:bases}) $=$ cross-join;
-      $\supers$ (equation~\ref{eq:supers}) $=$ union;
-      $\properties$ (equation~\ref{eq:properties}) $=$ projection.
-    }
+    with relational algebra becomes precise.
     The carrier is a trie rather than a flat relation, and
     observation is coinductive: the observer drives computation
     by querying progressively deeper paths.
