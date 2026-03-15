@@ -694,9 +694,27 @@ the denotational semantics.
 This denotational characterization formalizes the observational
 semantics introduced above: the observer-driven queries are
 computed by the same fixed-point equations.
+Whether evaluation terminates depends on the program.
+Recall that $\supers$ (equation~\ref{eq:supers}) takes the
+reflexive-transitive closure of $\bases$
+(equation~\ref{eq:bases}); the resulting graph is the
+\emph{inheritance hierarchy}.
+Since each inheritance source occupies a distinct node in
+the mixin tree, this hierarchy is directly readable from
+the tree structure.
+Programs whose inheritance hierarchy is acyclic terminate in
+one pass.
+When the hierarchy contains cycles,
+evaluation terminates when each query has a finite
+answer domain: the ascending chain condition on the finite
+lattice guarantees
+convergence~\cite{bancilhon1986-recursive-query-strategies},
+as in Datalog (Appendix~\ref{app:datalog-encoding}).
+When the hierarchy is infinite, evaluation may
+diverge; this is inherent to Turing completeness.
 Appendix~\ref{app:well-definedness} proves that tabled
-evaluation never returns a wrong answer and analyses
-termination.
+evaluation never returns a wrong answer and formalizes
+these termination conditions.
 
 %% === 审稿人备忘：六个方程的渐近复杂度分析 ===
 %%
@@ -944,9 +962,10 @@ equivalence~\cite{barendregt1984-lambda-calculus}.
 Formal statements and proofs are in
 Appendix~\ref{app:bohm-tree-proofs}.%
 \footnote{
-  Appendix~\ref{app:lambda-fixpoint} reformulates this
-  semantics directly on ANF, without passing through
-  inheritance-calculus.
+  Appendix~\ref{app:lambda-fixpoint} applies the same first-order
+  technique directly on ANF to give the $\lambda$-calculus
+  a self-contained fixpoint semantics, without passing
+  through inheritance-calculus.
 }
 Note that $\approx_\lambda$ quantifies over $\lambda$-calculus
 contexts only; inheritance-calculus contexts are strictly more
