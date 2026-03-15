@@ -198,7 +198,12 @@ functional programming. No analogous calculus exists for declarative
 programming. This gap matters because the two paradigms differ in
 fundamental ways. Configuration languages are inherently declarative:
 their values are immutable and they have no first-class
-functions. At first glance, Turing completeness appears incompatible
+functions.
+Note that a function body is closed: its internal structure
+cannot be extended without modifying the definition, whereas
+the configuration languages above all compose by extending
+existing structure from outside.
+At first glance, Turing completeness appears incompatible
 with these constraints. The three classical models of computation each
 violate at least one of them:
 
