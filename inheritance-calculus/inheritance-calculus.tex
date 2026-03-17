@@ -4282,16 +4282,7 @@ has two variants:
   \item $\mathrm{Ref}(r)$ where
     $r \in \mathrm{ArgRef} \cup \mathrm{BindingRef}
     \cup \mathrm{InlineLambda}$:
-    the tail is a reference.
-    A $\lambda$-bound variable $\dbi{m}$ in tail position
-    yields $\mathrm{Ref}(\mathrm{ArgRef}(m))$;
-    an application-binding name $x$ in the current scope
-    yields $\mathrm{Ref}(\mathrm{BindingRef}(0,\, x))$;
-    an application-binding name $x$ that crosses
-    $n$ intervening $\lambda$-scopes yields
-    $\mathrm{Ref}(\mathrm{BindingRef}(n,\, x))$;
-    an inline $\lambda$-literal $\lambda.\,M$ yields
-    $\mathrm{Ref}(\mathrm{InlineLambda}(M))$.
+    a tail value encoded as a reference.
     (Value-bound names are resolved by inlining
     and do not appear as references.)
   \item $\mathrm{TailCall}(r_1, r_2)$: a tail-position
@@ -4309,8 +4300,8 @@ reference:
     \mathrm{ArgRef}(m)
     & \text{if } V = \dbi{m} \\[4pt]
     \mathrm{BindingRef}(n,\, y)
-    & \text{if } V = y
-    \text{ ($n$ $\lambda$-scopes away)} \\[4pt]
+    & \text{if } V = y \text{ (let-bound, $n$
+    enclosing $\lambda$s between use and def.)} \\[4pt]
     \mathrm{InlineLambda}(M')
     & \text{if } V = \lambda.\, M'
   \end{cases}
@@ -4323,9 +4314,9 @@ The definition uses two mutually recursive procedures,
 $\mathrm{scope}$ and $\mathrm{body}$, corresponding to
 the two scope variants.
 
-$\mathrm{scope}(V,\, s)$ is called when a value
-$V = \lambda.\,M'$ introduces a fresh scope at
-path~$s$:
+$\mathrm{scope}(\lambda.\,M',\; s)$ defines the
+$\mathtt{node}$ at scope path~$s$ for a
+$\lambda$-abstraction:
 \[
   \mathrm{scope}(\lambda.\,M',\; s)
   \;:\quad
@@ -4369,12 +4360,14 @@ by cases on~$M$:
     $t = \mathrm{Ref}(\mathrm{enc}(V))$.
 \end{itemize}
 When $\mathrm{enc}(V) = \mathrm{InlineLambda}(M')$,
-a fresh scope path $s_\lambda$ is created with
-$\mathrm{scope}(\lambda.\,M',\; s_\lambda)$;
-that is,
+a dedicated scope path $s_\lambda$ is introduced with
+$\mathrm{scope}(\lambda.\,M',\; s_\lambda)$,
+giving
 $\mathtt{node}(s_\lambda) =
 \mathrm{Abstraction}(B',\, t')$
 where $(B',\, t') = \mathrm{body}(M',\, s_\lambda)$.
+Each $\mathrm{InlineLambda}$ occurrence in the ANF
+term determines a distinct~$s_\lambda$.
 
 In every case, the recursion descends to a strict
 subterm of the input; $\mathtt{node}$ is therefore
@@ -4557,9 +4550,9 @@ $\resolveref$ resolves any reference to a set of scope nodes:
   \end{cases}
 \end{equation}
 In the $\mathrm{InlineLambda}$ case,
-$s_\lambda$ is the fresh scope path whose
-$\mathtt{node}(s_\lambda)$ is defined by recursing
-on~$M$ (see \emph{Definition of $\mathtt{node}$} above).
+$s_\lambda$ is the scope path determined by
+$\mathrm{scope}(\lambda.\,M,\; s_\lambda)$
+(see \emph{Definition of $\mathtt{node}$} above).
 For $\mathrm{ArgRef}(n)$,
 $\scoperesolution$ navigates up $n$ $\lambda$-scope levels,
 yielding a set of scopes;
