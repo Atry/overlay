@@ -69,13 +69,12 @@
 %% Semantic functions for the direct λ-calculus fixpoint semantics (Appendix E)
 %% -- Scope-level functions --
 \newcommand{\result}{\mathtt{result}}
-\newcommand{\visiblebindings}{\mathtt{visiblebindings}}
+%% \newcommand{\visiblebindings}{\mathtt{visiblebindings}}
 %% -- Application-level functions --
 \newcommand{\head}{\mathtt{head}}
 \newcommand{\argument}{\mathtt{argument}}
 %% -- Calling context --
-\newcommand{\callerargument}{\mathtt{callerargument}}
-\newcommand{\callerscope}{\mathtt{callerscope}}
+%% callerscope/callerargument inlined as projections from \contexts
 \newcommand{\letcontexts}{\mathtt{letcontexts}}
 \newcommand{\tailcontexts}{\mathtt{tailcontexts}}
 \newcommand{\contexts}{\mathtt{contexts}}
@@ -4149,7 +4148,7 @@ calls that converge across iterations may introduce
 additional calling contexts, so the sets can grow beyond
 singletons.
 
-The direct formulation requires eleven semantic equations,
+The direct formulation requires eight semantic equations,
 compared to six in Section~\ref{sec:mixin-trees}.
 The additional equations reflect syntactic distinctions
 of the $\lambda$-calculus that the three primitives of
@@ -4412,24 +4411,26 @@ The tail call also stores the argument reference~$r_2$,
 which is accessed by de~Bruijn resolution when the function
 body references its argument (see \emph{Calling context} below).
 
-\subparagraph{Visible bindings.}
-$\visiblebindings(p)$ collects all bindings along the
-$\result$ chain:
-\begin{equation}\label{eq:lambda-visible-bindings}
-  \visiblebindings(p) =
-  \begin{cases}
-    B \;\cup\;
-    \left\{\; b \;\left|\;
-      \begin{aligned}
-        &p' \in \result(p),\\
-        &b \in \visiblebindings(p')
-      \end{aligned}
-    \right.\right\}
-    & \text{if } \mathtt{node}(p) = \_(B,\, \_) \\[6pt]
-    \varnothing
-    & \text{if } \mathtt{node}(p) \in \mathrm{App}
-  \end{cases}
-\end{equation}
+%% visiblebindings is not referenced by other equations;
+%% commented out to reduce clutter.
+%% \subparagraph{Visible bindings.}
+%% $\visiblebindings(p)$ collects all bindings along the
+%% $\result$ chain:
+%% \begin{equation}\label{eq:lambda-visible-bindings}
+%%   \visiblebindings(p) =
+%%   \begin{cases}
+%%     B \;\cup\;
+%%     \left\{\; b \;\left|\;
+%%       \begin{aligned}
+%%         &p' \in \result(p),\\
+%%         &b \in \visiblebindings(p')
+%%       \end{aligned}
+%%     \right.\right\}
+%%     & \text{if } \mathtt{node}(p) = \_(B,\, \_) \\[6pt]
+%%     \varnothing
+%%     & \text{if } \mathtt{node}(p) \in \mathrm{App}
+%%   \end{cases}
+%% \end{equation}
 
 \subparagraph{Head.}
 $\head(p)$ resolves the head reference of an application:
@@ -4499,24 +4500,16 @@ and $s \in \resolveref(r_1,\, s')$ contributes:
   \right.\right\}
 \end{equation}
 
-The full set of calling contexts, and
-the projections $\callerscope$ and $\callerargument$:
-\begin{align}
-  \contexts(s) &=
+The full set of calling contexts:
+\begin{equation}\label{eq:lambda-contexts}
+  \contexts(s) =
     \letcontexts(s) \;\cup\;
     \tailcontexts(s)
-    \label{eq:lambda-contexts} \\[4pt]
-  \callerscope(s) &=
-    \bigl\{\; s' \;\big|\;
-      (s',\; \_) \in \contexts(s)
-    \;\bigr\}
-    \label{eq:lambda-caller-scope} \\[4pt]
-  \callerargument(s) &=
-    \bigl\{\; s_a \;\big|\;
-      (\_,\; s_a) \in \contexts(s)
-    \;\bigr\}
-    \label{eq:lambda-caller-argument}
-\end{align}
+\end{equation}
+The caller scope and caller argument are obtained by
+projecting $(s',\; \_)$ and $(\_,\; s_a)$ from
+$\contexts(s)$ in the equations that use them
+($\scoperesolution$ and $\resolveref$ below).
 For the root scope, $\contexts$ is empty
 (the root has no caller).
 At $T_P\!\uparrow\!1$, the Single-Path Lemma
@@ -4534,13 +4527,15 @@ $\resolveref$ resolves any reference to a set of scope nodes:
     \left\{\; s_a \;\left|\;
       \begin{aligned}
         &s' \in \scoperesolution(n,\, s),\\
-        &s_a \in \callerargument(s')
+        &(\_,\; s_a) \in \contexts(s')
       \end{aligned}
     \right.\right\}
     & \text{if } r = \mathrm{ArgRef}(n) \\[6pt]
     \left\{\; s_h \;\left|\;
       \begin{aligned}
         &s' \in \scoperesolution(n,\, s),\\
+        &\mathtt{node}(s') = \_(B,\, \_),\;
+        x \in B,\\
         &s_h \in \head(s' \snoc x)
       \end{aligned}
     \right.\right\}
@@ -4556,8 +4551,8 @@ $\mathrm{scope}(\lambda.\,M,\; s_\lambda)$
 For $\mathrm{ArgRef}(n)$,
 $\scoperesolution$ navigates up $n$ $\lambda$-scope levels,
 yielding a set of scopes;
-$\callerargument$ then extracts the argument passed to the
-$\lambda$ at each such scope.
+the caller argument is then extracted from $\contexts$
+at each such scope.
 For $\mathrm{BindingRef}(n,\, x)$,
 $\scoperesolution$ navigates up $n$ $\lambda$-scope levels,
 then $x$ is projected from each resulting scope and its head is
@@ -4575,7 +4570,7 @@ application $\mathbf{let}$-bindings and tail calls do not.
     \{s\} & \text{if } n = 0 \\[6pt]
     \left\{\; s'' \;\left|\;
       \begin{aligned}
-        &s' \in \callerscope(s),\\
+        &(s',\; \_) \in \contexts(s),\\
         &s'' \in \scoperesolution(n - 1,\; s')
       \end{aligned}
     \right.\right\}
@@ -4583,7 +4578,8 @@ application $\mathbf{let}$-bindings and tail calls do not.
   \end{cases}
 \end{equation}
 Each recursive step moves from the current scope~$s$ to
-each scope in $\callerscope(s)$ and decrements~$n$.
+each caller scope in $\contexts(s)$
+and decrements~$n$.
 Since $n$ is a nonnegative integer, the recursion terminates.
 
 \paragraph{Observational fixpoint semantics}
@@ -4594,7 +4590,7 @@ by choosing which path to inspect, and the mutually recursive
 definitions unfold on demand.
 
 Formally, the mutually recursive
-equations~(\ref{eq:lambda-result})--(\ref{eq:lambda-caller-argument})
+equations~(\ref{eq:lambda-result})--(\ref{eq:lambda-contexts})
 and~(\ref{eq:lambda-resolve-ref})--(\ref{eq:lambda-scope})
 define set-valued functions recursively:
 $p' \in \result(p)$ holds if and only if it can be
@@ -4664,8 +4660,8 @@ of the translation~$\mathcal{T}$%
   $\result$ specializes $\properties$/$\bases$,
   $\head$/$\argument$ specialize $\resolve$,
   $\scoperesolution$ specializes $\this$,
-  and $\callerscope$/$\callerargument$ specialize the
-  provenance tracking in $\supers$.
+  and $\contexts$ specializes the provenance tracking
+  in $\supers$.
 }
 (Section~\ref{sec:forward-translation}).
 
