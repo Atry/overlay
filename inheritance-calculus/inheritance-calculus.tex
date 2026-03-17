@@ -2754,10 +2754,9 @@ $\mathrm{argument}$ label after $\this$ resolution (for
 entering an argument position).
 
 Rather than comparing absolute paths across different mixin
-trees, which would be sensitive to internal structure; hence, we
+trees, which would be sensitive to internal structure, we
 observe only the \emph{convergence} behavior accessible via
-the $\mathrm{result}$ projection.
-Recall the definition of inheritance-convergence
+the $\mathrm{result}$ projection
 (Definition~\ref{def:convergence}).
 Each $\mathrm{result}$-following step corresponds to one head
 reduction step in the $\lambda$-calculus: a tail call's
@@ -3186,9 +3185,37 @@ We make this precise.
       Theorems~\ref{thm:adequacy}
       and~\ref{thm:first-order-semantics}
       are proved at this level.
+  \end{description}
 
+  \paragraph{Observation granularity}%
+  \label{rem:set-vs-domain}
+  The set-valued semantics at $T_P\!\uparrow\!1$ is
+  strictly finer than the domain-theoretic semantics of
+  the lazy $\lambda$-calculus.
+  In the latter, a non-terminating computation yields a
+  single undifferentiated~$\bot$;
+  in the former, one can in principle distinguish
+  $\varnothing$ (a definite empty set, arrived at in
+  finite time) from non-stabilisation of the Kleene
+  iteration (no finite approximation suffices).
+  The convergence criterion
+  (Definition~\ref{def:convergence}) deliberately
+  projects away this distinction: it observes only
+  whether the $\result$ chain reaches an abstraction
+  shape, reducing the observation to a single bit.
+  Theorems~\ref{thm:adequacy}
+  and~\ref{thm:first-order-semantics}
+  are stated at this coarsened observation level.
+
+  \begin{description}
     \item[$\mathrm{lfp}(T_P)$ defines the fixpoint
       $\lambda$-calculus.]
+      At $\mathrm{lfp}(T_P)$, the full precision of the
+      set-valued semantics is restored: re-entrant calls
+      that returned~$\varnothing$ at $T_P\!\uparrow\!1$
+      may now converge to non-empty sets, so the semantics
+      distinguishes ``definitionally empty'' from
+      ``convergent after further iteration.''
       We call the sublanguage with $\mathrm{lfp}(T_P)$
       semantics the \emph{fixpoint $\lambda$-calculus};
       it shares the same syntax as the lazy $\lambda$-calculus
@@ -3311,9 +3338,9 @@ the $\mathrm{result}$ chain to find the eventual value.
   $n - 1$ in $\mathcal{T}(N)$ match those at depth $n$
   in $\mathcal{T}(M)$, where $N$ is the head reduct.
   So $\mathcal{T}(N)$ converges at depth $n - 1$.
-  Since $M$ is closed and head reduction preserves closedness
-  , which substitutes a closed value for the only free variable,
-  $N$ is a closed ANF term.
+  Since $M$ is closed and head reduction preserves
+  closedness (it substitutes a closed value for the only
+  free variable), $N$ is a closed ANF term.
   By the induction hypothesis, $N$ has a head normal
   form, and since $M \to_h N$, so does $M$.
 \end{proof}
