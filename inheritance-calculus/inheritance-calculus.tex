@@ -4580,7 +4580,12 @@ application $\mathbf{let}$-bindings and tail calls do not.
 Each recursive step moves from the current scope~$s$ to
 each caller scope in $\contexts(s)$
 and decrements~$n$.
-Since $n$ is a nonnegative integer, the recursion terminates.
+Since $n$ is a nonnegative integer, the nesting depth of
+$\scoperesolution$ is bounded by the de~Bruijn index;
+well-definedness of the mutual recursion with $\contexts$
+follows from the $T_P$ fixed-point construction
+(Definition~\ref{def:tp-operator}), as for all dynamic
+functions above.
 
 \paragraph{Observational fixpoint semantics}
 The definitions above constitute the complete semantics.
@@ -4609,7 +4614,17 @@ and the Knaster--Tarski theorem gives the least fixed
 point.
 When no finite derivation exists for a given query
 (as with $\Omega$), the fixed-point iteration does not
-terminate.
+terminate.%
+\footnote{
+  Although $\Omega$ is a finite ANF term, the set of
+  reachable paths is infinite: each head reduction step
+  unfolds a new tail call, extending the $\result$ chain
+  and introducing fresh application paths.
+  The query set~$\mathcal{Q}$ is therefore infinite, so
+  the ascending chain condition does not apply and the
+  Kleene iteration $T_P\!\uparrow\!n$ need not stabilise
+  at any finite~$n$.
+}
 
 \paragraph{Convergence and head normal form}
 An ANF term $M$ \emph{converges}, written $M{\Downarrow}$,
