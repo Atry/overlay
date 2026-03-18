@@ -541,8 +541,8 @@ plus the $\overrides$ of each
 direct base $\bases$ of $p$, and so on transitively.
 Each result is paired with the inheritance-site context
 $\init(p_{\mathrm{base}})$ through which it is reached.
-This provenance is needed by qualified $\this$ resolution, that is, the $\this$ function defined below,
-to map a definition-site mixin back to
+This provenance is needed by qualified $\this$ resolution,
+which we define below, to map a definition-site mixin back to
 the inheritance-site paths that incorporate it:
 \begin{equation}\label{eq:supers}
   \supers(p) =
