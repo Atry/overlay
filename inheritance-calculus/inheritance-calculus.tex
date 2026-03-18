@@ -173,17 +173,16 @@ composing structured data through inheritance or merging.
 
 Among these, the Nix ecosystem~\cite{dolstra2010-nixos} stands out,
 both for scale and for the trajectory of its design.
-Its package collection, \texttt{nixpkgs}, is one of the largest
-in existence.%
+Its package collection, \texttt{nixpkgs}, contains over
+113{,}000 packages,%
 \footnote{
-  As a rough proxy for ecosystem scale:
-  according to Repology~\cite{repology2025},
-  \texttt{nixpkgs} contains over 113{,}000 packages,
+  According to Repology~\cite{repology2025},
   nearly three times the count of Debian or Ubuntu,
   with a comparable number of contributors.
   Not every package exercises the extensibility mechanisms
   described here, but the same caveat applies to other distributions.
 }
+one of the largest in existence.
 Package composition originally relied on a linearized mixin
 chain in which each layer sees its predecessor,%
 \footnote{
@@ -256,18 +255,17 @@ the $\lambda$-calculus requires first-class functions.
 No known computational model is simultaneously Turing complete,
 immutable, and function-free.
 
-The NixOS module system already suggests that such a model may exist:
+The Nix ecosystem already suggests that such a model may exist:
 its inheritance-based composition over recursive records, without
-explicit functions, is expressive enough to configure entire operating
-systems.
+explicit functions, is expressive enough to configure entire
+operating systems and manage one of the largest package
+collections in existence.
 Most configuration languages operate on finite, well-founded
 structures (initial algebras in the sense of universal algebra).
-Nix is an exception: its lazy evaluation makes values
-observable and possibly infinite.
-The \texttt{nixpkgs} package collection (over 100{,}000
-packages) behaves as a lazily observed structure, allowing any
-single package to be evaluated without materializing the entire
-set.
+Nix is an exception: its values are lazily observable
+and possibly infinite, allowing any single package or
+configuration option to be evaluated without materializing the
+entire set of hundreds of thousands of packages and options.
 Guided by this observation, we set out to reduce the
 NixOS module system to a minimal set of primitives.
 The reduction produced MIXIN, an early implementation in Nix,
@@ -284,7 +282,7 @@ and inheritance) and no functions or let-bindings.%
 
 In developing real programs in MIXINv2, including boolean logic,
 natural number arithmetic, and a web application, several
-phenomena arose from off-label use of the adopted
+phenomena manifested as off-label use of the adopted
 design patterns.
 Section~\ref{sec:mixin-trees} shows how the three constructs
 give rise to a single abstraction that simultaneously serves as
@@ -1464,7 +1462,7 @@ every operation distributes over them.
 \subsection{Emergent Phenomena}
 \label{sec:emergent-phenomena}
 
-In developing real programs in MIXINv2, three phenomena arose from off-label use of the adopted design patterns.%
+In developing real programs in MIXINv2, three phenomena manifested as off-label use of the adopted design patterns.%
 \footnote{
   MIXINv2 programs adopt two standard patterns:
   data types follow a factory pattern isomorphic to Scala's
