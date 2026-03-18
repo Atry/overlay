@@ -626,8 +626,8 @@ then the downward projections $\ell_{\mathrm{down},*}$ are appended:
     \this(\{p_{\mathrm{site}}\},\; \init(p_{\mathrm{def}}),\; n)
   \;\bigr\}
 \end{multline}
-When multiple routes exist due to multi-target $\this$ resolution,
-they may yield different target paths; all are collected.
+$\resolve$ returns a set rather than a single path because
+$\this$ may resolve to multiple targets.
 We now define $\this$.
 
 \paragraph{Qualified $\this$ resolution}
@@ -729,7 +729,7 @@ evaluation terminates when each query has a finite
 answer domain: the ascending chain condition on the finite
 lattice guarantees
 convergence~\cite{bancilhon1986-recursive-query-strategies},
-as in Datalog (Appendix~\ref{app:datalog-encoding}).
+as in Datalog~\cite{vanemden1976-predicate-logic-semantics}.
 When the hierarchy is infinite, evaluation may
 diverge; this is inherent to Turing completeness.
 Appendix~\ref{app:well-definedness} proves that tabled
@@ -1014,8 +1014,8 @@ stabilizes under $\mathrm{lfp}(T_P)$:%
 }
 tabled evaluation detects the cycle and returns
 $\properties(\mathrm{root}) = \{x, \mathrm{result}\}$
-with no abstraction shape, reflecting an undefined value
-rather than diverging
+---a definite result,
+whereas $\beta$-reduction would diverge
 (Remark~\ref{rem:convergence-lfp}).%
 \footnote{
   We call the sublanguage of inheritance-calculus corresponding
@@ -1076,15 +1076,17 @@ definition.
 \label{sec:expression-problem}
 
 We implemented boolean logic and natural number arithmetic, both unary
-and binary, as MIXINv2
-files\selfcite{~\cite{mixin2025}}{~(supplementary material)}.%
+and binary, in inheritance-calculus.%
 \footnote{
   The examples in this section are rendered in
-  inheritance-calculus notation; the executable MIXINv2 sources are
-  available as supplementary material.
+  inheritance-calculus notation; the executable MIXINv2
+  sources\selfcite{~\cite{mixin2025}}{~(supplementary material)}
+  are available as supplementary material.
 }
 This section traces the unary Nat case in detail.
-The implementation follows a declarative object-oriented style:
+The implementation follows Gang-of-Four design
+patterns~\cite{gamma1994-design-patterns} in a declarative
+object-oriented style:
 each concern is one top-level mixin;
 UpperCamelCase names serve as data constructors and operations;
 lowerCamelCase names serve as fields and parameters;
@@ -1095,11 +1097,6 @@ Operations expose their result through a projection field (e.g., $\mathrm{sum}$)
 \paragraph{NatData}
 The data representation (Zero/Successor) is a Peano
 encoding, an initial algebra of the functor $F(X) = 1 + X$.
-The visitor pattern (NatVisitor, below) adds Church-encoding behavior:
-a fold (catamorphism) over this algebra.
-These two concerns are defined in separate files and composed via
-inheritance\selfcite{~\cite{mixin2025}}{~(supplementary material)},
-which is itself an instance of the Expression Problem.
 Following this convention, we define a factory containing the abstract product type and two
 labels that serve as data constructors.
 A $\mathrm{Zero}$ value inherits $\mathrm{Product}$;
@@ -1189,10 +1186,6 @@ $\mathrm{BooleanData}$ defines the output sort:
 \paragraph{NatEquality}
 \label{sec:nat-equality}
 To test that $2 + 3 = 5$, we needed equality on Nat values.
-The Cartesian product test
-(page~\pageref{sec:case-study-cartesian}) will apply this
-same $\mathrm{Equal}$ to a trie union of multiple Nat
-values without modification.
 $\mathrm{NatEquality}$ inherits $\mathrm{NatVisitor}$ and $\mathrm{BooleanData}$,
 and adds an $\mathrm{Equal}$ operation to each data constructor.
 $\mathrm{Zero}$ is equal only to another $\mathrm{Zero}$;
