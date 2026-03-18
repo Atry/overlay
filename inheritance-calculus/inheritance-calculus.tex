@@ -309,7 +309,7 @@ the functions are computable by
 tabling~\cite{tamaki1986-tabled-resolution}.
 Section~\ref{sec:forward-translation} shows that
 these functions extend to the $\lambda$-calculus, embedding it.
-Remark~\ref{rem:convergence-lfp} derives a convergence hierarchy
+Section~\ref{sec:convergence-hierarchy} derives a convergence hierarchy
 among eager, lazy, and fixpoint
 $\lambda$-calculi sharing the same syntax as a corollary.
 Section~\ref{sec:asymmetry} establishes that the lazy
@@ -372,8 +372,8 @@ notations:
 Both forms retrieve the target scope, that is, the fully inherited record
 after all inheritance has been applied, and then project properties
 $\ell_{\mathrm{down},1}\ldots\ell_{\mathrm{down},k}$ from it.
-The named form desugars to the indexed form during parsing
-(Section~\ref{sec:mixin-trees}).
+The named form desugars to the indexed form during parsing,
+as described in Section~\ref{sec:mixin-trees}.
 
 A new scope level is created at each $\{\ldots\}$ record literal.%
 \footnote{
@@ -475,7 +475,7 @@ With paths in hand, we can state what the AST provides
 at each path.
 
 \paragraph{AST}
-An expression $e$ (Section~\ref{sec:syntax}) is parsed into an AST.
+An expression $e$ from Section~\ref{sec:syntax} is parsed into an AST.
 The AST provides two primitive functions at each path $p$:
 \begin{itemize}
   \item $\defines(p)$: the set of labels $\ell$ for which $p$
@@ -956,6 +956,9 @@ inheritance-calculus.%
   Elements added to satisfy the resolver are harmless
   for the algorithms presented here and may aid readability.
 }
+Turing completeness, however, says nothing about what the
+translation preserves; the next subsection pins down
+the semantic correspondence.
 
 \subsection{B\"ohm Tree Correspondence}
 \label{sec:bohm-tree}
@@ -989,11 +992,28 @@ Appendix~\ref{app:bohm-tree-proofs}.%
 }
 Note that $\approx_\lambda$ quantifies over $\lambda$-calculus
 contexts only; inheritance-calculus contexts are strictly more
-discriminating (Section~\ref{sec:asymmetry}).
-B\"ohm tree equivalence is fully abstract for the
-first-iteration approximation $T_P\!\uparrow\!1$ of the
-equations.
-The full $\mathrm{lfp}(T_P)$ is strictly more defined.
+discriminating, as Section~\ref{sec:asymmetry} establishes.
+The correspondence above holds at the first-iteration
+approximation $T_P\!\uparrow\!1$; we now ask what happens
+at the full least fixed point.
+
+\subsection{Convergence Hierarchy}
+\label{sec:convergence-hierarchy}
+
+Inheritance-calculus has $\mathrm{lfp}(T_P)$ semantics,
+as established in Section~\ref{sec:mixin-trees}.
+Since the $\lambda$-calculus embeds into inheritance-calculus
+via~$\mathcal{T}$, translated $\lambda$-terms inherit the
+same semantics.
+As a corollary, B\"ohm tree equivalence is fully abstract for
+the first-iteration approximation $T_P\!\uparrow\!1$,
+where each equation is evaluated once and re-entrant calls
+return~$\bot$; this corresponds to $\beta$-reduction.
+The full $\mathrm{lfp}(T_P)$ is strictly more defined:
+re-entrant calls that returned~$\varnothing$ at
+$T_P\!\uparrow\!1$ may converge to non-empty sets after
+further iteration.
+
 For example,
 $\mathbf{let}\; x = x \;\mathbf{in}\; x$
 diverges under $\beta$-reduction, but its translation
@@ -1015,28 +1035,31 @@ stabilizes under $\mathrm{lfp}(T_P)$:%
 tabled evaluation detects the cycle and returns
 $\properties(\mathrm{root}) = \{x, \mathrm{result}\}$
 ---a definite result,
-whereas $\beta$-reduction would diverge
-(Remark~\ref{rem:convergence-lfp}).%
+whereas $\beta$-reduction would diverge.
+
+We call the sublanguage of inheritance-calculus corresponding
+to $\lambda$-terms, evaluated under $\mathrm{lfp}(T_P)$ rather than
+$T_P\!\uparrow\!1$, the \emph{fixpoint $\lambda$-calculus}.
+It shares the same syntax as the lazy $\lambda$-calculus but
+has strictly greater computational power:
+$M{\Downarrow}_\lambda$ implies
+$\mathcal{T}(M){\Downarrow}_{\mathrm{lfp}}$,
+but not conversely.
+This establishes a convergence hierarchy
+\begin{equation}\label{eq:convergence-hierarchy}
+  \text{eager} \subsetneq \text{lazy} \subsetneq \text{fixpoint}
+\end{equation}
+among $\lambda$-calculi sharing the same syntax.%
 \footnote{
-  We call the sublanguage of inheritance-calculus corresponding
-  to $\lambda$-terms, evaluated under $\mathrm{lfp}(T_P)$ rather than
-  $T_P\!\uparrow\!1$, the \emph{fixpoint $\lambda$-calculus};
-  Remark~\ref{rem:convergence-lfp} elaborates.
+  Appendix~\ref{app:bohm-tree-proofs},
+  Remark~\ref{rem:convergence-lfp} gives further
+  technical details on the observation granularity
+  of the set-valued semantics.
 }
 
-The relationship between $\approx_\lambda$ and full
-inheritance-contextual equivalence is clarified by the expressive
-asymmetry of the next section:
-contexts in the language universe $\mathscr{U}$
-(Definition~\ref{def:language-universe}) that mix
-$\lambda$-calculus and inheritance-calculus constructors
-can separate $\lambda$-terms that are
-B\"ohm-tree equivalent, so
-${\approx_\lambda} \subsetneq {(\approx_{\mathscr{U}}|_{L_0})}$
-where $L_0$ is the lazy $\lambda$-calculus.
-This gap is precisely the source of inheritance-calculus's
-additional expressiveness
-(Theorem~\ref{thm:cartesian-nonexpressibility}).
+The convergence hierarchy shows that inheritance-calculus is
+at least as expressive as the $\lambda$-calculus.
+The next subsection asks whether the converse holds.
 
 \subsection{Expressive Asymmetry}
 \label{sec:asymmetry}
@@ -1463,7 +1486,7 @@ In developing real programs in MIXINv2, three phenomena manifested as off-label 
 }
 They can be seen in the
 source code\selfcite{~\cite{mixin2025}}{~(supplementary material)}
-and the Case Study (Section~\ref{sec:case-study}).
+and the case study of Section~\ref{sec:case-study}.
 Below we explain why they arise from the three primitives.
 
 \begin{description}
@@ -1473,8 +1496,8 @@ Below we explain why they arise from the three primitives.
     The semantic equations of Section~\ref{sec:mixin-trees}
     resolve every property to a set of paths, so operations
     defined on single values automatically distribute over
-    all combinations of set-valued inputs
-    (Section~\ref{sec:case-study}).
+    all combinations of set-valued inputs,
+    as demonstrated in Section~\ref{sec:case-study}.
     When a mixin tree is viewed as a trie, the correspondence
     with relational algebra becomes precise.
     The carrier is a trie rather than a flat relation, and
@@ -1493,11 +1516,11 @@ Below we explain why they arise from the three primitives.
   \item[Immunity to nonextensibility]\label{item:immunity}
     It is structurally impossible to write a nonextensible program.
     Every construct of inheritance-calculus
-    (Section~\ref{sec:syntax}) is extensible via deep merge
+    from Section~\ref{sec:syntax} is extensible via deep merge
     (equation~\ref{eq:overrides}).
-    The Case Study (Section~\ref{sec:case-study}) and the
-    Expressive Asymmetry (Section~\ref{sec:asymmetry};
-    Theorem~\ref{thm:cartesian-nonexpressibility}) demonstrate
+    The case study of Section~\ref{sec:case-study} and the
+    expressive asymmetry of Section~\ref{sec:asymmetry}
+    (Theorem~\ref{thm:cartesian-nonexpressibility}) demonstrate
     and formalize this: new operations and data types are added,
     and new observable projections are introduced.
     This is the extensibility that the
@@ -1816,7 +1839,7 @@ We examine the three known candidates.
     against the mount context at dereference time, not against the
     layer that defined the link.
     Dynamic scope breaks the $\lambda$-calculus embedding
-    (Section~\ref{sec:forward-translation}).
+    of Section~\ref{sec:forward-translation}.
     The Substitution Lemma (Lemma~\ref{lem:substitution})
     relies on the base case $M = y$ ($y \neq x$):
     the de~Bruijn index $m$ of~$y$ walks up from the
@@ -1865,8 +1888,8 @@ We examine the three known candidates.
     This rejects nested extensions where two independently authored
     modules define the same option, a composition that arises
     when solving the Expression
-    Problem~\cite{wadler1998-expression-problem}
-    (Section~\ref{sec:expression-problem}).
+    Problem~\cite{wadler1998-expression-problem},
+    as Section~\ref{sec:expression-problem} demonstrates.
 
     Our first three implementations of MIXINv2 used
     standard techniques for $\this$ resolution: closure-based
@@ -2295,7 +2318,7 @@ observational semantics of Section~\ref{sec:mixin-trees}.
 \label{sec:practical-modular}
 Plugin systems, component frameworks, and dependency injection frameworks
 enable software extensibility through declarative inheritance. The
-symmetric, associative nature of inheritance (Section~\ref{sec:mixin-trees}) explains why such
+symmetric, associative nature of inheritance established in Section~\ref{sec:mixin-trees} explains why such
 systems work: components can be inherited in any order without changing
 behavior.
 MIXINv2\selfcite{~\cite{mixin2025}}{~(supplementary material)}
@@ -2375,10 +2398,10 @@ inhabit multiple data constructors (e.g.,
 $\{\mathrm{Zero},\; \mathrm{Odd},\; \mathrm{half} \mapsto \mathrm{Zero}\}$).
 This is the natural trie semantics of the
 calculus, and the basis for solving the Expression Problem
-(Section~\ref{sec:expression-problem}).
+in Section~\ref{sec:expression-problem}.
 However, many operations, such as equality testing, assume that values
 are \emph{linear}, inhabiting exactly one data constructor.
-The observer pattern (Section~\ref{sec:case-study}) does not enforce
+The observer pattern of Section~\ref{sec:case-study} does not enforce
 this: applied to a multi-data-constructor value, all callbacks fire and
 their results are inherited.
 
@@ -2456,14 +2479,14 @@ Appendix~\ref{app:lambda-fixpoint} reformulated this
 semantics directly on ANF\@.
 A convergence hierarchy among the eager, lazy, and fixpoint
 $\lambda$-calculi sharing the same $\lambda$-syntax followed
-as a corollary, detailed in Remark~\ref{rem:convergence-lfp}.
+as a corollary in Section~\ref{sec:convergence-hierarchy}.
 
 Inheritance-calculus further gains three phenomena
 that the $\lambda$-calculus cannot express;
 indeed, inheritance-calculus is strictly more expressive
 than the lazy $\lambda$-calculus in Felleisen's
-sense~\cite{felleisen1991-expressive-power}
-(Section~\ref{sec:asymmetry}).
+sense~\cite{felleisen1991-expressive-power},
+as shown in Section~\ref{sec:asymmetry}.
 Section~\ref{sec:expression-problem} established immunity
 to nonextensibility in the sense of the
 Expression Problem~\cite{wadler1998-expression-problem}.
@@ -2694,7 +2717,7 @@ the lazy $\lambda$-calculus.
 Second, the full $\mathrm{lfp}(T_P)$ semantics,
 the fixpoint $\lambda$-calculus, is strictly more defined:
 $\lambda$-terms that diverge under $\beta$-reduction
-may converge (Remark~\ref{rem:convergence-lfp}),
+may converge, as shown in Section~\ref{sec:convergence-hierarchy},
 establishing a convergence hierarchy among the eager,
 lazy, and fixpoint $\lambda$-calculi.
 
